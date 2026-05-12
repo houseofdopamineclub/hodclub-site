@@ -662,6 +662,26 @@ var HOD_BAR_MENU=[{"cat":"Fresh Craft Beer","items":[{"n":"Toit Tint Wit (330 Ml
 // Alcohol is exempt from GST. Tags propagated from menu data: t='food'|'drink', alc=true|false.
 HOD_FOOD_MENU.forEach(function(c){c.items.forEach(function(it){if(it.t===undefined)it.t='food';if(it.alc===undefined)it.alc=false;});});
 HOD_BAR_MENU.forEach(function(c){c.items.forEach(function(it){if(it.t===undefined)it.t='drink';if(it.alc===undefined)it.alc=true;});});
+// SMOKE menu (cigarettes etc.) — placeholder so the SMOKE tab isn't empty.
+// Add real items here when the venue uploads its tobacco SKU list.
+var HOD_SMOKE_MENU=[{"cat":"Cigarettes","items":[{"n":"Cigarette 10 pc","p":460,"t":"drink","alc":false}]}];
+HOD_SMOKE_MENU.forEach(function(c){c.items.forEach(function(it){if(it.t===undefined)it.t='drink';if(it.alc===undefined)it.alc=false;});});
+// Split bar menu into LIQUOR (alcoholic) and NAB (non-alcoholic beverages)
+// for the new 4-tab Digitory layout. Returns the menu data for the active
+// tab; falls back to BAR for unknown tabs.
+function hodGetMenuByTab(tab){
+  if(tab==='food') return HOD_FOOD_MENU;
+  if(tab==='smoke') return HOD_SMOKE_MENU;
+  var split=[];
+  HOD_BAR_MENU.forEach(function(c){
+    var matched=c.items.filter(function(it){
+      var isNab=it.alc===false;
+      return tab==='nab' ? isNab : !isNab;
+    });
+    if(matched.length) split.push({cat:c.cat,items:matched});
+  });
+  return split;
+}
 var HOD_GST_RATE=0.05, HOD_SC_RATE=0.10;
 function hodComputeBreakdown(items){
   var foodSub=0, alcSub=0, nonAlcSub=0;
@@ -4452,15 +4472,57 @@ function renderWalletPage(bookingRef){
       +'.hod-wallet-v2 .wv-vegdot{width:11px !important;height:11px !important;border-radius:2px !important;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;margin-right:8px;}'
       +'.hod-wallet-v2 .wv-vegdot::after{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;display:block;}'
       // Force gold→yellow for any remaining var(--gold) references inside QR-bg circles etc.
-      +'.hod-wallet-v2{color-scheme:dark;}';
+      +'.hod-wallet-v2{color-scheme:dark;}'
+      // ── DIGITORY V3 ADDITIONS ─────────────────────────
+      // Full-bleed deep red header strip (replaces black wv-hdr style)
+      +'.hod-wallet-v2 .wv-hdr2{background:#B83227 !important;color:#fff;padding:14px 18px !important;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}'
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-brand{font-size:13px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;line-height:1.2;color:#fff;}'
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-otp{font-size:12px;font-weight:700;color:rgba(255,255,255,.92);letter-spacing:.4px;margin-top:2px;font-family:var(--fp);}'
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-otp b{color:#F2C744;letter-spacing:1.5px;font-weight:900;}'
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-call{display:flex;align-items:center;gap:8px;color:#fff;font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;background:transparent;border:none;font-family:var(--fs);}'
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-avatar{width:26px;height:26px;border-radius:50%;background:#F2C744;color:#B83227;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;}'
+      // 4-tab solid rectangles like Digitory FOOD/LIQUOR/NAB/SMOKE
+      +'.hod-wallet-v2 .wv-tab4row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;}'
+      +'.hod-wallet-v2 .wv-tab4{padding:22px 6px;border-radius:8px;font-size:12px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;font-family:var(--fs);border:none;text-align:center;transition:all .12s;color:#fff;background:#B83227;line-height:1.1;box-shadow:0 1px 4px rgba(0,0,0,.4);}'
+      +'.hod-wallet-v2 .wv-tab4.on{background:#F2C744 !important;color:#0A0A0A !important;font-weight:900;box-shadow:0 4px 14px rgba(242,199,68,.32);}'
+      +'.hod-wallet-v2 .wv-tab4:active{transform:scale(.97);}'
+      // Filters bar (deep red row above tabs)
+      +'.hod-wallet-v2 .wv-filters{background:#8C2419;color:#fff;padding:13px 16px;border-radius:6px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:pointer;font-size:13px;font-weight:700;letter-spacing:.6px;text-transform:none;}'
+      +'.hod-wallet-v2 .wv-filters .wv-fl-arrow{font-size:11px;opacity:.85;transition:transform .15s;}'
+      +'.hod-wallet-v2 .wv-filters.open .wv-fl-arrow{transform:rotate(180deg);}'
+      +'.hod-wallet-v2 .wv-filters-panel{display:none;background:#0F0F0F;border:1px solid rgba(184,50,39,.4);border-radius:6px;padding:12px 14px;margin-bottom:10px;gap:8px;flex-wrap:wrap;}'
+      +'.hod-wallet-v2 .wv-filters-panel.open{display:flex;}'
+      +'.hod-wallet-v2 .wv-fchip{padding:8px 14px;border-radius:999px;background:#1F1F1F;border:1.5px solid rgba(242,199,68,.3);color:#F5F1E8;font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;font-family:var(--fs);text-transform:uppercase;}'
+      +'.hod-wallet-v2 .wv-fchip.on{background:#F2C744;color:#0A0A0A;border-color:#F2C744;}'
+      // Sub-category chip row (wrapped)
+      +'.hod-wallet-v2 .wv-subrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px;padding:0 4px;}'
+      +'.hod-wallet-v2 .wv-subchip{padding:7px 12px;border-radius:6px;background:transparent;border:1px solid transparent;color:rgba(245,241,232,.85);font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--fs);transition:all .12s;}'
+      +'.hod-wallet-v2 .wv-subchip:hover{color:#F2C744;}'
+      +'.hod-wallet-v2 .wv-subchip.on{border-color:#F2C744;color:#F2C744;background:rgba(242,199,68,.04);}'
+      // Section title above item list (e.g. "MANGO MANIA")
+      +'.hod-wallet-v2 .wv-sectiontitle{font-family:var(--fp);font-size:24px;font-weight:900;color:#F5F1E8;letter-spacing:1.2px;text-transform:uppercase;margin:18px 4px 14px;}'
+      // Bottom fixed View Cart footer (red strip)
+      +'.hod-wallet-v2 .wv-cartfooter{position:fixed;left:0;right:0;bottom:0;z-index:200;background:#B83227;padding:0;font-family:var(--fs);box-shadow:0 -8px 24px rgba(0,0,0,.5);display:none;}'
+      +'.hod-wallet-v2 .wv-cartfooter.show{display:block;}'
+      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-tax{text-align:center;background:#0A0A0A;color:rgba(245,241,232,.55);font-size:11px;padding:7px 12px;letter-spacing:.4px;font-style:italic;}'
+      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-btn{width:100%;padding:16px;background:#B83227;color:#F2C744;font-size:15px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;border:none;cursor:pointer;font-family:var(--fs);display:flex;align-items:center;justify-content:center;gap:10px;}'
+      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-btn .wv-cf-amt{background:#0A0A0A;color:#F2C744;padding:5px 10px;border-radius:6px;font-family:var(--fp);font-size:14px;font-weight:900;letter-spacing:.5px;}'
+      // Reserve bottom space so the fixed footer never covers content
+      +'.hod-wallet-v2{padding-bottom:90px;}';
     document.head.appendChild(st);
   }
 
-  // Header — Digitory black strip with HOD wordmark + Call Waiter pill
+  // Header — Digitory deep-red strip with venue name + ref/OTP left,
+  // Call Waiter + avatar on the right. Ref defaults to wallet/booking ref.
+  // OTP only shown if cv has one (post-checkin); otherwise just the ref.
   var hdr=document.createElement('div');
-  hdr.className='wv-hdr';
-  hdr.innerHTML='<div class="wv-hdr-brand">HOD</div>'
-    +'<button class="wv-hdr-pill" onclick="window.location.href=\'tel:+918882222900\'">📞 Call Waiter</button>';
+  hdr.className='wv-hdr2';
+  // Build header lazily after we know cv — start with just brand.
+  hdr.innerHTML='<div><div class="wv-hd2-brand">House of Dopamine</div>'
+    +'<div class="wv-hd2-otp" id="wv-hd2-ref">&nbsp;</div></div>'
+    +'<button class="wv-hd2-call" onclick="window.location.href=\'tel:+918882222900\'">'
+      +'<span>Call Waiter</span><span class="wv-hd2-avatar">&#9742;</span>'
+    +'</button>';
   wrap.appendChild(hdr);
 
   var inner=document.createElement('div');
@@ -4767,25 +4829,53 @@ function renderWalletPage(bookingRef){
       if(menuQuery.trim()){
         buildMenu(_searchAllMenus(menuQuery));
       } else {
-        buildMenu(tabState.active==='bar'?HOD_BAR_MENU:HOD_FOOD_MENU);
+        buildMenu(hodGetMenuByTab(tabState.active));
       }
     };
     menuSearchWrap.appendChild(menuSearchInp);
     inner.appendChild(menuSearchWrap);
 
-    // Tab switcher: Food / Drinks
-    var tabState={active:'bar'};
+    // ── DIGITORY V3: Filters bar (deep red, collapsible)
+    var filterState={vegOnly:false};
+    var filtersBar=document.createElement('div');
+    filtersBar.className='wv-filters';
+    filtersBar.innerHTML='<span>Filters &nbsp;<span style="font-size:14px;letter-spacing:0;">\u21C5</span></span><span class="wv-fl-arrow">\u25BE</span>';
+    var filtersPanel=document.createElement('div');
+    filtersPanel.className='wv-filters-panel';
+    var vegChip=document.createElement('button');
+    vegChip.className='wv-fchip';
+    vegChip.innerHTML='<span class="wv-vegdot" style="color:#00C864;vertical-align:middle;"></span>Veg only';
+    vegChip.onclick=function(ev){
+      ev.stopPropagation();
+      filterState.vegOnly=!filterState.vegOnly;
+      vegChip.className='wv-fchip'+(filterState.vegOnly?' on':'');
+      menuContent.innerHTML='';buildMenu(currentMenuData());
+    };
+    filtersPanel.appendChild(vegChip);
+    filtersBar.onclick=function(){
+      var open=!filtersBar.classList.contains('open');
+      filtersBar.classList.toggle('open',open);
+      filtersPanel.classList.toggle('open',open);
+    };
+    inner.appendChild(filtersBar);
+    inner.appendChild(filtersPanel);
+
+    // ── DIGITORY V3: 4 hard tabs (FOOD / LIQUOR / NAB / SMOKE)
+    // Default: nightlife = LIQUOR, table booking (dining) = FOOD.
+    var tabState={active:cv.isTableBooking?'food':'liquor', sub:0};
     var tabBar2=document.createElement('div');
-    tabBar2.style.cssText='display:flex;gap:8px;margin-bottom:18px;';
+    tabBar2.className='wv-tab4row';
     var tBtns={};
-    [['bar','🥃 Liquor & Drinks'],['food','🍽 Food']].forEach(function(t){
+    var TABS=[['food','Food'],['liquor','Liquor'],['nab','NAB'],['smoke','Smoke']];
+    TABS.forEach(function(t){
       var btn=document.createElement('button');
-      btn.className='wv-tab '+(t[0]==='bar'?'on':'off');
+      btn.className='wv-tab4'+(t[0]===tabState.active?' on':'');
       btn.textContent=t[1];tBtns[t[0]]=btn;
       btn.onclick=function(){
-        tabState.active=t[0];
-        Object.keys(tBtns).forEach(function(k){tBtns[k].className='wv-tab '+(k===t[0]?'on':'off');});
-        menuQuery='';menuSearchInp.value='';menuContent.innerHTML='';buildMenu(t[0]==='bar'?HOD_BAR_MENU:HOD_FOOD_MENU);
+        tabState.active=t[0];tabState.sub=0;
+        TABS.forEach(function(x){tBtns[x[0]].className='wv-tab4'+(x[0]===t[0]?' on':'');});
+        menuQuery='';menuSearchInp.value='';
+        menuContent.innerHTML='';buildMenu(currentMenuData());
       };
       tabBar2.appendChild(btn);
     });
@@ -4793,69 +4883,101 @@ function renderWalletPage(bookingRef){
 
     var menuContent=document.createElement('div');inner.appendChild(menuContent);
 
+    function currentMenuData(){
+      if(menuQuery.trim()) return _searchAllMenus(menuQuery);
+      return hodGetMenuByTab(tabState.active);
+    }
+    function _applyVegFilter(menuData){
+      if(!filterState.vegOnly) return menuData||[];
+      var out=[];
+      (menuData||[]).forEach(function(c){
+        var hits=c.items.filter(function(it){return it.v===true;});
+        if(hits.length) out.push({cat:c.cat,items:hits});
+      });
+      return out;
+    }
     function buildMenu(menuData){
-      menuData.forEach(function(catObj){
-        // 🔴 2026-05-09 — drop OOS items entirely; if all items in a category are
-        // OOS, skip the category header too (avoids empty / confusing sections).
-        var visible = (catObj.items||[]).filter(function(it){ var ov=_ovFor(it.n); return !(ov && ov.outOfStock); });
-        if(visible.length===0) return;
-        var catDiv=document.createElement('div');catDiv.style.cssText='margin-bottom:8px;';
-        var catHdr=document.createElement('div');
-        catHdr.className='wv-cat';
-        catHdr.style.cssText='display:flex;justify-content:space-between;align-items:center;';
-        catHdr.innerHTML='<div class="wv-cat-name">'+sanitize(catObj.cat)+'</div>'
-          +'<div class="wv-cat-count">'+visible.length+' items \u25be</div>';
-        var itemsDiv=document.createElement('div');itemsDiv.style.cssText='display:none;padding:4px 0;';
-        catHdr.onclick=function(){itemsDiv.style.display=itemsDiv.style.display==='none'?'block':'none';};
-        catDiv.appendChild(catHdr);
+      menuData=_applyVegFilter(menuData);
+      // Drop OOS items + empty cats
+      var visibleCats=[];
+      menuData.forEach(function(c){
+        var v=(c.items||[]).filter(function(it){var ov=_ovFor(it.n);return !(ov&&ov.outOfStock);});
+        if(v.length) visibleCats.push({cat:c.cat,items:v});
+      });
+      if(!visibleCats.length){
+        menuContent.innerHTML='<div style="text-align:center;padding:40px 8px;color:var(--muted);font-size:13px;">No items in this section yet.</div>';
+        return;
+      }
+      if(tabState.sub>=visibleCats.length) tabState.sub=0;
 
-        visible.forEach(function(item){
-          var key=catObj.cat+'|'+item.n;
-          var ov=_ovFor(item.n);
-          var eff=_effPrice(item.n, item.p);
-          var hasDisc = eff !== item.p;
-          var row=document.createElement('div');
-          row.className='wv-row';
-          row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:10px;';
-          var isVeg=item.v===true;
-          var vegDot=typeof item.v!=='undefined'?'<span class="wv-vegdot" style="color:'+(isVeg?'#00C864':'#EF4444')+';"></span>':'';
-          var priceHtml = hasDisc
-            ? '<span style="text-decoration:line-through;color:rgba(255,255,255,.35);margin-right:6px;font-weight:600;">\u20b9'+item.p+'</span>'
-              +'<span style="color:#F2C744;font-weight:900;">\u20b9'+eff+'</span>'
-              +(ov && ov.discountReason ? '<span style="color:rgba(242,199,68,.75);font-size:10px;margin-left:6px;font-weight:600;">\u00b7 '+sanitize(ov.discountReason)+'</span>' : '')
-            : '<span style="color:#F2C744;font-weight:900;">\u20b9'+item.p+'</span>';
-          row.innerHTML='<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;font-size:14px;font-weight:700;color:#F5F1E8;letter-spacing:.2px;">'+vegDot+'<span style="text-transform:uppercase;letter-spacing:.4px;">'+sanitize(item.n)+'</span></div>'
-            +'<div style="font-size:13px;font-family:var(--fp);margin-top:4px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
-          var ctrl=document.createElement('div');ctrl.style.cssText='display:flex;align-items:center;gap:10px;flex-shrink:0;';
-          var qty=cart[key]?cart[key].qty:0;
-          if(qty===0){
-            var addBtn=document.createElement('button');
-            addBtn.className='wv-add';
-            addBtn.textContent='Add +';
-            addBtn.onclick=function(){
-              // Lock in admin's discounted price at add-to-cart.
-              cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:catObj.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
-              updateCartBar();updateTabFooter();buildMenu2(catObj,itemsDiv);
-            };
-            ctrl.appendChild(addBtn);
-          } else {
-            var minB=document.createElement('button');minB.className='wv-qbtn';
-            minB.textContent='\u2212';
-            minB.onclick=function(){
-              if(cart[key].qty>1)cart[key].qty--;else delete cart[key];
-              updateCartBar();updateTabFooter();buildMenu2(catObj,itemsDiv);
-            };
-            var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
-            var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
-            plusB.onclick=function(){
-              if(!cart[key])cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:catObj.cat,qty:0,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
-              cart[key].qty++;updateCartBar();updateTabFooter();buildMenu2(catObj,itemsDiv);
-            };
-            ctrl.appendChild(minB);ctrl.appendChild(qtySpan);ctrl.appendChild(plusB);
-          }
-          row.appendChild(ctrl);itemsDiv.appendChild(row);
-        });
-        catDiv.appendChild(itemsDiv);menuContent.appendChild(catDiv);
+      // Sub-category chip row (wrapped, all visible)
+      var subRow=document.createElement('div');
+      subRow.className='wv-subrow';
+      visibleCats.forEach(function(c,i){
+        var chip=document.createElement('button');
+        chip.className='wv-subchip'+(i===tabState.sub?' on':'');
+        chip.textContent=c.cat;
+        chip.onclick=function(){tabState.sub=i;menuContent.innerHTML='';buildMenu(menuData);};
+        subRow.appendChild(chip);
+      });
+      menuContent.appendChild(subRow);
+
+      var active=visibleCats[tabState.sub];
+
+      // Section title (uppercase, white)
+      var st=document.createElement('div');
+      st.className='wv-sectiontitle';
+      st.textContent=active.cat;
+      menuContent.appendChild(st);
+
+      var listWrap=document.createElement('div');
+      menuContent.appendChild(listWrap);
+
+      active.items.forEach(function(item){
+        var key=active.cat+'|'+item.n;
+        var ov=_ovFor(item.n);
+        var eff=_effPrice(item.n,item.p);
+        var hasDisc=eff!==item.p;
+        var row=document.createElement('div');
+        row.className='wv-row';
+        row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:10px;';
+        var isVeg=item.v===true;
+        var vegDot=typeof item.v!=='undefined'?'<span class="wv-vegdot" style="color:'+(isVeg?'#00C864':'#EF4444')+';"></span>':'';
+        var priceHtml=hasDisc
+          ? '<span style="text-decoration:line-through;color:rgba(255,255,255,.35);margin-right:6px;font-weight:600;">\u20b9'+item.p+'</span>'
+            +'<span style="color:#fff;font-weight:800;">\u20b9'+eff+'</span>'
+            +(ov && ov.discountReason ? '<span style="color:rgba(242,199,68,.75);font-size:10px;margin-left:6px;font-weight:600;">\u00b7 '+sanitize(ov.discountReason)+'</span>' : '')
+          : '<span style="color:#fff;font-weight:800;">\u20b9'+item.p+'</span>';
+        row.innerHTML='<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;font-size:13px;font-weight:800;color:#F5F1E8;letter-spacing:.4px;">'+vegDot+'<span style="text-transform:uppercase;">'+sanitize(item.n)+'</span></div>'
+          +'<div style="font-size:13px;font-family:var(--fp);margin-top:6px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
+        var ctrl=document.createElement('div');ctrl.style.cssText='display:flex;align-items:center;gap:10px;flex-shrink:0;';
+        var qty=cart[key]?cart[key].qty:0;
+        if(qty===0){
+          var addBtn=document.createElement('button');
+          addBtn.className='wv-add';
+          addBtn.textContent='Add +';
+          addBtn.onclick=function(){
+            cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
+            updateCartBar();updateTabFooter();
+            menuContent.innerHTML='';buildMenu(menuData);
+          };
+          ctrl.appendChild(addBtn);
+        } else {
+          var minB=document.createElement('button');minB.className='wv-qbtn';minB.textContent='\u2212';
+          minB.onclick=function(){
+            if(cart[key].qty>1)cart[key].qty--;else delete cart[key];
+            updateCartBar();updateTabFooter();
+            menuContent.innerHTML='';buildMenu(menuData);
+          };
+          var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
+          var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
+          plusB.onclick=function(){
+            cart[key].qty++;updateCartBar();updateTabFooter();
+            menuContent.innerHTML='';buildMenu(menuData);
+          };
+          ctrl.appendChild(minB);ctrl.appendChild(qtySpan);ctrl.appendChild(plusB);
+        }
+        row.appendChild(ctrl);listWrap.appendChild(row);
       });
     }
 
@@ -4916,12 +5038,12 @@ function renderWalletPage(bookingRef){
               if(cart[k].qty>1)cart[k].qty--;else delete cart[k];
               updateCartBar();updateTabFooter();
               // Rebuild current menu to reflect changes
-              menuContent.innerHTML='';buildMenu(menuQuery.trim()?_searchAllMenus(menuQuery):(tabState.active==='bar'?HOD_BAR_MENU:HOD_FOOD_MENU));
+              menuContent.innerHTML='';buildMenu(currentMenuData());
             };
             plusB.onclick=function(){
               cart[k].qty++;
               updateCartBar();updateTabFooter();
-              menuContent.innerHTML='';buildMenu(menuQuery.trim()?_searchAllMenus(menuQuery):(tabState.active==='bar'?HOD_BAR_MENU:HOD_FOOD_MENU));
+              menuContent.innerHTML='';buildMenu(currentMenuData());
             };
           })(key);
           controls.appendChild(minB);controls.appendChild(qtySpan);controls.appendChild(plusB);controls.appendChild(priceSpan);
@@ -5344,7 +5466,45 @@ function renderWalletPage(bookingRef){
       });
     }
 
-    buildMenu(HOD_BAR_MENU);
+    buildMenu(currentMenuData());
+
+    // ── DIGITORY V3: bottom fixed View Cart footer (red strip + tax line)
+    var cartFooter=wrap.querySelector('.wv-cartfooter');
+    if(!cartFooter){
+      cartFooter=document.createElement('div');
+      cartFooter.className='wv-cartfooter';
+      cartFooter.innerHTML='<button class="wv-cf-btn" type="button">'
+        +'<span id="wv-cf-label">View Cart</span>'
+        +'<span class="wv-cf-amt" id="wv-cf-amt">\u20b90</span>'
+        +'</button>'
+        +'<div class="wv-cf-tax">Government taxes as applicable.</div>';
+      cartFooter.querySelector('button').onclick=function(){
+        var pb=document.getElementById('tab-place-btn');
+        if(pb) pb.scrollIntoView({behavior:'smooth',block:'center'});
+      };
+      wrap.appendChild(cartFooter);
+    }
+    function updateCartFooter(){
+      var n=Object.values(cart).reduce(function(a,it){return a+it.qty;},0);
+      var amtEl=document.getElementById('wv-cf-amt');
+      var lblEl=document.getElementById('wv-cf-label');
+      if(!amtEl||!lblEl||!cartFooter) return;
+      if(n<=0){cartFooter.classList.remove('show');return;}
+      cartFooter.classList.add('show');
+      lblEl.textContent='View Cart \u00b7 '+n+' item'+(n>1?'s':'');
+      amtEl.textContent='\u20b9'+getCartTotal().toLocaleString('en-IN');
+    }
+    // Patch updateCartBar so the bottom footer always stays in sync.
+    var _origUpdateCartBar=updateCartBar;
+    updateCartBar=function(){_origUpdateCartBar();updateCartFooter();};
+    updateCartFooter();
+
+    // Populate red header ref (#REF) once cv is known
+    var refEl=document.getElementById('wv-hd2-ref');
+    if(refEl){
+      var refTxt=cv.ref||cv.bookingId||cv.id||'';
+      refEl.innerHTML=refTxt?('#'+sanitize(refTxt)):'&nbsp;';
+    }
   }
 
   function showCheckout(cv,bal,tabRounds,tabRunningTotal){
