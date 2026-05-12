@@ -5644,12 +5644,17 @@ function renderWalletPage(bookingRef){
 
 
 // ── LOCAL QR FOR MY BOOKINGS
+// Size auto-adapts to its container so legacy 140x140 wrappers (#order-qr-popup,
+// #ticket-qr-wrap, #gl-qr-wrap) and the new 180x180 wallet wrap both render
+// without cropping. Falls back to 140 if container measurement isn't ready.
 function generateLocalQR(elId,data){
   setTimeout(function(){
     var qEl=document.getElementById(elId);
     if(qEl&&typeof QRCode!=='undefined'&&!qEl.hasAttribute('data-qr')){
       qEl.setAttribute('data-qr','1');
-      new QRCode(qEl,{text:data,width:160,height:160,colorDark:'#000000',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
+      var w=qEl.clientWidth||140, h=qEl.clientHeight||140;
+      var sz=Math.max(96,Math.min(w,h)-8); // small inner margin so QR never touches edge
+      new QRCode(qEl,{text:data,width:sz,height:sz,colorDark:'#000000',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
     }
   },500);
 }
