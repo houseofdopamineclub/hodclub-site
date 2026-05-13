@@ -776,11 +776,20 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
 // for the new 4-tab Digitory layout. Returns the menu data for the active
 // tab; falls back to BAR for unknown tabs.
 function hodGetMenuByTab(tab){
-  if(tab==='food') return HOD_FOOD_MENU;
-  if(tab==='smoke') return HOD_SMOKE_MENU;
+  // 2026-05-13 — guard against ReferenceError when the live-menu Firestore
+  // IIFE hasn't finished priming window.HOD_*_MENU yet (the bar globals are
+  // assigned in a microtask, and a fast tap on Liquor/NAB/Smoke before that
+  // microtask flushes used to throw "HOD_BAR_MENU is not defined" and crash
+  // the whole wallet). Reading via window.* + falling back to the baked-in
+  // _FALLBACK arrays makes this never throw, regardless of init order.
+  var FOOD = (typeof window!=='undefined' && window.HOD_FOOD_MENU) || (typeof HOD_FOOD_MENU_FALLBACK!=='undefined' ? HOD_FOOD_MENU_FALLBACK : []);
+  var BAR  = (typeof window!=='undefined' && window.HOD_BAR_MENU)  || (typeof HOD_BAR_MENU_FALLBACK !=='undefined' ? HOD_BAR_MENU_FALLBACK  : []);
+  var SMK  = (typeof window!=='undefined' && window.HOD_SMOKE_MENU)|| (typeof HOD_SMOKE_MENU_FALLBACK!=='undefined' ? HOD_SMOKE_MENU_FALLBACK: []);
+  if(tab==='food') return FOOD;
+  if(tab==='smoke') return SMK;
   var split=[];
-  HOD_BAR_MENU.forEach(function(c){
-    var matched=c.items.filter(function(it){
+  BAR.forEach(function(c){
+    var matched=(c.items||[]).filter(function(it){
       var isNab=it.alc===false;
       return tab==='nab' ? isNab : !isNab;
     });
@@ -4825,7 +4834,11 @@ function renderWalletPage(bookingRef){
     var _isActivated=cv.checkedIn||cv.coverActivated>0;
     var _qrSub=cv.isTableBooking?'Show to your captain to activate orders.':(_isActivated?'Show this QR to the bartender to order.':'Show this at the entrance to check in.');
     var _walletNote=cv.isTableBooking?'':(!_isActivated?'<div style="font-size:11px;background:rgba(242,199,68,.08);border:1px solid rgba(242,199,68,.2);border-radius:8px;padding:6px 10px;margin-top:8px;color:rgba(242,199,68,.8);">⏳ Your wallet activates when you arrive at HOD</div>':'');
-    qrInfo2.innerHTML='<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px;">Your HOD QR Code</div>'
+    // 2026-05-13 (Khushi spec) — show the guest's name prominently above the
+    // QR card so the captain can verify identity at a glance before scanning.
+    var _guestName=sanitize(cv.name||'Guest');
+    qrInfo2.innerHTML='<div style="font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);margin-bottom:8px;letter-spacing:.3px;line-height:1.2;">'+_guestName+'</div>'
+      +'<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px;">Your HOD QR Code</div>'
       +'<div style="font-size:11px;color:var(--muted);line-height:1.5;">'+_qrSub+'</div>'
       +_walletNote
       +'<div style="font-size:11px;color:var(--gold);margin-top:6px;font-family:monospace;letter-spacing:1px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>';
@@ -4922,8 +4935,11 @@ function renderWalletPage(bookingRef){
       return out;
     }
     function _searchAllMenus(q){
-      var f=_filterMenu(HOD_FOOD_MENU,q);
-      var b=_filterMenu(HOD_BAR_MENU,q);
+      // Same defensive read as hodGetMenuByTab — never crash on first paint.
+      var _FOOD=(window.HOD_FOOD_MENU||(typeof HOD_FOOD_MENU_FALLBACK!=='undefined'?HOD_FOOD_MENU_FALLBACK:[]));
+      var _BAR=(window.HOD_BAR_MENU||(typeof HOD_BAR_MENU_FALLBACK!=='undefined'?HOD_BAR_MENU_FALLBACK:[]));
+      var f=_filterMenu(_FOOD,q);
+      var b=_filterMenu(_BAR,q);
       // Tag categories so user can tell food vs drink in unified view
       var out=[];
       f.forEach(function(c){out.push({cat:'\ud83c\udf7d '+c.cat,items:c.items});});
@@ -5172,16 +5188,59 @@ function renderWalletPage(bookingRef){
       placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
       submitCard.appendChild(placeBtn);
 
+      // 2026-05-13 (Khushi spec, v2) — Done Ordering: keep Digitory red but
+      // refine the typography so it doesn't shout. Headline now uses Playfair
+      // (matches HOD wordmark, less aggressive than condensed sans), softer
+      // padding, gentler shadow. Subtitle moved out of the button into a
+      // dedicated tax-hint pill underneath that ALSO restores the
+      // "Inclusive of all taxes" line that used to live in the (now removed)
+      // bottom cart bar — guests were complaining nothing told them the
+      // sticker prices already include GST + service charge.
+      var checkoutWrap=document.createElement('div');
+      checkoutWrap.id='tab-checkout-wrap';
+      checkoutWrap.style.cssText=cv.isTableBooking?'':'display:none;';
+
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
-      // 2026-05-13 (Khushi spec) — Done Ordering box recoloured to Digitory
-      // red and the headline font sized/weighted to match PLACE ORDER above
-      // (mirrors `.wv-place`: 18px padding, 15px / weight 900 / 1.2px tracking
-      // / uppercase, font-family var(--fs)). The "Tap to settle your final
-      // bill" subline keeps a softer secondary style so the CTA reads first.
-      checkoutBtn.style.cssText='width:100%;padding:18px;border-radius:14px;background:#B83227;border:2px solid #B83227;color:#fff;font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--fs);box-shadow:0 6px 22px rgba(184,50,39,.32);'+(cv.isTableBooking?'':'display:none;');
-      checkoutBtn.innerHTML='🧾  Done Ordering? <span style="font-size:11px;opacity:.85;font-weight:700;letter-spacing:.5px;text-transform:none;font-family:var(--fs);">Tap to settle your final bill</span>';
-      submitCard.appendChild(checkoutBtn);
+      checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:14px;background:linear-gradient(180deg,#C03A2D,#9E1F14);border:1px solid rgba(255,255,255,.08);color:#fff;cursor:pointer;font-family:var(--fp);font-size:18px;font-weight:700;letter-spacing:.5px;box-shadow:0 4px 14px rgba(184,50,39,.28),inset 0 1px 0 rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;gap:10px;';
+      checkoutBtn.innerHTML='<span style="font-size:18px;">🧾</span><span>Done Ordering</span>';
+      checkoutWrap.appendChild(checkoutBtn);
+
+      // Tax-hint pill: small, italic, muted — restores the "Inclusive of all
+      // taxes ▾ view breakdown" affordance that was lost when the bottom
+      // cart bar was removed. Tap to expand a per-line GST/SC/CGST breakdown
+      // (computed from current cart via hodComputeBreakdown). Pure CSS open
+      // state — no extra modal, no extra page, no re-render.
+      var taxHint=document.createElement('div');
+      taxHint.id='tab-checkout-taxhint';
+      taxHint.style.cssText='margin-top:8px;padding:8px 12px;background:rgba(245,241,232,.04);border:1px solid rgba(245,241,232,.08);border-radius:10px;text-align:center;font-size:11px;color:rgba(245,241,232,.55);font-style:italic;letter-spacing:.3px;cursor:pointer;font-family:var(--fs);user-select:none;';
+      taxHint.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25be view breakdown</span>';
+      var taxBox=document.createElement('div');
+      taxBox.id='tab-checkout-taxbox';
+      taxBox.style.cssText='display:none;margin-top:6px;padding:10px 14px;background:rgba(0,0,0,.3);border:1px solid rgba(245,241,232,.08);border-radius:10px;font-size:11px;color:rgba(245,241,232,.7);font-family:var(--fs);line-height:1.7;';
+      taxHint.onclick=function(){
+        var open=taxBox.style.display==='block';
+        if(open){taxBox.style.display='none';taxHint.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25be view breakdown</span>';return;}
+        // Recompute from current rounds (placed orders) on demand.
+        try{
+          var allItems=[];
+          (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
+          var bd=hodComputeBreakdown(allItems);
+          var rows='';
+          if(bd.foodSubtotal>0) rows+='<div style="display:flex;justify-content:space-between;"><span>Food subtotal</span><span>\u20B9'+bd.foodSubtotal.toFixed(0)+'</span></div>';
+          if(bd.alcSubtotal>0)  rows+='<div style="display:flex;justify-content:space-between;"><span>Liquor subtotal</span><span>\u20B9'+bd.alcSubtotal.toFixed(0)+'</span></div>';
+          if(bd.nonAlcSubtotal>0) rows+='<div style="display:flex;justify-content:space-between;"><span>Beverages subtotal</span><span>\u20B9'+bd.nonAlcSubtotal.toFixed(0)+'</span></div>';
+          rows+='<div style="display:flex;justify-content:space-between;"><span>Service charge (10%)</span><span>\u20B9'+bd.serviceCharge.toFixed(0)+'</span></div>';
+          rows+='<div style="display:flex;justify-content:space-between;"><span>GST (5%)</span><span>\u20B9'+bd.gst.toFixed(0)+'</span></div>';
+          rows+='<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(245,241,232,.12);margin-top:6px;padding-top:6px;color:var(--gold);font-weight:700;"><span>Grand total</span><span>\u20B9'+bd.grandTotal+'</span></div>';
+          taxBox.innerHTML=rows||'<div style="text-align:center;opacity:.6;">No items ordered yet.</div>';
+        }catch(e){taxBox.innerHTML='<div style="text-align:center;opacity:.6;">Breakdown unavailable.</div>';}
+        taxBox.style.display='block';
+        taxHint.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25B4 hide breakdown</span>';
+      };
+      checkoutWrap.appendChild(taxHint);
+      checkoutWrap.appendChild(taxBox);
+      submitCard.appendChild(checkoutWrap);
 
       inner.appendChild(submitCard);
 
@@ -6254,20 +6313,121 @@ function renderTopUpContent(card, cv, diffAmt){
 function renderTableReservations(){
   return renderTableFloorPlan();
 }
-// showCaptainFeedback — captain-side feedback form moved to POS. Wallet's
-// "Pay at Table" still calls this after clearing inner; render a friendly
-// confirmation so the customer never sees a blank screen.
+// showCaptainFeedback — friendly post-payment confirmation. Now also embeds
+// a quick 5-star feedback form (Khushi spec 2026-05-13). The form writes to
+// Firestore `customerFeedback`, and if the guest rates >= 4 stars overall
+// they're nudged toward the Google My Business review link to convert
+// happy guests into public reviews. <4 stars they get a thank-you so the
+// venue privately captures the gripe without amplifying it publicly.
 function showCaptainFeedback(container, total){
   if(!container) return;
   var card=document.createElement('div');
-  card.style.cssText='padding:36px 22px;text-align:center;color:#fff;font-family:var(--fs);';
+  card.style.cssText='padding:36px 22px 18px;text-align:center;color:#fff;font-family:var(--fs);';
   var amt=(typeof total==='number'&&total>0) ? '<div style="font-size:13px;color:#888;margin-top:6px;">Order Total · ₹'+total.toLocaleString('en-IN')+'</div>' : '';
   card.innerHTML='<div style="font-size:48px;margin-bottom:14px;">✨</div>'
     +'<div style="font-size:20px;font-weight:800;color:#C9A84C;font-family:var(--fp);margin-bottom:8px;">Captain on the way</div>'
     +'<div style="font-size:14px;color:#aaa;line-height:1.5;max-width:320px;margin:0 auto;">Your captain has been notified. They will be at your table shortly to settle the bill.</div>'
     +amt
-    +'<div style="margin-top:24px;font-size:12px;color:#666;">Thank you for visiting House of Dopamine</div>';
+    +'<div style="margin-top:18px;font-size:12px;color:#666;">Thank you for visiting House of Dopamine</div>';
   container.appendChild(card);
+  try{ renderHodFeedbackForm(container, total); }catch(e){ /* never break the confirmation */ }
+}
+
+// ── Quick 5-star feedback form, shown after every settled bill.
+// Design intent (Khushi 2026-05-13):
+//   • 3-4 simple lines — one overall star row + one short comment box.
+//   • If user picks 4 or 5 stars → reveal a Google My Business CTA so we
+//     funnel happy guests into public reviews. Link is fixed to the HOD
+//     listing: https://g.page/r/CczYuUNkvmDgEBM/review
+//   • Anything below 4 stars → store privately in Firestore so the team can
+//     follow up, but DO NOT show the public review link (don't amplify
+//     unhappy guests on Google).
+//   • Booking ref is parsed from URL (`?wallet=...` or `?ref=...`) so we
+//     don't need to thread cv through every call site.
+function renderHodFeedbackForm(container, total){
+  if(!container) return;
+  // Idempotent: if a form already exists in this container, don't add another.
+  if(container.querySelector('#hod-feedback-card')) return;
+  var bookingRef='';
+  try{
+    var qp=new URLSearchParams(location.search||'');
+    bookingRef=qp.get('wallet')||qp.get('ref')||qp.get('verify')||'';
+  }catch(e){}
+  var wrap=document.createElement('div');
+  wrap.id='hod-feedback-card';
+  wrap.style.cssText='max-width:380px;margin:14px auto 28px;padding:20px 18px;background:#141414;border:1.5px solid rgba(242,199,68,.22);border-radius:16px;font-family:var(--fs);text-align:center;color:#fff;';
+  wrap.innerHTML=''
+    +'<div style="font-family:var(--fp);font-size:17px;font-weight:800;color:#C9A84C;margin-bottom:4px;">How was your evening?</div>'
+    +'<div style="font-size:12px;color:#888;margin-bottom:14px;line-height:1.5;">A 10-second rating helps us serve you better next time.</div>'
+    +'<div id="hod-fb-stars" style="display:flex;justify-content:center;gap:8px;margin-bottom:14px;font-size:32px;cursor:pointer;user-select:none;line-height:1;">'
+      +'<span data-r="1" style="opacity:.35;">★</span>'
+      +'<span data-r="2" style="opacity:.35;">★</span>'
+      +'<span data-r="3" style="opacity:.35;">★</span>'
+      +'<span data-r="4" style="opacity:.35;">★</span>'
+      +'<span data-r="5" style="opacity:.35;">★</span>'
+    +'</div>'
+    +'<textarea id="hod-fb-note" placeholder="One line about your experience (optional)" style="width:100%;min-height:54px;padding:10px 12px;background:#0c0c0c;border:1px solid rgba(245,241,232,.12);border-radius:10px;color:#fff;font-family:var(--fs);font-size:13px;resize:none;outline:none;box-sizing:border-box;margin-bottom:12px;"></textarea>'
+    +'<button id="hod-fb-submit" disabled style="width:100%;padding:13px;border-radius:12px;background:#C9A84C;color:#0c0c0c;border:none;font-family:var(--fs);font-size:14px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;cursor:pointer;opacity:.45;transition:opacity .2s;">Submit Feedback</button>'
+    +'<div id="hod-fb-result" style="display:none;margin-top:14px;"></div>';
+  container.appendChild(wrap);
+
+  var rating=0;
+  var stars=wrap.querySelectorAll('#hod-fb-stars span');
+  var submitBtn=wrap.querySelector('#hod-fb-submit');
+  var note=wrap.querySelector('#hod-fb-note');
+  var result=wrap.querySelector('#hod-fb-result');
+
+  function paintStars(n){
+    stars.forEach(function(s){
+      var v=parseInt(s.getAttribute('data-r'),10);
+      if(v<=n){ s.style.opacity='1'; s.style.color='#F2C744'; s.style.transform='scale(1.05)'; }
+      else    { s.style.opacity='.35'; s.style.color='#fff'; s.style.transform='scale(1)'; }
+    });
+  }
+  stars.forEach(function(s){
+    s.onmouseover=function(){ paintStars(parseInt(s.getAttribute('data-r'),10)); };
+    s.onmouseout =function(){ paintStars(rating); };
+    s.onclick    =function(){ rating=parseInt(s.getAttribute('data-r'),10); paintStars(rating); submitBtn.disabled=false; submitBtn.style.opacity='1'; };
+  });
+
+  submitBtn.onclick=function(){
+    if(!rating){ return; }
+    submitBtn.disabled=true; submitBtn.textContent='Sending…'; submitBtn.style.opacity='.6';
+    var payload={
+      rating:rating,
+      comment:(note.value||'').slice(0,500),
+      bookingRef:bookingRef,
+      orderTotal:(typeof total==='number'?total:0),
+      submittedAt:new Date().toISOString(),
+      ua:(navigator&&navigator.userAgent||'').slice(0,200)
+    };
+    function done(){
+      var isHappy=rating>=4;
+      result.style.display='block';
+      if(isHappy){
+        result.innerHTML=''
+          +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
+          +'<div style="font-family:var(--fp);font-size:16px;font-weight:800;color:#C9A84C;margin-bottom:6px;">Glad you loved it!</div>'
+          +'<div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:14px;">Would you take 30 seconds to share that on Google? It genuinely helps a small team like ours.</div>'
+          +'<a href="https://g.page/r/CczYuUNkvmDgEBM/review" target="_blank" rel="noopener" style="display:inline-block;padding:12px 22px;background:#fff;color:#1a73e8;border-radius:10px;font-family:var(--fs);font-size:13px;font-weight:900;letter-spacing:.4px;text-decoration:none;border:1px solid #dadce0;box-shadow:0 2px 6px rgba(0,0,0,.25);">⭐ Rate us on Google</a>';
+      }else{
+        result.innerHTML=''
+          +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
+          +'<div style="font-family:var(--fp);font-size:16px;font-weight:800;color:#C9A84C;margin-bottom:6px;">Thank you for the honest feedback.</div>'
+          +'<div style="font-size:12px;color:#aaa;line-height:1.5;">Our manager will personally review your note. We will do better next time.</div>';
+      }
+      // Hide the form controls so the screen settles on the result.
+      wrap.querySelector('#hod-fb-stars').style.display='none';
+      note.style.display='none';
+      submitBtn.style.display='none';
+    }
+    try{
+      if(window.firebase && window.firebase.firestore){
+        window.firebase.firestore().collection('customerFeedback').add(payload)
+          .then(done).catch(function(){ done(); });
+      }else{ done(); }
+    }catch(e){ done(); }
+  };
 }
 
 // Initial paint. The events-listener only re-renders when view==='home',
