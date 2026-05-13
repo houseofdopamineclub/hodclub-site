@@ -407,8 +407,11 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- Chart.js — analytics dashboard -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<!-- EmailJS SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js" crossorigin="anonymous"></script>
+<!-- 🔴 2026-05-13 (Khushi) — EmailJS SDK removed. Customers were getting
+     the OLD Gmail/EmailJS template (template_wtp5oik) when ZeptoMail
+     errored or timed out. ZeptoMail (cloud-fn sendBookingEmail) is now
+     the ONLY transport. No fallback — if ZeptoMail fails the email is
+     not sent (and we surface the error in the console for debugging). -->
 <!-- Razorpay SDK -->
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <!-- Firebase SDK v9 compat -->
@@ -916,45 +919,33 @@ function _hodFlattenRounds(rounds){
   (rounds||[]).forEach(function(rd){ (rd.items||[]).forEach(function(it){ out.push(it); }); });
   return out;
 }
-var EMAILJS_PUBLIC_KEY  = "2A_vSCA2nJ3CQUxRu";
-var EMAILJS_SERVICE_ID  = "service_xxbd4i9";
-var EMAILJS_TEMPLATE_ID = "template_wtp5oik";
-
+// 🔴 2026-05-13 (Khushi) — EmailJS constants removed. ZeptoMail-only.
 // ══════════════════════════════════════════════════
 // ⚡ ZEPTOMAIL CLOUD FUNCTION URL (10,000 free emails/month)
-// After deploying cloud-functions/, paste the URL here.
-// Leave empty to use EmailJS fallback (200/mo limit).
+// Hosted in the separate `hod-tickets` Firebase project.
 // ══════════════════════════════════════════════════
 var CLOUD_FN_EMAIL_URL = "https://us-central1-hod-tickets.cloudfunctions.net/sendBookingEmail";
 
-// ── Unified email sender: ZeptoMail (Cloud Fn) → EmailJS fallback
+// ── ZeptoMail-only email sender. NO fallback (the old EmailJS path was
+// firing the wrong "Gmail" template to customers whenever ZeptoMail had
+// any hiccup, so the customer-facing template was inconsistent). If
+// ZeptoMail fails we log a warning; the booking still completes.
 function _HOD_sendMail(params){
   return new Promise(function(resolve){
-    var sentVia = null;
-    function viaEmailJS(){
-      try{
-        if(typeof emailjs==='undefined' || !EMAILJS_PUBLIC_KEY || EMAILJS_PUBLIC_KEY.includes('PASTE')){
-          resolve({ok:false, via:'none'}); return;
-        }
-        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params)
-          .then(function(r){console.log('✉️  via EmailJS', r.status); resolve({ok:true, via:'emailjs'});})
-          .catch(function(e){console.warn('EmailJS failed:', e); resolve({ok:false, via:'emailjs', error:e});});
-      }catch(e){resolve({ok:false, via:'emailjs', error:e});}
+    if(!CLOUD_FN_EMAIL_URL || !/^https:\/\//.test(CLOUD_FN_EMAIL_URL)){
+      console.warn('✉️  CLOUD_FN_EMAIL_URL not configured — email NOT sent');
+      resolve({ok:false, via:'none'}); return;
     }
-    if(CLOUD_FN_EMAIL_URL && /^https:\/\//.test(CLOUD_FN_EMAIL_URL)){
-      try{
-        fetch(CLOUD_FN_EMAIL_URL, {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(params)
-        }).then(function(r){
-          if(r.ok){console.log('✉️  via ZeptoMail'); resolve({ok:true, via:'zeptomail'});}
-          else { console.warn('ZeptoMail HTTP', r.status, '— falling back to EmailJS'); viaEmailJS(); }
-        }).catch(function(e){console.warn('ZeptoMail network error:', e, '— falling back'); viaEmailJS();});
-      }catch(e){viaEmailJS();}
-    } else {
-      viaEmailJS();
-    }
+    try{
+      fetch(CLOUD_FN_EMAIL_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(params)
+      }).then(function(r){
+        if(r.ok){console.log('✉️  via ZeptoMail'); resolve({ok:true, via:'zeptomail'});}
+        else { console.warn('✉️  ZeptoMail HTTP', r.status, '— email NOT sent (no fallback)'); resolve({ok:false, via:'zeptomail', status:r.status}); }
+      }).catch(function(e){console.warn('✉️  ZeptoMail network error:', e, '— email NOT sent (no fallback)'); resolve({ok:false, via:'zeptomail', error:e});});
+    }catch(e){console.warn('✉️  ZeptoMail threw:', e); resolve({ok:false, via:'zeptomail', error:e});}
   });
 }
 
@@ -977,28 +968,14 @@ function _HOD_sendWhatsAppTemplate(phone, template, params){
   }catch(e){console.warn('WA send threw:', e);}
 }
 
-// ── Init EmailJS
-(function(){
-  try{
-    if(EMAILJS_PUBLIC_KEY && !EMAILJS_PUBLIC_KEY.includes('PASTE')){
-      // Support both v3 and v4 EmailJS API
-      if(emailjs.init.length === 1 && typeof emailjs.init === 'function'){
-        try{emailjs.init({publicKey: EMAILJS_PUBLIC_KEY});}
-        catch(e2){emailjs.init(EMAILJS_PUBLIC_KEY);}
-      } else {
-        emailjs.init(EMAILJS_PUBLIC_KEY);
-      }
-      console.log('✅ EmailJS ready — booking confirmations will be emailed');
-    } else {
-      console.log('ℹ️ EmailJS not configured');
-    }
-  }catch(e){console.warn('EmailJS init error:',e);}
-})();
+// 🔴 2026-05-13 (Khushi) — EmailJS init block removed. ZeptoMail is the
+// only transport now (sendBookingEmail cloud function in hod-tickets).
+console.log('✅ Email transport: ZeptoMail only (no EmailJS fallback)');
 
-// ── Send booking confirmation email
+// ── Send booking confirmation email (ZeptoMail only — see _HOD_sendMail)
 function sendBookingEmail(booking, eventTitle, eventDate, eventTime, eventVenue, ev){
   try{
-    if(!EMAILJS_PUBLIC_KEY || EMAILJS_PUBLIC_KEY.includes('PASTE')) return;
+    if(!CLOUD_FN_EMAIL_URL) return;
     // ── BUG FIX: Use event-specific prices, not hardcoded values
     var stagPr=(ev&&ev.stagPrice)||999;
     var couplePr=(ev&&ev.couplePrice)||1499;
@@ -1692,10 +1669,10 @@ function renderHome(){
   sec.appendChild(secHead);
 
   // Load events — use Firebase cache if available, else localStorage
+  // 🔴 2026-05-13 (Khushi) — Past tab removed entirely (was loading 50+
+  // poster images and slowing the homepage). pastEvs no longer computed.
   var allPublished=(S._cachedEvents||db.events).filter(function(e){return e.published;}).sort(function(a,b){return a.date<b.date?-1:1;});
-  // Split using isEventPast — checks actual end time not just date
-  var pub=allPublished.filter(function(e){return !isEventPast(e);});  // upcoming: soonest first
-  var pastEvs=allPublished.filter(function(e){return isEventPast(e);}).reverse(); // past: newest first
+  var pub=allPublished.filter(function(e){return !isEventPast(e);});  // upcoming only
   var dates=['all'];
   pub.forEach(function(e){if(!dates.includes(e.date))dates.push(e.date);});
   // Events are kept fresh by startEventsListener() — no fetch needed here
@@ -1783,20 +1760,11 @@ function renderHome(){
     }
     fb.appendChild(chip);
   });
-  // PAST EVENTS chip
-  if(pastEvs.length>0){
-    var pastC=document.createElement('div');
-    pastC.style.cssText='flex-shrink:0;padding:10px 16px;border-radius:8px;font-size:11px;font-weight:800;letter-spacing:2px;font-family:var(--fs);transition:all .22s;cursor:pointer;background:'+(S.filterPast?'rgba(107,107,138,.2)':'rgba(255,255,255,.02)')+';border:1px solid '+(S.filterPast?'rgba(107,107,138,.4)':'rgba(255,255,255,.04)')+';color:'+(S.filterPast?'rgba(245,240,232,.6)':'rgba(107,107,138,.5)')+';';
-    pastC.innerHTML='🕐 PAST ('+pastEvs.length+')';
-    pastC.onclick=function(){set({filterPast:true,filterDate:'all',filterDow:null});};
-    fb.appendChild(pastC);
-  }
+  // 🔴 2026-05-13 (Khushi) — PAST EVENTS chip removed (image load).
   sec.appendChild(fb);
 
   var filtered;
-  if(S.filterPast){
-    filtered=pastEvs;
-  } else if(S.filterDate==='all'&&(S.filterDow===null||S.filterDow===undefined)){
+  if(S.filterDate==='all'&&(S.filterDow===null||S.filterDow===undefined)){
     filtered=pub;
   } else if(S.filterDow!==null&&S.filterDow!==undefined){
     filtered=pub.filter(function(e){
@@ -1820,29 +1788,8 @@ function renderHome(){
   filtered.forEach(function(ev,i){grid.appendChild(buildEvCard(ev,i));});
   sec.appendChild(grid);
 
-  // AUTO-SHOW PAST EVENTS — disabled, past events only show when Past tab is clicked
-  var _isAllView=false;
-  if(_isAllView&&pastEvs.length>0&&filtered.length<3){
-    var _pSec=document.createElement('section');
-    _pSec.style.cssText='padding:0 28px 40px;max-width:1180px;margin:0 auto;';
-    var _pHead=document.createElement('div');
-    _pHead.style.cssText='display:flex;align-items:center;gap:16px;margin:40px 0 24px;';
-    var _pL=document.createElement('div');_pL.style.cssText='flex:1;height:1px;background:rgba(201,168,76,.12);';
-    var _pT=document.createElement('div');_pT.style.cssText='font-size:11px;font-weight:800;letter-spacing:2px;color:rgba(107,107,138,.6);text-transform:uppercase;white-space:nowrap;';
-    _pT.textContent="You missed these — don’t miss next time 🔥";
-    var _pR=document.createElement('div');_pR.style.cssText='flex:1;height:1px;background:rgba(201,168,76,.12);';
-    _pHead.appendChild(_pL);_pHead.appendChild(_pT);_pHead.appendChild(_pR);
-    _pSec.appendChild(_pHead);
-    var _pGrid=el('div','ev-grid');
-    pastEvs.slice(0,6).forEach(function(ev,i){
-      var _c=buildEvCard(ev,i);
-      _c.style.opacity='0.72';
-      _c.style.filter='saturate(0.6)';
-      _pGrid.appendChild(_c);
-    });
-    _pSec.appendChild(_pGrid);
-    sec.appendChild(_pSec);
-  }
+  // 🔴 2026-05-13 (Khushi) — "You missed these" past-events strip removed
+  // (was disabled by _isAllView=false but still imported pastEvs).
 
   // Tagline section at bottom
   var tagSec=el('section','');
@@ -4468,7 +4415,7 @@ function renderTableFloorPlan(){
         setTimeout(function(){generateLocalQR('tbl-conf-qr-'+ref2,'https://hodclub.in/?wallet='+ref2);},200);
         var doneBtn=document.createElement('button');
         doneBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.3);color:var(--gold);font-weight:800;font-size:14px;cursor:pointer;font-family:var(--fs);';
-                // Email confirmation via Cloud Fn (ZeptoMail) → EmailJS fallback
+                // Email confirmation via Cloud Fn (ZeptoMail only — no fallback)
         if(email){
           _HOD_sendMail({
             to_email:email,to_name:name,ref:ref2,
@@ -4797,13 +4744,9 @@ function renderWalletPage(bookingRef){
       var _balChipColor = bal > 0 ? '#22C55E' : 'rgba(255,255,255,.55)';
       var coverBanner = document.createElement('div');
       coverBanner.style.cssText='background:rgba(242,199,68,.08);border:1px solid rgba(242,199,68,.2);border-radius:14px;padding:14px 16px;margin-bottom:14px;';
-      coverBanner.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap;">'
-        +  '<div style="font-size:11px;font-weight:800;color:var(--gold);letter-spacing:1px;text-transform:uppercase;flex:1;min-width:140px;">'+_coverHeader+'</div>'
-        +  '<div style="display:inline-flex;align-items:baseline;gap:6px;padding:5px 10px;border-radius:8px;background:'+_balChipBg+';border:1px solid '+_balChipBorder+';">'
-        +    '<span style="font-size:9px;font-weight:800;letter-spacing:.8px;color:'+_balChipColor+';text-transform:uppercase;">Wallet</span>'
-        +    '<span style="font-family:var(--fp);font-size:15px;font-weight:900;color:'+_balChipColor+';line-height:1;">\u20b9'+bal.toLocaleString('en-IN')+'</span>'
-        +  '</div>'
-        +'</div>'
+      // 🔴 2026-05-13 v2 (Khushi) — small balance chip removed; balance now
+      // displayed prominently in its own BALANCE card above the QR (below).
+      coverBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">'+_coverHeader+'</div>'
         +'<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);">'
         +  '<span>👤 <b style="color:var(--text);">'+sanitize(name)+'</b></span>'
         +  (activated>0?'<span>💰 <b style="color:var(--text);">\u20b9'+used.toLocaleString('en-IN')+'</b> used / \u20b9'+activated.toLocaleString('en-IN')+' total</span>':'')
@@ -4894,9 +4837,10 @@ function renderWalletPage(bookingRef){
     if(bal<=0&&!cv.isTableBooking){
       // Show recharge banner — menu continues below
       var emptyBanner=document.createElement('div');
-      emptyBanner.style.cssText='background:rgba(168,85,247,.06);border:1.5px solid rgba(168,85,247,.25);border-radius:16px;padding:20px;margin-bottom:16px;text-align:center;';
+      // 🔴 2026-05-13 v2 (Khushi) — recolor purple → red/yellow/white theme.
+      emptyBanner.style.cssText='background:rgba(239,68,68,.06);border:1.5px solid rgba(239,68,68,.3);border-radius:16px;padding:20px;margin-bottom:16px;text-align:center;';
       emptyBanner.innerHTML='<div style="font-size:28px;margin-bottom:8px;">⚡</div>'
-        +'<div style="font-size:15px;font-weight:900;color:#A855F7;margin-bottom:6px;">Load your wallet to start ordering</div>'
+        +'<div style="font-size:15px;font-weight:900;color:#EF4444;margin-bottom:6px;">Load your wallet to start ordering</div>'
         +'<div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px;">Recharge online below or show your QR to the bartender. Browse the menu while you decide!</div>';
       // Compact recharge presets
       var rcRow=document.createElement('div');
@@ -4909,7 +4853,7 @@ function renderWalletPage(bookingRef){
         pb.onclick=function(){
           _rcAmt=amt;
           rcRow.querySelectorAll('button').forEach(function(b){b.style.borderColor='var(--border)';b.style.background='var(--surface)';});
-          pb.style.borderColor='rgba(168,85,247,.6)';pb.style.background='rgba(168,85,247,.12)';
+          pb.style.borderColor='rgba(239,68,68,.6)';pb.style.background='rgba(239,68,68,.12)';
         };
         rcRow.appendChild(pb);
       });
@@ -4931,7 +4875,7 @@ function renderWalletPage(bookingRef){
         var v=parseInt(_emptyCustomInput.value,10);
         if(isNaN(v)||v<1){_emptyCustomRow.style.borderColor='rgba(239,68,68,.4)';return;}
         if(v>50000){_emptyCustomInput.value='50000';v=50000;}
-        _emptyCustomRow.style.borderColor='rgba(168,85,247,.6)';
+        _emptyCustomRow.style.borderColor='rgba(239,68,68,.6)';
         _rcAmt=v;
         rcRow.querySelectorAll('button').forEach(function(b){b.style.borderColor='var(--border)';b.style.background='var(--surface)';});
       };
@@ -4939,7 +4883,7 @@ function renderWalletPage(bookingRef){
       _emptyCustomWrap.appendChild(_emptyCustomRow);
       emptyBanner.appendChild(_emptyCustomWrap);
       var rcPayBtn=document.createElement('button');
-      rcPayBtn.style.cssText='width:100%;padding:12px;border-radius:10px;background:linear-gradient(135deg,rgba(168,85,247,.9),rgba(123,47,190,.8));border:none;color:#fff;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--fs);';
+      rcPayBtn.style.cssText='width:100%;padding:12px;border-radius:10px;background:linear-gradient(135deg,#F2C744,#B8951F);border:none;color:#0A0A0A;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--fs);letter-spacing:.4px;';
       rcPayBtn.textContent='💳 Pay & Recharge';
       rcPayBtn.onclick=function(){
         if(!_rcAmt){showToast('Select an amount first','err',2000);return;}
@@ -4964,6 +4908,22 @@ function renderWalletPage(bookingRef){
       emptyBanner.appendChild(rcPayBtn);
       inner.appendChild(emptyBanner);
       // Don't return — menu continues below
+    }
+
+    // 🔴 2026-05-13 v2 (Khushi) — Big BALANCE block above the QR for
+    // covers/guestlist/entry-only/group. Non-cursive tabular numerals,
+    // large font, sits centred so the customer (and bartender across
+    // the counter) can read it at a glance. Hidden for table bookings.
+    if(!cv.isTableBooking){
+      var balBlock=document.createElement('div');
+      var _bbColor = bal > 0 ? '#22C55E' : '#EF4444';
+      var _bbBg = bal > 0 ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.06)';
+      var _bbBorder = bal > 0 ? 'rgba(34,197,94,.45)' : 'rgba(239,68,68,.35)';
+      balBlock.style.cssText='background:'+_bbBg+';border:1.5px solid '+_bbBorder+';border-radius:14px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:14px;';
+      balBlock.innerHTML='<span style="font-family:var(--fs);font-size:13px;font-weight:800;color:rgba(255,255,255,.85);letter-spacing:2px;text-transform:uppercase;">Balance</span>'
+        +'<span style="font-family:var(--fs);font-size:18px;font-weight:900;color:rgba(255,255,255,.6);">—</span>'
+        +'<span style="font-family:var(--fs);font-size:36px;font-weight:900;color:'+_bbColor+';line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.5px;">\u20b9'+bal.toLocaleString('en-IN')+'</span>';
+      inner.appendChild(balBlock);
     }
 
     // QR code for customer
@@ -5481,7 +5441,7 @@ function renderWalletPage(bookingRef){
             // Recharge presets — show amounts that cover the shortfall
             var _rcDiv=document.createElement('div');
             _rcDiv.style.cssText='margin-bottom:14px;';
-            _rcDiv.innerHTML='<div style="font-size:11px;font-weight:800;color:#A855F7;letter-spacing:1px;margin-bottom:8px;">⚡ QUICK RECHARGE</div>';
+            _rcDiv.innerHTML='<div style="font-size:11px;font-weight:800;color:#F2C744;letter-spacing:1px;margin-bottom:8px;">⚡ QUICK RECHARGE</div>';
             var _rcRow=document.createElement('div');
             _rcRow.style.cssText='display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:10px;';
             var _selRcAmt=0;
@@ -5490,11 +5450,11 @@ function renderWalletPage(bookingRef){
               var pb=document.createElement('button');
               pb.style.cssText='padding:10px 14px;border-radius:8px;background:var(--surface);border:1.5px solid var(--border);color:var(--text);font-size:13px;font-weight:800;cursor:pointer;font-family:var(--fs);transition:all .2s;';
               pb.textContent='₹'+amt.toLocaleString('en-IN');
-              if(!_selRcAmt){_selRcAmt=amt;pb.style.borderColor='rgba(168,85,247,.6)';pb.style.background='rgba(168,85,247,.12)';}
+              if(!_selRcAmt){_selRcAmt=amt;pb.style.borderColor='rgba(242,199,68,.6)';pb.style.background='rgba(242,199,68,.12)';}
               pb.onclick=function(){
                 _selRcAmt=amt;
                 _rcRow.querySelectorAll('button').forEach(function(b){b.style.borderColor='var(--border)';b.style.background='var(--surface)';});
-                pb.style.borderColor='rgba(168,85,247,.6)';pb.style.background='rgba(168,85,247,.12)';
+                pb.style.borderColor='rgba(242,199,68,.6)';pb.style.background='rgba(242,199,68,.12)';
               };
               _rcRow.appendChild(pb);
             });
@@ -5512,7 +5472,7 @@ function renderWalletPage(bookingRef){
             _modalCustomWrap.style.cssText='margin:0 0 10px;';
             _modalCustomWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;text-align:center;">Or enter your own amount</div>';
             var _modalCustomRow=document.createElement('div');
-            _modalCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1.5px solid rgba(168,85,247,.6);background:rgba(168,85,247,.08);';
+            _modalCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1.5px solid rgba(242,199,68,.6);background:rgba(242,199,68,.08);';
             _modalCustomRow.innerHTML='<span style="font-family:var(--fp);font-size:16px;font-weight:900;color:var(--gold);">₹</span>';
             var _modalCustomInput=document.createElement('input');
             _modalCustomInput.type='number';_modalCustomInput.min='1';_modalCustomInput.max='50000';_modalCustomInput.step='1';
@@ -5523,7 +5483,7 @@ function renderWalletPage(bookingRef){
               var v=parseInt(_modalCustomInput.value,10);
               if(isNaN(v)||v<1){_modalCustomRow.style.borderColor='rgba(239,68,68,.4)';return;}
               if(v>50000){_modalCustomInput.value='50000';v=50000;}
-              _modalCustomRow.style.borderColor='rgba(168,85,247,.6)';
+              _modalCustomRow.style.borderColor='rgba(242,199,68,.6)';
               _selRcAmt=v;
               _rcRow.querySelectorAll('button').forEach(function(b){b.style.borderColor='var(--border)';b.style.background='var(--surface)';});
             };
@@ -5531,7 +5491,7 @@ function renderWalletPage(bookingRef){
             _modalCustomWrap.appendChild(_modalCustomRow);
             _rcDiv.appendChild(_modalCustomWrap);
             var _rcPayBtn2=document.createElement('button');
-            _rcPayBtn2.style.cssText='width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,rgba(168,85,247,.9),rgba(123,47,190,.8));border:none;color:#fff;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--fs);margin-bottom:8px;';
+            _rcPayBtn2.style.cssText='width:100%;padding:13px;border-radius:10px;background:linear-gradient(135deg,#F2C744,#B8951F);border:none;color:#0A0A0A;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--fs);margin-bottom:8px;letter-spacing:.4px;';
             _rcPayBtn2.textContent='💳 Recharge & Order';
             _rcPayBtn2.onclick=function(){
               if(!_selRcAmt){showToast('Select an amount','err',2000);return;}
