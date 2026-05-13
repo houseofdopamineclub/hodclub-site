@@ -836,6 +836,86 @@ function hodComputeBreakdown(items){
           serviceCharge:sc, gst:gst, cgst:cgst, sgst:sgst,
           roundOff:roundOff, grandTotal:grandTotal};
 }
+
+// ── 2026-05-13 (Khushi) — "View Bill" modal. Shown after a settled
+// bill (online OR offline). Renders an itemized list + the same SC/GST
+// math the captain's thermal printer uses, so the customer sees the
+// exact paper bill on their phone. `opts` accepts { customerName,
+// tableId, paymentMode ('paid_online'|'cash'|'card'|...), paymentId,
+// amountPaid, settledAt, billNumber }. All optional — only items[]
+// is required.
+function showHodBillModal(items, opts){
+  opts = opts || {};
+  var clean = (items||[]).filter(function(it){ return it && (it.qty||0) > 0; });
+  if(!clean.length){ showToast && showToast('No items on this bill.','err',2500); return; }
+  var bd = hodComputeBreakdown(clean);
+  var ovr = document.createElement('div');
+  ovr.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;font-family:var(--fs);';
+  var sheet = document.createElement('div');
+  sheet.style.cssText = 'background:#0E0E14;border:1px solid rgba(242,199,68,.35);border-radius:16px;padding:18px 18px 14px;max-width:380px;width:100%;color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.6);margin:auto;';
+  var pmLabel = ({paid_online:'PAID ONLINE', online:'PAID ONLINE',
+                  cash:'CASH', card:'CARD', upi:'UPI'})[opts.paymentMode] || 'SETTLED';
+  var settledStr = '';
+  if(opts.settledAt){
+    try{ var d=new Date(opts.settledAt); settledStr=d.toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(e){}
+  }
+  var html = ''
+    + '<div style="text-align:center;border-bottom:1px dashed rgba(242,199,68,.3);padding-bottom:10px;margin-bottom:10px;">'
+    +   '<div style="font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);letter-spacing:1px;">HOUSE OF DOPAMINE</div>'
+    +   '<div style="font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:.6px;">TAX INVOICE · CUSTOMER COPY</div>'
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px;">'
+    +   (opts.customerName?'<div><b style="color:var(--text);">Guest:</b> '+sanitize(opts.customerName)+'</div>':'')
+    +   (opts.tableId?'<div><b style="color:var(--text);">Table:</b> '+sanitize(opts.tableId)+'</div>':'')
+    +   (settledStr?'<div><b style="color:var(--text);">Settled:</b> '+sanitize(settledStr)+'</div>':'')
+    +   (opts.billNumber?'<div><b style="color:var(--text);">Bill #:</b> '+sanitize(String(opts.billNumber))+'</div>':'')
+    + '</div>'
+    + '<div style="border-top:1px dashed rgba(255,255,255,.15);border-bottom:1px dashed rgba(255,255,255,.15);padding:8px 0;margin-bottom:8px;">';
+  clean.forEach(function(it){
+    var line = (it.p||0) * (it.qty||0);
+    html += '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12px;">'
+         +    '<span style="flex:1;">'+sanitize(it.n||'Item')+' <span style="color:var(--muted);">× '+(it.qty||0)+'</span></span>'
+         +    '<span style="color:var(--gold);font-variant-numeric:tabular-nums;">\u20b9'+line.toLocaleString('en-IN')+'</span>'
+         + '</div>';
+  });
+  html += '</div>';
+  function row(label, val, bold){
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;'+(bold?'font-weight:900;':'color:var(--muted);')+'">'
+         +   '<span>'+label+'</span>'
+         +   '<span style="font-variant-numeric:tabular-nums;'+(bold?'color:var(--gold);':'')+'">\u20b9'+Math.round(val).toLocaleString('en-IN')+'</span>'
+         + '</div>';
+  }
+  html += row('Subtotal', bd.subtotal, false);
+  html += row('Service Charge (10%)', bd.serviceCharge, false);
+  html += '<div style="display:flex;justify-content:space-between;font-size:11px;padding:1px 0;color:var(--muted);"><span>CGST (2.5%)</span><span style="font-variant-numeric:tabular-nums;">\u20b9'+bd.cgst.toFixed(2)+'</span></div>';
+  html += '<div style="display:flex;justify-content:space-between;font-size:11px;padding:1px 0;color:var(--muted);"><span>SGST (2.5%)</span><span style="font-variant-numeric:tabular-nums;">\u20b9'+bd.sgst.toFixed(2)+'</span></div>';
+  if(bd.alcSubtotal > 0){
+    html += '<div style="font-size:9px;color:rgba(255,255,255,.4);padding:2px 0 4px;">* Alcohol exempt from GST per liquor licence rules</div>';
+  }
+  html += '<div style="border-top:1px solid rgba(242,199,68,.35);margin-top:6px;padding-top:6px;">'
+       +   row('TOTAL', bd.grandTotal, true)
+       + '</div>';
+  html += '<div style="margin-top:12px;text-align:center;padding:8px;border-radius:8px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.4);color:#22C55E;font-size:12px;font-weight:800;letter-spacing:.5px;">'
+       +   '✓ '+pmLabel
+       +   (opts.paymentId?'<div style="font-family:monospace;font-size:10px;color:rgba(34,197,94,.8);margin-top:3px;letter-spacing:1px;">ID …'+sanitize(String(opts.paymentId).slice(-10))+'</div>':'')
+       + '</div>';
+  html += '<div style="margin-top:10px;text-align:center;font-size:10px;color:rgba(255,255,255,.35);line-height:1.5;">Thank you for visiting House of Dopamine<br/>This is a customer copy of the GST invoice.</div>';
+  html += '<button id="hod-bill-close" style="margin-top:14px;width:100%;padding:12px;border-radius:10px;background:rgba(242,199,68,.15);border:1px solid rgba(242,199,68,.45);color:var(--gold);font-size:13px;font-weight:800;cursor:pointer;font-family:var(--fs);letter-spacing:.5px;text-transform:uppercase;">Close</button>';
+  sheet.innerHTML = html;
+  ovr.appendChild(sheet);
+  ovr.addEventListener('click', function(e){ if(e.target===ovr) ovr.remove(); });
+  document.body.appendChild(ovr);
+  var cb=document.getElementById('hod-bill-close'); if(cb) cb.onclick=function(){ ovr.remove(); };
+}
+
+// Flatten tabRounds → flat items list (for the bill modal). Used by
+// both online-paid (rounds in hand) and offline-paid (tabRounds from
+// the live tableReservation doc).
+function _hodFlattenRounds(rounds){
+  var out = [];
+  (rounds||[]).forEach(function(rd){ (rd.items||[]).forEach(function(it){ out.push(it); }); });
+  return out;
+}
 var EMAILJS_PUBLIC_KEY  = "2A_vSCA2nJ3CQUxRu";
 var EMAILJS_SERVICE_ID  = "service_xxbd4i9";
 var EMAILJS_TEMPLATE_ID = "template_wtp5oik";
@@ -4720,6 +4800,40 @@ function renderWalletPage(bookingRef){
       inner.appendChild(tbBanner);
     }
 
+    // 🔴 2026-05-13 (Khushi) — "✅ Bill Settled · View Bill" banner.
+    // Shown the moment captain stamps paymentStatus:'paid' on the
+    // tableReservation (offline cash/card mark-paid) OR when the
+    // wallet's own paid_online stamp lands. The customer can tap
+    // "View Bill" to see the full GST invoice (matches the captain's
+    // thermal print). Stays visible until the captain releases the
+    // table (after which the "Thank you for visiting" screen kicks in
+    // — that path also gets a View Bill button, see below).
+    if(cv.isTableBooking && cv.paymentStatus==='paid'){
+      var paidBanner=document.createElement('div');
+      paidBanner.style.cssText='background:rgba(34,197,94,.10);border:1.5px solid rgba(34,197,94,.45);border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
+      var pmTxt=(cv.paymentMethod==='paid_online'||cv.paymentMethod==='online')?'Paid Online':((cv.paymentMethod||'').toUpperCase()||'Settled');
+      var amtTxt=cv.amountPaid?(' · ₹'+Number(cv.amountPaid).toLocaleString('en-IN')):'';
+      paidBanner.innerHTML='<div style="font-size:24px;">✅</div>'
+        +'<div style="flex:1;min-width:140px;">'
+        +  '<div style="font-size:13px;font-weight:900;color:#22C55E;letter-spacing:.4px;">Bill Settled</div>'
+        +  '<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:2px;">'+sanitize(pmTxt)+sanitize(amtTxt)+'</div>'
+        +'</div>'
+        +'<button id="hod-paid-viewbill" style="padding:9px 14px;border-radius:9px;background:rgba(242,199,68,.15);border:1.5px solid rgba(242,199,68,.5);color:var(--gold);font-size:12px;font-weight:800;cursor:pointer;font-family:var(--fs);letter-spacing:.5px;text-transform:uppercase;">📄 View Bill</button>';
+      inner.appendChild(paidBanner);
+      var _vbBtn=document.getElementById('hod-paid-viewbill');
+      if(_vbBtn) _vbBtn.onclick=function(){
+        var billItems=_hodFlattenRounds(cv.tabRounds||[]);
+        showHodBillModal(billItems, {
+          customerName:cv.name||'',
+          tableId:cv.tableId||'',
+          paymentMode:cv.paymentMethod||'',
+          paymentId:cv.paymentId||'',
+          amountPaid:cv.amountPaid||0,
+          settledAt:cv.paidAt||null
+        });
+      };
+    }
+
     // Expiry check — date-based or expiresAt
     var _cvDate2=cv.date||cv.eventDate||(cv.activatedAt?cv.activatedAt.split('T')[0]:'');
     var _todayStr2=new Date().toISOString().split('T')[0];
@@ -6121,6 +6235,29 @@ function renderWalletPage(bookingRef){
         conf.innerHTML+='<div style="display:flex;justify-content:space-between;padding:10px 0 0;font-size:14px;font-weight:900;">'
           +'<span>Total</span><span style="color:var(--gold);">₹'+total.toLocaleString('en-IN')+'</span></div></div>'
           +'<div style="font-size:12px;color:var(--muted);">Wallet Balance: ₹'+bal.toLocaleString('en-IN')+'</div>';
+        // 🔴 2026-05-13 (Khushi) — "View Bill" button after payment.
+        // Customer can tap to see the full itemized GST invoice (matches
+        // the captain's thermal print). For online-paid: pull items from
+        // _pay.rounds (tab checkout) or fall back to the local cart.
+        if(_isOnline){
+          var _billItems = (_pay && _pay.rounds && _pay.rounds.length)
+            ? _hodFlattenRounds(_pay.rounds)
+            : items.slice();
+          var vb=document.createElement('button');
+          vb.style.cssText='display:block;margin:14px auto 0;padding:11px 20px;border-radius:10px;background:rgba(242,199,68,.15);border:1.5px solid rgba(242,199,68,.5);color:var(--gold);font-size:13px;font-weight:800;cursor:pointer;font-family:var(--fs);letter-spacing:.6px;text-transform:uppercase;';
+          vb.textContent='📄 View Bill';
+          vb.onclick=function(){
+            showHodBillModal(_billItems, {
+              customerName: cv.name||'',
+              tableId: cv.tableId||'',
+              paymentMode: 'paid_online',
+              paymentId: _pay.paymentId||'',
+              amountPaid: _pay.amount||total,
+              settledAt: orderData.submittedAt
+            });
+          };
+          conf.appendChild(vb);
+        }
         inner.appendChild(conf);
         generateLocalQR('conf-qr-wrap', 'https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
       setTimeout(function(){generateLocalQR('conf-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
@@ -6260,7 +6397,17 @@ function renderWalletPage(bookingRef){
             isTableBooking:true,tabRounds:td.tabRounds||[],tabTotal:td.tabTotal||0,expiresAt:null,
             // Pass source/aggregator flags so song-request hide logic works
             source:td.source||'',
-            isAggregator:!!(td.source&&td.source!=='inhouse')||bookingRef.startsWith('AGG-')
+            isAggregator:!!(td.source&&td.source!=='inhouse')||bookingRef.startsWith('AGG-'),
+            // 🔴 2026-05-13 (Khushi) — payment fields piped through so the
+            // "✅ Bill Settled · View Bill" banner can render the moment
+            // the captain marks paid (offline) or a wallet pay-online
+            // stamp lands. Without this, the customer wouldn't see any
+            // confirmation until the table is released.
+            paymentStatus:td.paymentStatus||'',
+            paymentMethod:td.paymentMethod||td.paymentMode||'',
+            paymentId:td.paymentId||'',
+            amountPaid:td.amountPaid||0,
+            paidAt:td.paidAt||td.orderedAt||null
           });
         },function(){inner.innerHTML='<div style="text-align:center;padding:60px;color:var(--muted);">Error loading wallet.</div>';});
     }
