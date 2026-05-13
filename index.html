@@ -658,6 +658,18 @@ HOD_BAR_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t==
 HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t===undefined)it.t='drink';if(it.alc===undefined)it.alc=false;});});
 
 (function(){
+  // KILL-SWITCH: append ?legacy=1 to URL to disable live Firestore menu entirely.
+  // Use this to A/B test whether flicker is caused by this code.
+  try{
+    var qs=(location.search||'')+'&'+(location.hash||'').replace(/^#/,'?').replace(/^\?/,'');
+    if(/[?&](legacy|nofs|nofirestore)=1/.test(qs)){
+      console.log('[menu-firestore] kill-switch active — using baked-in menus only');
+      window.HOD_FOOD_MENU=HOD_FOOD_MENU_FALLBACK;
+      window.HOD_BAR_MENU=HOD_BAR_MENU_FALLBACK;
+      window.HOD_SMOKE_MENU=HOD_SMOKE_MENU_FALLBACK;
+      return;
+    }
+  }catch(e){}
   var LS_PREFIX='hod.menu.cache.v1.';
   var TAB_DEFAULT_T={food:'food',liquor:'drink',nab:'drink',smoke:'drink'};
   var TAB_DEFAULT_ALC={food:false,liquor:true,nab:false,smoke:false};
