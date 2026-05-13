@@ -4766,25 +4766,13 @@ function renderWalletPage(bookingRef){
     var used=cv.coverUsed||0;
     var name=cv.name||'Guest';
 
-    // Wallet card
-    if(!cv.isTableBooking){
-    var wCard=document.createElement('div');
-    wCard.className='wv-wcard';
-    var pct=activated>0?Math.round((used/activated)*100):0;
-    wCard.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">'
-      +'<div><div style="font-size:11px;font-weight:800;color:#F2C744;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;opacity:.85;">Cover Wallet</div>'
-      +'<div style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-.3px;">'+sanitize(name)+'</div>'
-      +'<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:3px;letter-spacing:.5px;">'+sanitize(cv.eventTitle||'HOD · Tonight')+'</div></div>'
-      +'<div style="text-align:right;"><div style="font-size:10px;color:rgba(255,255,255,.7);margin-bottom:4px;letter-spacing:1.2px;text-transform:uppercase;">Available</div>'
-      +'<div class="wv-bal'+(bal<=0?' zero':'')+'">\u20b9'+bal.toLocaleString('en-IN')+'</div></div></div>'
-      +'<div style="background:rgba(0,0,0,.45);border-radius:6px;overflow:hidden;height:8px;margin-bottom:8px;">'
-      +'<div style="height:100%;background:linear-gradient(90deg,#F2C744,#fff);width:'+Math.max(0,100-pct)+'%;transition:width .5s;border-radius:6px;box-shadow:0 0 8px rgba(242,199,68,.5);"></div></div>'
-      +'<div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.7);font-weight:600;letter-spacing:.3px;">'
-      +'<span>\u20b9'+used.toLocaleString('en-IN')+' used</span><span>\u20b9'+activated.toLocaleString('en-IN')+' total</span></div>';
-    inner.appendChild(wCard);
-    } // end if(!isTableBooking)
-
-    // Table booking info banner
+    // 🔴 2026-05-13 (Khushi) — UNIFIED top banner. Covers / guestlist /
+    // entry-only / group bookings now share the same visual treatment
+    // as table bookings (slim gold-bordered card, info chips). The only
+    // functional difference: covers carry a real wallet balance shown
+    // as a chip; tables show ₹0 until the captain settles. Replaces
+    // the old red gradient wv-wcard for covers.
+    var _isActivatedTop = !!cv.checkedIn || (cv.coverActivated||0) > 0;
     if(cv.isTableBooking){
       var tbBanner=document.createElement('div');
       tbBanner.style.cssText='background:rgba(242,199,68,.08);border:1px solid rgba(242,199,68,.2);border-radius:14px;padding:14px 16px;margin-bottom:14px;';
@@ -4798,6 +4786,30 @@ function renderWalletPage(bookingRef){
         +(bal<=0?'<div style="margin-top:8px;font-size:11px;color:rgba(242,199,68,.7);">💰 Pre-order below — pay via cash, card or UPI at your table.</div>':'')
         ;
       inner.appendChild(tbBanner);
+    } else {
+      // ── Cover / Guestlist / Entry-Only / Group banner — same chrome
+      // as table banner above for visual parity. Header line varies
+      // based on type (entry-only is door-only, others redeem against
+      // the wallet balance via bartender scan).
+      var _coverHeader = '🎫 Cover · ' + sanitize(cv.eventTitle || 'HOD · Tonight');
+      var _balChipBg = bal > 0 ? 'rgba(34,197,94,.12)' : 'rgba(255,255,255,.04)';
+      var _balChipBorder = bal > 0 ? 'rgba(34,197,94,.4)' : 'rgba(255,255,255,.12)';
+      var _balChipColor = bal > 0 ? '#22C55E' : 'rgba(255,255,255,.55)';
+      var coverBanner = document.createElement('div');
+      coverBanner.style.cssText='background:rgba(242,199,68,.08);border:1px solid rgba(242,199,68,.2);border-radius:14px;padding:14px 16px;margin-bottom:14px;';
+      coverBanner.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap;">'
+        +  '<div style="font-size:11px;font-weight:800;color:var(--gold);letter-spacing:1px;text-transform:uppercase;flex:1;min-width:140px;">'+_coverHeader+'</div>'
+        +  '<div style="display:inline-flex;align-items:baseline;gap:6px;padding:5px 10px;border-radius:8px;background:'+_balChipBg+';border:1px solid '+_balChipBorder+';">'
+        +    '<span style="font-size:9px;font-weight:800;letter-spacing:.8px;color:'+_balChipColor+';text-transform:uppercase;">Wallet</span>'
+        +    '<span style="font-family:var(--fp);font-size:15px;font-weight:900;color:'+_balChipColor+';line-height:1;">\u20b9'+bal.toLocaleString('en-IN')+'</span>'
+        +  '</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);">'
+        +  '<span>👤 <b style="color:var(--text);">'+sanitize(name)+'</b></span>'
+        +  (activated>0?'<span>💰 <b style="color:var(--text);">\u20b9'+used.toLocaleString('en-IN')+'</b> used / \u20b9'+activated.toLocaleString('en-IN')+' total</span>':'')
+        +'</div>'
+        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:rgba(242,199,68,.75);background:rgba(242,199,68,.06);border:1px solid rgba(242,199,68,.2);border-radius:8px;padding:6px 10px;">⏳ Your cover will be activated at HOD when you arrive.</div>':'');
+      inner.appendChild(coverBanner);
     }
 
     // 🔴 2026-05-13 (Khushi) — "✅ Bill Settled · View Bill" banner.
@@ -5604,21 +5616,34 @@ function renderWalletPage(bookingRef){
             document.body.appendChild(tbOv);
           } else {
             // COVER/EVENT: show QR popup for bartender
+            // 🔴 2026-05-13 (Khushi) — restyled to match the View Bill /
+            // captain-mode modal aesthetic: gold-bordered dark sheet,
+            // dashed dividers, monospace ref code, tabular price.
+            // Functionality unchanged — still shows the verify QR the
+            // bartender scans to redeem against the wallet.
             var overlay=document.createElement('div');
-            overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
+            overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);font-family:var(--fs);';
             var modal=document.createElement('div');
-            modal.style.cssText='background:var(--card);border:1px solid var(--border);border-radius:22px;padding:28px 24px;width:100%;max-width:380px;text-align:center;position:relative;';
+            modal.style.cssText='background:#0E0E14;border:1px solid rgba(242,199,68,.35);border-radius:16px;padding:18px 18px 14px;width:100%;max-width:380px;color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.6);';
             modal.innerHTML=
-              '<div style="font-size:36px;margin-bottom:12px;">🍹</div>'
-              +'<div style="font-size:18px;font-weight:900;color:var(--gold);margin-bottom:6px;">Order Placed!</div>'
-              +'<div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.6;">Show this QR to your <strong style="color:var(--text);">bartender</strong> to prepare your order</div>'
-              +'<div id="order-qr-popup" style="width:140px;height:140px;margin:0 auto 14px;background:#0C0C18;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'
-              +'<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">Your order:</div>'
-              +'<div style="font-size:13px;color:var(--gold);font-weight:700;margin-bottom:4px;">'+sanitize(placedItems)+'</div>'
-              +'<div style="font-size:20px;font-weight:900;color:var(--gold);margin-bottom:16px;">₹'+ct.toLocaleString('en-IN')+'</div>'
-              +'<div style="font-size:11px;color:var(--muted);background:rgba(242,199,68,.06);border:1px solid rgba(242,199,68,.15);border-radius:8px;padding:8px 12px;margin-bottom:16px;line-height:1.6;">Your bartender will scan this, confirm your order, and your wallet will be deducted automatically.</div>';
+               '<div style="text-align:center;border-bottom:1px dashed rgba(242,199,68,.3);padding-bottom:10px;margin-bottom:12px;">'
+              +  '<div style="font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);letter-spacing:1px;">HOUSE OF DOPAMINE</div>'
+              +  '<div style="font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:.6px;">ORDER PLACED · BARTENDER REDEEM</div>'
+              +'</div>'
+              +'<div style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Show this QR to your <strong style="color:var(--text);">bartender</strong> to prepare your order</div>'
+              +'<div id="order-qr-popup" style="width:160px;height:160px;margin:0 auto 12px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'
+              +'<div style="text-align:center;font-family:monospace;font-size:12px;color:var(--gold);letter-spacing:2px;margin-bottom:12px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>'
+              +'<div style="border-top:1px dashed rgba(255,255,255,.15);border-bottom:1px dashed rgba(255,255,255,.15);padding:10px 0;margin-bottom:10px;">'
+              +  '<div style="font-size:10px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px;">Your Order</div>'
+              +  '<div style="font-size:13px;color:var(--text);font-weight:700;line-height:1.5;">'+sanitize(placedItems)+'</div>'
+              +'</div>'
+              +'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0 10px;">'
+              +  '<span style="font-size:13px;font-weight:900;color:var(--text);">Total</span>'
+              +  '<span style="font-family:var(--fp);font-size:20px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;">\u20b9'+ct.toLocaleString('en-IN')+'</span>'
+              +'</div>'
+              +'<div style="font-size:11px;color:rgba(34,197,94,.85);background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:9px 12px;margin-bottom:14px;line-height:1.6;text-align:center;">✓ Bartender will scan, confirm, and deduct from your wallet automatically.</div>';
             var closeBtn=document.createElement('button');
-            closeBtn.style.cssText='width:100%;padding:12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;font-family:var(--fs);';
+            closeBtn.style.cssText='width:100%;padding:12px;border-radius:10px;background:rgba(242,199,68,.15);border:1.5px solid rgba(242,199,68,.5);color:var(--gold);font-size:13px;font-weight:800;cursor:pointer;font-family:var(--fs);letter-spacing:.6px;text-transform:uppercase;';
             closeBtn.textContent='Got it ✓';
             closeBtn.onclick=function(){overlay.remove();};
             modal.appendChild(closeBtn);
