@@ -4626,9 +4626,9 @@ function renderWalletPage(bookingRef){
       +'.hod-wallet-v2 .wv-fchip.on{background:#F2C744;color:#0A0A0A;border-color:#F2C744;}'
       // Sub-category chip row (wrapped)
       +'.hod-wallet-v2 .wv-subrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px;padding:0 4px;}'
-      +'.hod-wallet-v2 .wv-subchip{padding:7px 12px;border-radius:6px;background:transparent;border:1px solid transparent;color:rgba(245,241,232,.85);font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--fs);transition:all .12s;}'
-      +'.hod-wallet-v2 .wv-subchip:hover{color:#F2C744;}'
-      +'.hod-wallet-v2 .wv-subchip.on{border-color:#F2C744;color:#F2C744;background:rgba(242,199,68,.04);}'
+      +'.hod-wallet-v2 .wv-subchip{padding:7px 12px;border-radius:6px;background:transparent;border:1px solid rgba(242,199,68,.45);color:rgba(245,241,232,.85);font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--fs);transition:all .12s;}'
+      +'.hod-wallet-v2 .wv-subchip:hover{color:#F2C744;border-color:#F2C744;}'
+      +'.hod-wallet-v2 .wv-subchip.on{border-color:#F2C744;color:#F2C744;background:rgba(242,199,68,.08);box-shadow:0 0 0 1px rgba(242,199,68,.4);}'
       // Section title above item list (e.g. "MANGO MANIA")
       +'.hod-wallet-v2 .wv-sectiontitle{font-family:var(--fp);font-size:24px;font-weight:900;color:#F5F1E8;letter-spacing:1.2px;text-transform:uppercase;margin:18px 4px 14px;}'
       // Bottom fixed View Cart footer (red strip)
@@ -4842,9 +4842,14 @@ function renderWalletPage(bookingRef){
 
     // QR code for customer
     var qrSec=document.createElement('div');
-    qrSec.style.cssText='background:#141414;border:1.5px solid rgba(242,199,68,.22);border-radius:16px;padding:24px 16px;margin-bottom:18px;text-align:center;';
+    // 2026-05-13 (Khushi spec, round 5) — table guests don't NEED a big QR
+    // (the captain just glances at it before scanning). Shrunk the card +
+    // QR + text considerably so the menu sits closer to the top.
+    var _isTbl=cv.isTableBooking;
+    qrSec.style.cssText='background:#141414;border:1.5px solid rgba(242,199,68,.22);border-radius:14px;padding:'+(_isTbl?'12px 14px':'24px 16px')+';margin-bottom:'+(_isTbl?'12px':'18px')+';text-align:center;';
     var qrWrap=document.createElement('div');qrWrap.id='wallet-qr-wrap';
-    qrWrap.style.cssText='width:180px;height:180px;margin:0 auto 14px;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
+    var _qrPx=_isTbl?100:180;
+    qrWrap.style.cssText='width:'+_qrPx+'px;height:'+_qrPx+'px;margin:0 auto '+(_isTbl?'8px':'14px')+';background:#fff;border-radius:'+(_isTbl?'8px':'14px')+';display:flex;align-items:center;justify-content:center;overflow:hidden;';
     var qrInfo2=document.createElement('div');
     var _isActivated=cv.checkedIn||cv.coverActivated>0;
     var _qrSub=cv.isTableBooking?'Show to your captain to activate orders.':(_isActivated?'Show this QR to the bartender to order.':'Show this at the entrance to check in.');
@@ -4852,11 +4857,11 @@ function renderWalletPage(bookingRef){
     // 2026-05-13 (Khushi spec) — show the guest's name prominently above the
     // QR card so the captain can verify identity at a glance before scanning.
     var _guestName=sanitize(cv.name||'Guest');
-    qrInfo2.innerHTML='<div style="font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);margin-bottom:8px;letter-spacing:.3px;line-height:1.2;">'+_guestName+'</div>'
-      +'<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px;">Your HOD QR Code</div>'
-      +'<div style="font-size:11px;color:var(--muted);line-height:1.5;">'+_qrSub+'</div>'
+    qrInfo2.innerHTML='<div style="font-family:var(--fp);font-size:'+(_isTbl?'14px':'18px')+';font-weight:900;color:var(--gold);margin-bottom:'+(_isTbl?'4px':'8px')+';letter-spacing:.3px;line-height:1.2;">'+_guestName+'</div>'
+      +(_isTbl?'':'<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px;">Your HOD QR Code</div>')
+      +'<div style="font-size:'+(_isTbl?'10px':'11px')+';color:var(--muted);line-height:1.5;">'+_qrSub+'</div>'
       +_walletNote
-      +'<div style="font-size:11px;color:var(--gold);margin-top:6px;font-family:monospace;letter-spacing:1px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>';
+      +'<div style="font-size:'+(_isTbl?'10px':'11px')+';color:var(--gold);margin-top:'+(_isTbl?'4px':'6px')+';font-family:monospace;letter-spacing:1px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>';
     qrSec.appendChild(qrWrap);qrSec.appendChild(qrInfo2);inner.appendChild(qrSec);
     generateLocalQR('wallet-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
 
@@ -4884,15 +4889,22 @@ function renderWalletPage(bookingRef){
       :'\u2139\ufe0f Browse our menu below! Show your QR to the bartender when ordering — your cover balance will be deducted automatically.';
     inner.appendChild(info);
 
-    // Cart summary (sticky)
+    // Cart summary (sticky) — 2026-05-13 (Khushi spec, round 5):
+    // suppressed entirely. The same info now lives in the bottom
+    // "Running Tab" footer (renderCartSummary), so showing it at the top
+    // too was a duplicate. We keep the element + updateCartBar() function
+    // so existing callers keep working — it just stays hidden.
     var cartBar=document.createElement('div');
     cartBar.id='wallet-cart-bar';
-    cartBar.style.cssText='position:sticky;top:62px;z-index:99;background:rgba(184,50,39,.95);border-bottom:2px solid #F2C744;padding:12px 16px;margin:0 -20px 16px;display:none;backdrop-filter:blur(8px);color:#F2C744;font-weight:900;';
+    cartBar.style.cssText='display:none !important;';
     inner.appendChild(cartBar);
 
     function updateCartBar(){
       var total=getCartTotal();
       cartTotal=total;
+      cartBar.style.display='none';
+      return;
+      // (legacy code below intentionally unreachable — kept for diff context)
       if(Object.keys(cart).length===0){cartBar.style.display='none';return;}
       cartBar.style.display='block';
       var over=total>bal;
@@ -5089,11 +5101,11 @@ function renderWalletPage(bookingRef){
         var vegDot=typeof item.v!=='undefined'?'<span class="wv-vegdot" style="color:'+(isVeg?'#00C864':'#EF4444')+';"></span>':'';
         var priceHtml=hasDisc
           ? '<span style="text-decoration:line-through;color:rgba(255,255,255,.35);margin-right:6px;font-weight:600;">\u20b9'+item.p+'</span>'
-            +'<span style="color:#fff;font-weight:800;">\u20b9'+eff+'</span>'
+            +'<span style="color:#F2C744;font-weight:900;">\u20b9'+eff+'</span>'
             +(ov && ov.discountReason ? '<span style="color:rgba(242,199,68,.75);font-size:10px;margin-left:6px;font-weight:600;">\u00b7 '+sanitize(ov.discountReason)+'</span>' : '')
-          : '<span style="color:#fff;font-weight:800;">\u20b9'+item.p+'</span>';
+          : '<span style="color:#F2C744;font-weight:900;">\u20b9'+item.p+'</span>';
         row.innerHTML='<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;font-size:13px;font-weight:800;color:#F5F1E8;letter-spacing:.4px;">'+vegDot+'<span style="text-transform:uppercase;">'+sanitize(item.n)+'</span></div>'
-          +'<div style="font-size:13px;font-family:var(--fp);margin-top:6px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
+          +'<div style="font-size:14px;font-family:var(--fs);font-weight:800;margin-top:6px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
         var ctrl=document.createElement('div');ctrl.style.cssText='display:flex;align-items:center;gap:10px;flex-shrink:0;';
         var qty=cart[key]?cart[key].qty:0;
         if(qty===0){
@@ -5524,11 +5536,15 @@ function renderWalletPage(bookingRef){
         showCheckoutModal(getTabTotal());
       };
 
-      // ── Rounds history shown above menu
+      // ── Rounds history — 2026-05-13 (Khushi spec, round 5):
+      // moved BELOW the menu (was inserted at top of menuContent which
+      // pushed the categories down on every Place Order). Now appended to
+      // `inner` after submitCard so the menu always stays at the top and
+      // the running tab + per-round summary sits underneath.
       var roundsSection=document.createElement('div');
       roundsSection.id='tab-rounds-history';
-      roundsSection.style.cssText='margin-bottom:16px;';
-      menuContent.insertBefore(roundsSection,menuContent.firstChild);
+      roundsSection.style.cssText='margin:18px 0 24px;';
+      inner.appendChild(roundsSection);
 
       function renderRoundsHistory(){
         var sec=document.getElementById('tab-rounds-history');
@@ -5583,9 +5599,34 @@ function renderWalletPage(bookingRef){
         });
 
         bHtml+='</div>'
-          +'<div style="display:flex;justify-content:space-between;border-top:2px solid rgba(242,199,68,.3);padding-top:14px;margin-bottom:24px;">'
+          +'<div style="display:flex;justify-content:space-between;border-top:2px solid rgba(242,199,68,.3);padding-top:14px;margin-bottom:6px;">'
           +'<span style="font-size:16px;font-weight:900;">TOTAL</span>'
           +'<span style="font-size:22px;font-weight:900;color:var(--gold);">₹'+tt+'</span></div>';
+
+        // 2026-05-13 (Khushi spec, round 5) — Order Total screen had no tax
+        // breakdown. Add a collapsed "View tax breakdown" disclosure so
+        // customers can see SC + GST split before paying.
+        var _coAll=[];
+        (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){_coAll.push(i);});});
+        var _coBd;try{_coBd=hodComputeBreakdown(_coAll);}catch(e){_coBd=null;}
+        if(_coBd){
+          var _coRows='';
+          if(_coBd.foodSubtotal>0)    _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Food subtotal</span><span>\u20B9'+_coBd.foodSubtotal.toFixed(0)+'</span></div>';
+          if(_coBd.alcSubtotal>0)     _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Liquor subtotal</span><span>\u20B9'+_coBd.alcSubtotal.toFixed(0)+'</span></div>';
+          if(_coBd.nonAlcSubtotal>0)  _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Beverages subtotal</span><span>\u20B9'+_coBd.nonAlcSubtotal.toFixed(0)+'</span></div>';
+          _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Service charge (10%)</span><span>\u20B9'+_coBd.serviceCharge.toFixed(0)+'</span></div>';
+          _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>GST (5%)</span><span>\u20B9'+_coBd.gst.toFixed(0)+'</span></div>';
+          if(Math.abs(_coBd.roundOff||0)>=0.01) _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Round off</span><span>'+(_coBd.roundOff>=0?'+':'')+'\u20B9'+Math.abs(_coBd.roundOff).toFixed(2)+'</span></div>';
+          _coRows+='<div style="display:flex;justify-content:space-between;padding:6px 0 2px;border-top:1px solid rgba(242,199,68,.2);margin-top:6px;color:var(--gold);font-weight:800;"><span>Grand total</span><span>\u20B9'+_coBd.grandTotal+'</span></div>';
+          bHtml+='<details style="margin-bottom:18px;border:1px solid rgba(245,241,232,.08);border-radius:10px;background:rgba(0,0,0,.25);">'
+            +'<summary style="display:flex;justify-content:space-between;align-items:center;list-style:none;cursor:pointer;padding:10px 14px;font-size:11px;color:rgba(245,241,232,.6);font-style:italic;">'
+            +'<span>Inclusive of all taxes</span><span style="opacity:.7;">\u25BE view breakdown</span>'
+            +'</summary>'
+            +'<div style="padding:0 14px 12px;font-size:12px;line-height:1.7;color:rgba(245,241,232,.8);font-family:var(--fs);">'+_coRows+'</div>'
+            +'</details>';
+        } else {
+          bHtml+='<div style="margin-bottom:18px;font-size:11px;color:rgba(245,241,232,.5);font-style:italic;text-align:right;padding:0 4px;">Inclusive of all taxes</div>';
+        }
         sheet.innerHTML=bHtml;
 
         var poBtn=document.createElement('button');
@@ -5655,12 +5696,12 @@ function renderWalletPage(bookingRef){
         var isVeg=item.v===true;
         var vegDot=typeof item.v!=='undefined'?'<span class="wv-vegdot" style="color:'+(isVeg?'#00C864':'#EF4444')+';"></span>':'';
         var priceHtml = hasDisc
-          ? '<span style="text-decoration:line-through;color:rgba(255,255,255,.35);margin-right:6px;font-weight:600;">\u20b9'+item.p+'</span>'
-            +'<span style="color:#F2C744;font-weight:900;">\u20b9'+eff+'</span>'
+          ? '<span style="text-decoration:line-through;color:rgba(255,255,255,.35);margin-right:6px;font-weight:600;font-family:var(--fs);">\u20b9'+item.p+'</span>'
+            +'<span style="color:#F2C744;font-weight:900;font-family:var(--fs);">\u20b9'+eff+'</span>'
             +(ov && ov.discountReason ? '<span style="color:rgba(242,199,68,.75);font-size:10px;margin-left:6px;font-weight:600;">\u00b7 '+sanitize(ov.discountReason)+'</span>' : '')
-          : '<span style="color:#F2C744;font-weight:900;">\u20b9'+item.p+'</span>';
+          : '<span style="color:#F2C744;font-weight:900;font-family:var(--fs);">\u20b9'+item.p+'</span>';
         row.innerHTML='<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;font-size:14px;font-weight:700;color:#F5F1E8;letter-spacing:.2px;">'+vegDot+'<span style="text-transform:uppercase;letter-spacing:.4px;">'+sanitize(item.n)+'</span></div>'
-          +'<div style="font-size:13px;font-family:var(--fp);margin-top:4px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
+          +'<div style="font-size:14px;font-family:var(--fs);font-weight:800;margin-top:4px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
         var ctrl=document.createElement('div');ctrl.style.cssText='display:flex;align-items:center;gap:10px;flex-shrink:0;';
         var qty=cart[key]?cart[key].qty:0;
         if(qty===0){
@@ -5827,6 +5868,7 @@ function renderWalletPage(bookingRef){
         });
       }catch(e){
         callBtn.disabled=false; callLbl.textContent='Call Waiter'; _cd=0;
+        if(typeof showToast==='function') showToast('Could not notify captain — please wave one down.','err',4000);
       }
     };
   }
@@ -5971,6 +6013,12 @@ function renderWalletPage(bookingRef){
   // Load cover from Firebase — real-time listener so captain edits reflect immediately on customer screen
   if(firestore&&bookingRef){
     var _walletUnsub=null;
+    // Session-scoped flag — true only after we've seen at least one
+    // non-empty snapshot for this ref in this page session. Combined with
+    // the localStorage breadcrumb, this prevents the "Thank you" screen
+    // from flashing on initial cache-empty / transient-empty snapshots
+    // for a returning customer whose breadcrumb is from a prior visit.
+    var _seenLiveDocThisSession=false;
     function _startTableListener(){
       if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
       _walletUnsub=firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1)
@@ -5979,14 +6027,45 @@ function renderWalletPage(bookingRef){
           if(tSnap.empty){
             // Two scenarios land here: (a) brand-new pre-arrival booking
             // for which the captain hasn't created a tableReservations doc
-            // yet, or (b) the captain has RELEASED the table (doc deleted
-            // or archived). We use a localStorage breadcrumb set in
-            // renderWalletContent below — if the customer was previously
-            // shown a real wallet for this ref, they're in scenario (b).
+            // yet, or (b) the captain has RELEASED the table mid-session
+            // (doc deleted/archived). Decision rules (Khushi spec v3,
+            // hardened 2026-05-13 after architect review):
+            //   • If we've seen a non-empty doc in THIS session → release.
+            //   • Else if breadcrumb exists → likely release, but show
+            //     a 1.5s "Connecting…" spinner first to absorb transient
+            //     empty snapshots from cache before committing to the
+            //     thank-you copy.
+            //   • Else → genuine pre-arrival.
             var visitKey='hod_wallet_visited_'+bookingRef;
             var hasVisited=false;
             try{ hasVisited=!!localStorage.getItem(visitKey); }catch(e){}
-            if(hasVisited){
+            var commitToThankYou=_seenLiveDocThisSession;
+            if(!commitToThankYou && hasVisited){
+              // Show a brief connecting state, then commit. If a non-empty
+              // snapshot arrives in the meantime, this branch never runs
+              // because onSnapshot will fire again with the live doc.
+              inner.innerHTML='<div style="text-align:center;padding:80px 20px;color:var(--muted);">'
+                +'<div style="font-size:13px;letter-spacing:1.2px;text-transform:uppercase;opacity:.7;">Connecting…</div>'
+              +'</div>';
+              setTimeout(function(){
+                // Re-check: if a live snapshot arrived during the wait
+                // and flipped the session flag / repainted, do nothing.
+                if(_seenLiveDocThisSession) return;
+                // Still empty — render thank-you state.
+                inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
+                  +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
+                  +'<div style="font-family:var(--fp);font-size:22px;font-weight:800;color:var(--gold);margin-bottom:10px;">Thank you for visiting!</div>'
+                  +'<div style="font-size:14px;color:var(--muted);line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
+                  +'<div style="font-family:monospace;font-size:13px;color:rgba(242,199,68,.55);margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
+                  +'<div style="margin-top:24px;font-size:12px;color:#888;">See you again soon ✨</div>'
+                +'</div>';
+                try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
+                try{ wireCallWaiterFallback(bookingRef); }catch(e){}
+              },1500);
+              try{ wireCallWaiterFallback(bookingRef); }catch(e){}
+              return;
+            }
+            if(commitToThankYou){
               // Post-release / session-ended state — Khushi spec 2026-05-13.
               inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
                 +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
@@ -6009,9 +6088,11 @@ function renderWalletPage(bookingRef){
             try{ wireCallWaiterFallback(bookingRef); }catch(e){}
             return;
           }
-          // Customer has a live tableReservations doc — drop a breadcrumb
-          // so a future doc-delete (captain release) shows the
-          // "Thank you for visiting" screen instead of the pre-arrival one.
+          // Customer has a live tableReservations doc — flip the
+          // session flag and drop a breadcrumb so a future doc-delete
+          // (captain release) shows the "Thank you for visiting" screen
+          // instead of the pre-arrival one.
+          _seenLiveDocThisSession=true;
           try{ localStorage.setItem('hod_wallet_visited_'+bookingRef,'1'); }catch(e){}
           var td=tSnap.docs[0].data();
           renderWalletContent({
@@ -6503,8 +6584,10 @@ function renderHodFeedbackForm(container, total){
       +'</div>';
   });
   wrap.innerHTML=''
-    +'<div style="font-family:var(--fp);font-size:17px;font-weight:800;color:#C9A84C;margin-bottom:4px;">How was your evening?</div>'
-    +'<div style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.5;">Rate each — takes 10 seconds. Helps us serve you better.</div>'
+    +'<div id="hod-fb-heading">'
+    +  '<div style="font-family:var(--fp);font-size:17px;font-weight:800;color:#C9A84C;margin-bottom:4px;">How was your evening?</div>'
+    +  '<div style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.5;">Rate each — takes 10 seconds. Helps us serve you better.</div>'
+    +'</div>'
     +'<div id="hod-fb-grid" style="margin-bottom:12px;">'+rowsHtml+'</div>'
     +'<textarea id="hod-fb-note" placeholder="One line about your experience (optional)" style="width:100%;min-height:54px;padding:10px 12px;background:#0c0c0c;border:1px solid rgba(245,241,232,.12);border-radius:10px;color:#fff;font-family:var(--fs);font-size:13px;resize:none;outline:none;box-sizing:border-box;margin-bottom:12px;"></textarea>'
     +'<button id="hod-fb-submit" disabled style="width:100%;padding:13px;border-radius:12px;background:#C9A84C;color:#0c0c0c;border:none;font-family:var(--fs);font-size:14px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;cursor:pointer;opacity:.45;transition:opacity .2s;">Submit Feedback</button>'
@@ -6576,6 +6659,10 @@ function renderHodFeedbackForm(container, total){
           +'<div style="font-size:12px;color:#aaa;line-height:1.5;">Our manager will personally review your note. We will do better next time.</div>';
       }
       // Hide the form controls so the screen settles on the result.
+      // 2026-05-13 (Khushi spec, round 5) — also hide the "How was your
+      // evening? / Rate each — takes 10 seconds…" heading. The customer
+      // already gave feedback, no need to keep prompting them.
+      var heading=wrap.querySelector('#hod-fb-heading'); if(heading) heading.style.display='none';
       var grid=wrap.querySelector('#hod-fb-grid'); if(grid) grid.style.display='none';
       note.style.display='none';
       submitBtn.style.display='none';
