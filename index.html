@@ -4626,8 +4626,15 @@ function renderWalletPage(bookingRef){
   // Build header lazily after we know cv — start with just brand.
   hdr.innerHTML='<div><div class="wv-hd2-brand">House of Dopamine</div>'
     +'<div class="wv-hd2-otp" id="wv-hd2-ref">&nbsp;</div></div>'
-    +'<button class="wv-hd2-call" onclick="window.location.href=\'tel:+918882222900\'">'
-      +'<span>Call Waiter</span><span class="wv-hd2-avatar">&#9742;</span>'
+    // 2026-05-13 (Khushi spec) — "Call Waiter" no longer dials a hardcoded
+    // phone (the old tel:+918882222900 went to a number nobody at HOD owns
+    // any more). It now writes a `waiterCalls/{auto}` doc to Firestore;
+    // CaptainMode + BarMode subscribe live, beep, and show a red banner
+    // with the table id + an Acknowledge button. Wiring is done below in
+    // renderWalletContent() once `cv` is known. The button starts disabled
+    // and gets enabled the moment the wallet finishes loading.
+    +'<button class="wv-hd2-call" id="wv-hd2-call-btn" type="button" disabled style="opacity:.55;cursor:wait;">'
+      +'<span id="wv-hd2-call-label">Call Waiter</span><span class="wv-hd2-avatar">&#9742;</span>'
     +'</button>';
   wrap.appendChild(hdr);
 
@@ -5167,8 +5174,13 @@ function renderWalletPage(bookingRef){
 
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
-      checkoutBtn.style.cssText='width:100%;padding:14px;border-radius:14px;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.12);color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--fs);letter-spacing:.3px;'+(cv.isTableBooking?'':'display:none;');
-      checkoutBtn.innerHTML='🧾  Done Ordering? <span style="font-size:11px;opacity:.7;">Tap to settle your final bill</span>';
+      // 2026-05-13 (Khushi spec) — Done Ordering box recoloured to Digitory
+      // red and the headline font sized/weighted to match PLACE ORDER above
+      // (mirrors `.wv-place`: 18px padding, 15px / weight 900 / 1.2px tracking
+      // / uppercase, font-family var(--fs)). The "Tap to settle your final
+      // bill" subline keeps a softer secondary style so the CTA reads first.
+      checkoutBtn.style.cssText='width:100%;padding:18px;border-radius:14px;background:#B83227;border:2px solid #B83227;color:#fff;font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--fs);box-shadow:0 6px 22px rgba(184,50,39,.32);'+(cv.isTableBooking?'':'display:none;');
+      checkoutBtn.innerHTML='🧾  Done Ordering? <span style="font-size:11px;opacity:.85;font-weight:700;letter-spacing:.5px;text-transform:none;font-family:var(--fs);">Tap to settle your final bill</span>';
       submitCard.appendChild(checkoutBtn);
 
       inner.appendChild(submitCard);
@@ -5574,33 +5586,13 @@ function renderWalletPage(bookingRef){
 
     buildMenu(currentMenuData());
 
-    // ── DIGITORY V3: bottom fixed View Cart footer (red strip + tax line)
-    var cartFooter=wrap.querySelector('.wv-cartfooter');
-    if(!cartFooter){
-      cartFooter=document.createElement('div');
-      cartFooter.className='wv-cartfooter';
-      cartFooter.innerHTML='<button class="wv-cf-btn" type="button">'
-        +'<span id="wv-cf-label">View Cart</span>'
-        +'<span class="wv-cf-amt" id="wv-cf-amt">\u20b90</span>'
-        +'</button>'
-        +'<div class="wv-cf-tax">Government taxes as applicable.</div>';
-      cartFooter.querySelector('button').onclick=function(){
-        var pb=document.getElementById('tab-place-btn');
-        if(pb) pb.scrollIntoView({behavior:'smooth',block:'center'});
-      };
-      wrap.appendChild(cartFooter);
-    }
-    function updateCartFooter(){
-      var n=Object.values(cart).reduce(function(a,it){return a+it.qty;},0);
-      var amtEl=document.getElementById('wv-cf-amt');
-      var lblEl=document.getElementById('wv-cf-label');
-      if(!amtEl||!lblEl||!cartFooter) return;
-      if(n<=0){cartFooter.classList.remove('show');return;}
-      cartFooter.classList.add('show');
-      lblEl.textContent='View Cart \u00b7 '+n+' item'+(n>1?'s':'');
-      amtEl.textContent='\u20b9'+getCartTotal().toLocaleString('en-IN');
-    }
-    // Patch updateCartBar so the bottom footer always stays in sync.
+    // 2026-05-13 (Khushi spec) — bottom-fixed "View Cart · N items · ₹X" red
+    // footer removed. It duplicated the YOUR ORDER list + Place Order CTA
+    // shown immediately above the menu and felt heavy on small screens.
+    // Stub kept so any leftover updateCartBar callsites stay wired up — it
+    // now no-ops, the cart total + line items are visible in the inline
+    // YOUR ORDER block that already lives in `submitCard`.
+    function updateCartFooter(){ /* footer removed */ }
     var _origUpdateCartBar=updateCartBar;
     updateCartBar=function(){_origUpdateCartBar();updateCartFooter();};
     updateCartFooter();
@@ -5610,6 +5602,81 @@ function renderWalletPage(bookingRef){
     if(refEl){
       var refTxt=cv.ref||cv.bookingId||cv.id||'';
       refEl.innerHTML=refTxt?('#'+sanitize(refTxt)):'&nbsp;';
+    }
+
+    // 2026-05-13 (Khushi spec) — wire the "Call Waiter" header button to
+    // Firestore `waiterCalls`. The POS already listens (WaiterCallBanner in
+    // CaptainMode + BarMode subscribeActiveWaiterCalls) — beeps + red
+    // banner with ACK button. Throttle to 1 call / 30 s per wallet so a
+    // toddler can't spam the floor. On success we morph the button to a
+    // green "✓ Captain notified" pill that auto-resets after 30 s.
+    var callBtn=document.getElementById('wv-hd2-call-btn');
+    var callLbl=document.getElementById('wv-hd2-call-label');
+    if(callBtn&&callLbl){
+      callBtn.disabled=false;
+      callBtn.style.opacity='1';
+      callBtn.style.cursor='pointer';
+      var _wcCooldownUntil=0;
+      callBtn.onclick=function(){
+        var nowMs=Date.now();
+        if(nowMs<_wcCooldownUntil){return;}
+        if(!firestore){
+          // Firebase didn't initialise (offline / blocked) — fall back to
+          // dialler so the guest still has a way to reach staff. This is
+          // also what lets the button stay useful if waiterCalls writes
+          // are denied by Firestore rules during a deploy window.
+          window.location.href='tel:+919686444906';
+          return;
+        }
+        _wcCooldownUntil=nowMs+30000;
+        callBtn.disabled=true;
+        callBtn.style.opacity='.7';
+        callBtn.style.cursor='wait';
+        callLbl.textContent='Calling…';
+        try{
+          firestore.collection('waiterCalls').add({
+            coverRef:cv.ref||cv.bookingId||cv.id||'',
+            customerName:cv.name||'Guest',
+            tableId:cv.tableId||null,
+            floorLabel:cv.floorLabel||null,
+            status:'pending',
+            createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+            acknowledgedAt:null,
+            acknowledgedBy:null
+          }).then(function(){
+            callBtn.style.background='rgba(0,200,100,.18)';
+            callBtn.style.borderRadius='8px';
+            callBtn.style.padding='4px 8px';
+            callLbl.textContent='✓ Captain notified';
+            setTimeout(function(){
+              callBtn.style.background='transparent';
+              callBtn.style.padding='0';
+              callBtn.style.opacity='1';
+              callBtn.style.cursor='pointer';
+              callBtn.disabled=false;
+              callLbl.textContent='Call Waiter';
+            },30000);
+          }).catch(function(err){
+            console.warn('[waiterCall] write failed',err);
+            callLbl.textContent='Call Waiter';
+            callBtn.disabled=false;
+            callBtn.style.opacity='1';
+            callBtn.style.cursor='pointer';
+            _wcCooldownUntil=0;
+            // Last-resort: dial the venue main line so the guest still
+            // gets a human if Firestore is unreachable.
+            window.location.href='tel:+919686444906';
+          });
+        }catch(e){
+          console.warn('[waiterCall] threw',e);
+          callLbl.textContent='Call Waiter';
+          callBtn.disabled=false;
+          callBtn.style.opacity='1';
+          callBtn.style.cursor='pointer';
+          _wcCooldownUntil=0;
+          window.location.href='tel:+919686444906';
+        }
+      };
     }
   }
 
