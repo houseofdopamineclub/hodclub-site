@@ -5536,15 +5536,21 @@ function renderWalletPage(bookingRef){
         showCheckoutModal(getTabTotal());
       };
 
-      // ── Rounds history — 2026-05-13 (Khushi spec, round 5):
-      // moved BELOW the menu (was inserted at top of menuContent which
-      // pushed the categories down on every Place Order). Now appended to
-      // `inner` after submitCard so the menu always stays at the top and
-      // the running tab + per-round summary sits underneath.
+      // ── Rounds history — 2026-05-13 v3 (Khushi spec, round 8):
+      // YOUR TAB now sits ABOVE the Running Tab / Place Order / Done
+      // Ordering block so the bottom of the page is always the two
+      // action buttons. Order: menu → YOUR TAB → RUNNING TAB +
+      // PLACE ORDER + Done Ordering. (Round 5 placed YOUR TAB after
+      // submitCard; Round 8 flips it via insertBefore so Place Order
+      // and Done Ordering stay the last two CTAs at the page bottom.)
       var roundsSection=document.createElement('div');
       roundsSection.id='tab-rounds-history';
       roundsSection.style.cssText='margin:18px 0 24px;';
-      inner.appendChild(roundsSection);
+      if(submitCard&&submitCard.parentNode===inner){
+        inner.insertBefore(roundsSection, submitCard);
+      } else {
+        inner.appendChild(roundsSection);
+      }
 
       function renderRoundsHistory(){
         var sec=document.getElementById('tab-rounds-history');
@@ -5635,6 +5641,80 @@ function renderWalletPage(bookingRef){
         poBtn.onclick=function(){
           if(poBtn.disabled)return;
           poBtn.disabled=true;poBtn.textContent='Opening payment...';
+          // ── 2026-05-13 round 9 (Khushi spec): Pay Online → flip captain
+          // BILL DUE chip to green ✅ PAID ONLINE.
+          // Safety order is critical:
+          //   1. Razorpay handler fires ONLY when Razorpay confirms the
+          //      charge with a payment_id (success). On dismiss / failure
+          //      we NEVER stamp paid — captain keeps seeing BILL DUE.
+          //   2. After success we retry the Firestore stamp 3× with
+          //      backoff. If all retries fail, we KEEP the bill in
+          //      bill_requested state (so the red BILL DUE chip stays
+          //      blinking and the captain still walks over) AND show
+          //      the customer a non-dismissable Payment-ID screen they
+          //      MUST show to the captain. We also drop a best-effort
+          //      pendingPaymentNotices/{ref} marker so a later flow can
+          //      surface a ⚠️ "customer claims paid" hint if needed.
+          //   3. On payment.failed event we re-enable the button.
+          function _writePaidOnline(pid){
+            if(!firestore||!cv.ref) return Promise.reject(new Error('no_firestore_or_ref'));
+            var nowIso=new Date().toISOString();
+            var paidPatch={
+              paymentStatus:'paid',
+              paymentMethod:'paid_online',
+              paidAt:nowIso,
+              paymentId:pid,
+              amountPaid:tt,
+              orderTotal:tt,
+              tabTotal:tt
+            };
+            function _attempt(n){
+              return firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
+                .then(function(snap){
+                  var ps=[];
+                  snap.forEach(function(d){ ps.push(d.ref.update(paidPatch)); });
+                  ps.push(firestore.collection('covers').doc(cv.ref).set(paidPatch,{merge:true}));
+                  return Promise.all(ps);
+                })
+                .catch(function(err){
+                  if(n<3){
+                    return new Promise(function(res){ setTimeout(res, 400*Math.pow(2,n)); })
+                      .then(function(){ return _attempt(n+1); });
+                  }
+                  throw err;
+                });
+            }
+            return _attempt(0);
+          }
+          function _showPaymentIdFallback(pid){
+            // Firestore stamp failed after retries. KEEP captain BILL DUE
+            // chip intact (do not flip), surface the Payment ID prominently
+            // so customer can show it to the captain in person.
+            sheet.innerHTML=
+              '<div style="text-align:center;padding:20px 6px;">'
+              +'<div style="font-size:48px;margin-bottom:14px;">⚠️</div>'
+              +'<div style="font-size:18px;font-weight:900;color:#F2C744;margin-bottom:10px;font-family:var(--fs);">Payment Received — Show This To Your Captain</div>'
+              +'<div style="font-size:13px;color:#aaa;margin-bottom:18px;line-height:1.5;font-family:var(--fs);">Razorpay confirmed your payment but we couldn\'t notify your table. Please show this Payment ID to your captain — they will mark your bill paid manually.</div>'
+              +'<div style="background:rgba(242,199,68,.12);border:1.5px dashed rgba(242,199,68,.5);border-radius:14px;padding:18px;margin-bottom:18px;">'
+              +'<div style="font-size:10px;font-weight:800;color:var(--gold);letter-spacing:1.5px;margin-bottom:8px;">PAYMENT ID</div>'
+              +'<div style="font-size:18px;font-weight:900;color:#fff;font-family:monospace;letter-spacing:1px;word-break:break-all;">'+sanitize(pid||'(missing)')+'</div>'
+              +'<div style="font-size:11px;color:var(--muted);margin-top:10px;font-family:var(--fs);">Amount: \u20b9'+tt+' \u00b7 '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})+'</div>'
+              +'</div>'
+              +'<button id="_walletPaidOk" style="width:100%;padding:14px;border-radius:12px;background:#F2C744;border:none;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--fs);">Got it \u2014 I\'ll show my captain</button>'
+              +'</div>';
+            var okBtn=sheet.querySelector('#_walletPaidOk');
+            if(okBtn) okBtn.onclick=function(){ overlay.remove(); };
+            // Best-effort fallback marker (silent fail)
+            try {
+              firestore.collection('pendingPaymentNotices').doc(cv.ref).set({
+                bookingRef:cv.ref,
+                paymentId:pid||'',
+                amount:tt,
+                claimedAt:new Date().toISOString(),
+                source:'wallet_paid_online_writefail'
+              }).catch(function(){});
+            } catch(_){}
+          }
           var rz=new Razorpay({
             key:RAZORPAY_KEY,amount:tt*100,currency:'INR',
             name:'HOD — House of Dopamine',
@@ -5642,11 +5722,47 @@ function renderWalletPage(bookingRef){
             prefill:{name:sanitize(cv.name||''),contact:sanitize(cv.phone||'')},
             theme:{color:'#F2C744'},
             handler:function(resp){
-              overlay.remove();
-              submitOrder(cv,bal,{mode:'online',paymentId:resp.razorpay_payment_id,amount:tt,rounds:tabRounds});
+              var pid=(resp&&resp.razorpay_payment_id)||'';
+              if(!pid){
+                // Defensive: handler fired without a payment id. Treat as
+                // failure — keep BILL DUE intact, do NOT flip to paid.
+                alert('\u274c Payment status unclear. Please try again or use Pay at Table.');
+                poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
+                return;
+              }
+              _writePaidOnline(pid).then(function(){
+                overlay.remove();
+                submitOrder(cv,bal,{mode:'online',paymentId:pid,amount:tt,rounds:tabRounds});
+              }).catch(function(err){
+                console.error('[HOD wallet] paid_online stamp failed after retries:', err);
+                _showPaymentIdFallback(pid);
+                // Still record the round so kitchen/bar history is intact,
+                // but DELIBERATELY pass mode:'bill_requested' (not 'online')
+                // so submitOrder's status branch (~line 6054) lands on
+                // 'bill_requested', NOT 'paid'. This guarantees the captain
+                // chip stays red BILL DUE — even though the customer holds
+                // a valid Razorpay payment id — until the captain manually
+                // verifies and marks paid on the door tablet.
+                try {
+                  submitOrder(cv,bal,{
+                    mode:'bill_requested',
+                    paymentId:pid,
+                    amount:tt,
+                    rounds:tabRounds,
+                    pendingOnlinePaymentId:pid
+                  });
+                } catch(_){}
+              });
             },
             modal:{ondismiss:function(){poBtn.disabled=false;poBtn.innerHTML='💳  Pay Online  —  ₹'+tt;}}
           });
+          if(rz&&typeof rz.on==='function'){
+            rz.on('payment.failed',function(r){
+              var msg=(r&&r.error&&(r.error.description||r.error.reason))||'Unknown error';
+              alert('\u274c Payment failed: '+msg+'\nPlease try again or use Pay at Table.');
+              poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
+            });
+          }
           rz.open();
         };
         sheet.appendChild(poBtn);
@@ -6025,21 +6141,52 @@ function renderWalletPage(bookingRef){
         .onSnapshot(function(tSnap){
           inner.innerHTML='';
           if(tSnap.empty){
-            // Two scenarios land here: (a) brand-new pre-arrival booking
+            // Three scenarios land here: (a) brand-new pre-arrival booking
             // for which the captain hasn't created a tableReservations doc
-            // yet, or (b) the captain has RELEASED the table mid-session
-            // (doc deleted/archived). Decision rules (Khushi spec v3,
-            // hardened 2026-05-13 after architect review):
-            //   • If we've seen a non-empty doc in THIS session → release.
-            //   • Else if breadcrumb exists → likely release, but show
-            //     a 1.5s "Connecting…" spinner first to absorb transient
-            //     empty snapshots from cache before committing to the
-            //     thank-you copy.
+            // yet, (b) the captain has RELEASED the table mid-session
+            // (doc deleted/archived), or (c) the customer is opening the
+            // wallet for the FIRST time after release (no breadcrumb, no
+            // session flag). To distinguish (a) from (b)/(c), we now also
+            // do a one-shot get on `releasedReservations/{bookingRef}`,
+            // a marker doc the POS writes inside `releaseTable`. If that
+            // doc exists → committed release, render thank-you immediately
+            // regardless of breadcrumb/session state. Decision rules
+            // (Khushi spec v4, 2026-05-13):
+            //   • Marker doc exists → release (commit immediately).
+            //   • Else if seen non-empty doc THIS session → release.
+            //   • Else if breadcrumb exists → likely release, show 1.5s
+            //     "Connecting…" spinner first to absorb transient empties.
             //   • Else → genuine pre-arrival.
             var visitKey='hod_wallet_visited_'+bookingRef;
             var hasVisited=false;
             try{ hasVisited=!!localStorage.getItem(visitKey); }catch(e){}
             var commitToThankYou=_seenLiveDocThisSession;
+            // One-shot marker check — only meaningful for TBL-/AGG- refs
+            // (covers/guestlist refs handled by other listeners). Fires
+            // synchronously alongside the existing breadcrumb logic so we
+            // don't add latency to the pre-arrival path.
+            if(!commitToThankYou && (bookingRef.indexOf('TBL-')===0||bookingRef.indexOf('AGG-')===0)){
+              try{
+                firestore.collection('releasedReservations').doc(bookingRef).get().then(function(mDoc){
+                  if(!mDoc.exists) return;
+                  // Marker found — render thank-you screen immediately,
+                  // overriding any pre-arrival paint that may already be
+                  // on screen. Drop a breadcrumb so subsequent refreshes
+                  // skip straight to thank-you on the breadcrumb path too.
+                  try{ localStorage.setItem(visitKey,'1'); }catch(e){}
+                  _seenLiveDocThisSession=true;
+                  inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
+                    +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
+                    +'<div style="font-family:var(--fp);font-size:22px;font-weight:800;color:var(--gold);margin-bottom:10px;">Thank you for visiting!</div>'
+                    +'<div style="font-size:14px;color:var(--muted);line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
+                    +'<div style="font-family:monospace;font-size:13px;color:rgba(242,199,68,.55);margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
+                    +'<div style="margin-top:24px;font-size:12px;color:#888;">See you again soon ✨</div>'
+                  +'</div>';
+                  try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
+                  try{ wireCallWaiterFallback(bookingRef); }catch(e){}
+                }).catch(function(){});
+              }catch(e){}
+            }
             if(!commitToThankYou && hasVisited){
               // Show a brief connecting state, then commit. If a non-empty
               // snapshot arrives in the meantime, this branch never runs
