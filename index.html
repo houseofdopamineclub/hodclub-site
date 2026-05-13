@@ -452,11 +452,26 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
     <span class="fab-pulse"></span>
     <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
   </a>
-  <a class="fab-btn fab-call" href="tel:+919686444906" aria-label="Call HOD" title="Call +91 96864 44906">
+  <a class="fab-btn fab-call" id="fab-call-public" href="tel:+919686444906" aria-label="Call HOD" title="Call +91 96864 44906">
     <span class="fab-pulse"></span>
     <svg width="24" height="24" viewBox="0 0 24 24" fill="#0a0a14"><path d="M20.487 17.14l-4.065-3.696a1 1 0 00-1.391.044l-2.393 2.461c-.576-.11-1.734-.471-2.926-1.66-1.192-1.193-1.553-2.354-1.66-2.926l2.459-2.394a1 1 0 00.045-1.391L6.86 3.514a1 1 0 00-1.391-.087l-2.17 1.861a1 1 0 00-.291.649c-.015.25-.301 6.172 4.291 10.766C11.305 20.707 16.323 21 17.705 21c.202 0 .326-.006.36-.008a.992.992 0 00.648-.291l1.86-2.171a1 1 0 00-.086-1.39z"/></svg>
   </a>
 </div>
+<script>
+// 2026-05-13 (Khushi spec) — On wallet/booking pages, hide the public phone
+// FAB so the only "call" affordance is the in-app "Call Waiter" header
+// button (which writes to Firestore waiterCalls and notifies the captain).
+// Keeps WhatsApp visible for general queries.
+(function(){
+  try{
+    var p=new URLSearchParams(window.location.search||'');
+    if(p.has('wallet')||p.has('verify')||p.has('booking')){
+      var f=document.getElementById('fab-call-public');
+      if(f) f.style.display='none';
+    }
+  }catch(e){}
+})();
+</script>
 
 <div class="app">
 <!-- TICKER -->
@@ -5094,6 +5109,7 @@ function renderWalletPage(bookingRef){
         } else {
           var minB=document.createElement('button');minB.className='wv-qbtn';minB.textContent='\u2212';
           minB.onclick=function(){
+            if(!cart[key]){menuContent.innerHTML='';buildMenu(menuData);return;}
             if(cart[key].qty>1)cart[key].qty--;else delete cart[key];
             updateCartBar();updateTabFooter();
             menuContent.innerHTML='';buildMenu(menuData);
@@ -5101,7 +5117,9 @@ function renderWalletPage(bookingRef){
           var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
           var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
           plusB.onclick=function(){
-            cart[key].qty++;updateCartBar();updateTabFooter();
+            if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};}
+            else{cart[key].qty++;}
+            updateCartBar();updateTabFooter();
             menuContent.innerHTML='';buildMenu(menuData);
           };
           ctrl.appendChild(minB);ctrl.appendChild(qtySpan);ctrl.appendChild(plusB);
@@ -5115,17 +5133,59 @@ function renderWalletPage(bookingRef){
       submitCard.id='wallet-tab-footer';
       submitCard.style.cssText='background:rgba(10,10,10,.97);backdrop-filter:blur(14px);padding:18px 0 28px;margin-top:24px;border-top:2px solid rgba(242,199,68,.22);';
 
-      var totalRow=document.createElement('div');
-      totalRow.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;';
-      totalRow.innerHTML='<span style="font-size:12px;color:var(--muted);">This Round</span>'
-        +'<span id="tab-round-total" style="font-size:22px;font-weight:900;color:var(--gold);">₹0</span>';
-      submitCard.appendChild(totalRow);
-
+      // Running Tab — the BIG, dominant line. This is what the customer
+      // owes for everything already placed (confirmed orders). Tax-inclusive.
       var tabRow=document.createElement('div');
-      tabRow.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;';
-      tabRow.innerHTML='<span style="font-size:11px;color:var(--muted);">Running Tab</span>'
-        +'<span id="tab-running-total" style="font-size:13px;font-weight:700;color:rgba(242,199,68,.7);">₹0</span>';
+      tabRow.style.cssText='display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2px;';
+      tabRow.innerHTML='<span style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">Running Tab</span>'
+        +'<span id="tab-running-total" style="font-size:24px;font-weight:900;color:var(--gold);font-family:var(--fp);">₹0</span>';
       submitCard.appendChild(tabRow);
+
+      // Tiny tax-inclusive hint sitting RIGHT under the Running Tab — taps
+      // to expand a per-line GST/SC/CGST breakdown. Collapsed by default
+      // so the line stays clean. (Khushi spec 2026-05-13 v3 — moved here
+      // from below the Done Ordering button so customers see it next to
+      // the amount it's actually inclusive of.)
+      var taxHintTop=document.createElement('div');
+      taxHintTop.id='tab-taxhint-top';
+      taxHintTop.style.cssText='display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-bottom:10px;font-size:10px;color:rgba(245,241,232,.5);font-style:italic;cursor:pointer;user-select:none;';
+      taxHintTop.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25be</span>';
+      var taxBoxTop=document.createElement('div');
+      taxBoxTop.id='tab-taxbox-top';
+      taxBoxTop.style.cssText='display:none;margin-bottom:12px;padding:10px 14px;background:rgba(0,0,0,.3);border:1px solid rgba(245,241,232,.08);border-radius:10px;font-size:11px;color:rgba(245,241,232,.7);font-family:var(--fs);line-height:1.7;';
+      taxHintTop.onclick=function(){
+        var open=taxBoxTop.style.display==='block';
+        if(open){taxBoxTop.style.display='none';taxHintTop.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25be</span>';return;}
+        try{
+          var allItems=[];
+          (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
+          // Also include unplaced cart items so the breakdown matches what
+          // the customer is about to confirm.
+          Object.values(cart).forEach(function(it){allItems.push(it);});
+          var bd=hodComputeBreakdown(allItems);
+          var rows='';
+          if(bd.foodSubtotal>0) rows+='<div style="display:flex;justify-content:space-between;"><span>Food subtotal</span><span>\u20B9'+bd.foodSubtotal.toFixed(0)+'</span></div>';
+          if(bd.alcSubtotal>0)  rows+='<div style="display:flex;justify-content:space-between;"><span>Liquor subtotal</span><span>\u20B9'+bd.alcSubtotal.toFixed(0)+'</span></div>';
+          if(bd.nonAlcSubtotal>0) rows+='<div style="display:flex;justify-content:space-between;"><span>Beverages subtotal</span><span>\u20B9'+bd.nonAlcSubtotal.toFixed(0)+'</span></div>';
+          rows+='<div style="display:flex;justify-content:space-between;"><span>Service charge (10%)</span><span>\u20B9'+bd.serviceCharge.toFixed(0)+'</span></div>';
+          rows+='<div style="display:flex;justify-content:space-between;"><span>GST (5%)</span><span>\u20B9'+bd.gst.toFixed(0)+'</span></div>';
+          rows+='<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(245,241,232,.12);margin-top:6px;padding-top:6px;color:var(--gold);font-weight:700;"><span>Grand total</span><span>\u20B9'+bd.grandTotal+'</span></div>';
+          taxBoxTop.innerHTML=rows||'<div style="text-align:center;opacity:.6;">No items yet.</div>';
+        }catch(e){taxBoxTop.innerHTML='<div style="text-align:center;opacity:.6;">Breakdown unavailable.</div>';}
+        taxBoxTop.style.display='block';
+        taxHintTop.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25B4 hide</span>';
+      };
+      submitCard.appendChild(taxHintTop);
+      submitCard.appendChild(taxBoxTop);
+
+      // "This Round" — the NEW items being added now (still in cart, not
+      // yet placed). Smaller line so the customer reads Running Tab first,
+      // then sees what they're about to add.
+      var totalRow=document.createElement('div');
+      totalRow.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:rgba(242,199,68,.05);border:1px dashed rgba(242,199,68,.18);border-radius:10px;';
+      totalRow.innerHTML='<span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">+ This Round</span>'
+        +'<span id="tab-round-total" style="font-size:16px;font-weight:800;color:var(--gold);">₹0</span>';
+      submitCard.appendChild(totalRow);
 
       var itemLine=document.createElement('div');
       itemLine.id='tab-item-line';
@@ -5203,43 +5263,9 @@ function renderWalletPage(bookingRef){
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
       checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:14px;background:linear-gradient(180deg,#C03A2D,#9E1F14);border:1px solid rgba(255,255,255,.08);color:#fff;cursor:pointer;font-family:var(--fp);font-size:18px;font-weight:700;letter-spacing:.5px;box-shadow:0 4px 14px rgba(184,50,39,.28),inset 0 1px 0 rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;gap:10px;';
-      checkoutBtn.innerHTML='<span style="font-size:18px;">🧾</span><span>Done Ordering</span>';
+      checkoutBtn.innerHTML='<span style="font-size:18px;">🧾</span><span>Done Ordering? Settle Your Bill</span>';
       checkoutWrap.appendChild(checkoutBtn);
-
-      // Tax-hint pill: small, italic, muted — restores the "Inclusive of all
-      // taxes ▾ view breakdown" affordance that was lost when the bottom
-      // cart bar was removed. Tap to expand a per-line GST/SC/CGST breakdown
-      // (computed from current cart via hodComputeBreakdown). Pure CSS open
-      // state — no extra modal, no extra page, no re-render.
-      var taxHint=document.createElement('div');
-      taxHint.id='tab-checkout-taxhint';
-      taxHint.style.cssText='margin-top:8px;padding:8px 12px;background:rgba(245,241,232,.04);border:1px solid rgba(245,241,232,.08);border-radius:10px;text-align:center;font-size:11px;color:rgba(245,241,232,.55);font-style:italic;letter-spacing:.3px;cursor:pointer;font-family:var(--fs);user-select:none;';
-      taxHint.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25be view breakdown</span>';
-      var taxBox=document.createElement('div');
-      taxBox.id='tab-checkout-taxbox';
-      taxBox.style.cssText='display:none;margin-top:6px;padding:10px 14px;background:rgba(0,0,0,.3);border:1px solid rgba(245,241,232,.08);border-radius:10px;font-size:11px;color:rgba(245,241,232,.7);font-family:var(--fs);line-height:1.7;';
-      taxHint.onclick=function(){
-        var open=taxBox.style.display==='block';
-        if(open){taxBox.style.display='none';taxHint.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25be view breakdown</span>';return;}
-        // Recompute from current rounds (placed orders) on demand.
-        try{
-          var allItems=[];
-          (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
-          var bd=hodComputeBreakdown(allItems);
-          var rows='';
-          if(bd.foodSubtotal>0) rows+='<div style="display:flex;justify-content:space-between;"><span>Food subtotal</span><span>\u20B9'+bd.foodSubtotal.toFixed(0)+'</span></div>';
-          if(bd.alcSubtotal>0)  rows+='<div style="display:flex;justify-content:space-between;"><span>Liquor subtotal</span><span>\u20B9'+bd.alcSubtotal.toFixed(0)+'</span></div>';
-          if(bd.nonAlcSubtotal>0) rows+='<div style="display:flex;justify-content:space-between;"><span>Beverages subtotal</span><span>\u20B9'+bd.nonAlcSubtotal.toFixed(0)+'</span></div>';
-          rows+='<div style="display:flex;justify-content:space-between;"><span>Service charge (10%)</span><span>\u20B9'+bd.serviceCharge.toFixed(0)+'</span></div>';
-          rows+='<div style="display:flex;justify-content:space-between;"><span>GST (5%)</span><span>\u20B9'+bd.gst.toFixed(0)+'</span></div>';
-          rows+='<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(245,241,232,.12);margin-top:6px;padding-top:6px;color:var(--gold);font-weight:700;"><span>Grand total</span><span>\u20B9'+bd.grandTotal+'</span></div>';
-          taxBox.innerHTML=rows||'<div style="text-align:center;opacity:.6;">No items ordered yet.</div>';
-        }catch(e){taxBox.innerHTML='<div style="text-align:center;opacity:.6;">Breakdown unavailable.</div>';}
-        taxBox.style.display='block';
-        taxHint.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25B4 hide breakdown</span>';
-      };
-      checkoutWrap.appendChild(taxHint);
-      checkoutWrap.appendChild(taxBox);
+      // (Tax-hint pill moved up under Running Tab — see taxHintTop above.)
       submitCard.appendChild(checkoutWrap);
 
       inner.appendChild(submitCard);
@@ -5427,8 +5453,29 @@ function renderWalletPage(bookingRef){
           placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
 
           if(cv.isTableBooking){
-            // TABLE BOOKING: simple toast
-            showToast('✅ Order placed! Your captain will be with you shortly.','success',4000);
+            // TABLE BOOKING: friendly modal popup (Khushi spec 2026-05-13)
+            var tbOv=document.createElement('div');
+            tbOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn .25s ease;';
+            var tbMd=document.createElement('div');
+            tbMd.style.cssText='background:linear-gradient(180deg,#1a1a1a,#0c0c0c);border:1.5px solid rgba(242,199,68,.35);border-radius:22px;padding:30px 26px 22px;width:100%;max-width:380px;text-align:center;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(242,199,68,.15);';
+            tbMd.innerHTML=
+              '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🍽️</div>'
+              +'<div style="font-family:var(--fp);font-size:22px;font-weight:800;color:#C9A84C;margin-bottom:8px;letter-spacing:.3px;">Order Placed!</div>'
+              +'<div style="font-size:14px;color:#aaa;line-height:1.55;margin-bottom:18px;">Your captain has been notified and will be with you shortly to confirm.</div>'
+              +'<div style="background:rgba(242,199,68,.06);border:1px solid rgba(242,199,68,.18);border-radius:12px;padding:12px 14px;margin-bottom:18px;">'
+                +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.2px;margin-bottom:6px;">YOUR ORDER</div>'
+                +'<div style="font-size:13px;color:#F2C744;font-weight:700;line-height:1.5;">'+sanitize(placedItems)+'</div>'
+                +'<div style="font-size:18px;font-weight:900;color:#C9A84C;margin-top:8px;font-family:var(--fp);">₹'+ct.toLocaleString('en-IN')+'</div>'
+              +'</div>'
+              +'<div style="font-size:11px;color:#666;margin-bottom:14px;line-height:1.5;">Order more anytime — settle the full bill when you\'re done.</div>';
+            var tbClose=document.createElement('button');
+            tbClose.style.cssText='width:100%;padding:13px;border-radius:12px;background:linear-gradient(180deg,#C9A84C,#A88838);border:none;color:#0c0c0c;font-family:var(--fs);font-size:14px;font-weight:900;letter-spacing:.6px;cursor:pointer;text-transform:uppercase;';
+            tbClose.textContent='Got it ✓';
+            tbClose.onclick=function(){tbOv.remove();};
+            tbMd.appendChild(tbClose);
+            tbOv.appendChild(tbMd);
+            tbOv.onclick=function(e){if(e.target===tbOv)tbOv.remove();};
+            document.body.appendChild(tbOv);
           } else {
             // COVER/EVENT: show QR popup for bartender
             var overlay=document.createElement('div');
@@ -6353,48 +6400,84 @@ function renderHodFeedbackForm(container, total){
     var qp=new URLSearchParams(location.search||'');
     bookingRef=qp.get('wallet')||qp.get('ref')||qp.get('verify')||'';
   }catch(e){}
+  // 4-category rating (Khushi spec 2026-05-13 v2): Food, Ambience, Hygiene,
+  // Service. Google review CTA only fires when ALL FOUR categories are
+  // rated 4★ or higher — otherwise the feedback is captured privately.
+  var CATS=[
+    {id:'food',     label:'Food',     icon:'🍽️'},
+    {id:'ambience', label:'Ambience', icon:'✨'},
+    {id:'hygiene',  label:'Hygiene',  icon:'🧼'},
+    {id:'service',  label:'Service',  icon:'🛎️'}
+  ];
   var wrap=document.createElement('div');
   wrap.id='hod-feedback-card';
   wrap.style.cssText='max-width:380px;margin:14px auto 28px;padding:20px 18px;background:#141414;border:1.5px solid rgba(242,199,68,.22);border-radius:16px;font-family:var(--fs);text-align:center;color:#fff;';
+  var rowsHtml='';
+  CATS.forEach(function(c){
+    rowsHtml+=''
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 4px;border-bottom:1px solid rgba(245,241,232,.06);">'
+        +'<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#F5F1E8;letter-spacing:.3px;">'
+          +'<span style="font-size:18px;">'+c.icon+'</span><span>'+c.label+'</span>'
+        +'</div>'
+        +'<div class="hod-fb-stars" data-cat="'+c.id+'" style="display:flex;gap:4px;font-size:22px;cursor:pointer;user-select:none;line-height:1;">'
+          +'<span data-r="1" style="opacity:.3;">★</span>'
+          +'<span data-r="2" style="opacity:.3;">★</span>'
+          +'<span data-r="3" style="opacity:.3;">★</span>'
+          +'<span data-r="4" style="opacity:.3;">★</span>'
+          +'<span data-r="5" style="opacity:.3;">★</span>'
+        +'</div>'
+      +'</div>';
+  });
   wrap.innerHTML=''
     +'<div style="font-family:var(--fp);font-size:17px;font-weight:800;color:#C9A84C;margin-bottom:4px;">How was your evening?</div>'
-    +'<div style="font-size:12px;color:#888;margin-bottom:14px;line-height:1.5;">A 10-second rating helps us serve you better next time.</div>'
-    +'<div id="hod-fb-stars" style="display:flex;justify-content:center;gap:8px;margin-bottom:14px;font-size:32px;cursor:pointer;user-select:none;line-height:1;">'
-      +'<span data-r="1" style="opacity:.35;">★</span>'
-      +'<span data-r="2" style="opacity:.35;">★</span>'
-      +'<span data-r="3" style="opacity:.35;">★</span>'
-      +'<span data-r="4" style="opacity:.35;">★</span>'
-      +'<span data-r="5" style="opacity:.35;">★</span>'
-    +'</div>'
+    +'<div style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.5;">Rate each — takes 10 seconds. Helps us serve you better.</div>'
+    +'<div id="hod-fb-grid" style="margin-bottom:12px;">'+rowsHtml+'</div>'
     +'<textarea id="hod-fb-note" placeholder="One line about your experience (optional)" style="width:100%;min-height:54px;padding:10px 12px;background:#0c0c0c;border:1px solid rgba(245,241,232,.12);border-radius:10px;color:#fff;font-family:var(--fs);font-size:13px;resize:none;outline:none;box-sizing:border-box;margin-bottom:12px;"></textarea>'
     +'<button id="hod-fb-submit" disabled style="width:100%;padding:13px;border-radius:12px;background:#C9A84C;color:#0c0c0c;border:none;font-family:var(--fs);font-size:14px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;cursor:pointer;opacity:.45;transition:opacity .2s;">Submit Feedback</button>'
     +'<div id="hod-fb-result" style="display:none;margin-top:14px;"></div>';
   container.appendChild(wrap);
 
-  var rating=0;
-  var stars=wrap.querySelectorAll('#hod-fb-stars span');
+  var ratings={};  // {food:0, ambience:0, hygiene:0, service:0}
+  CATS.forEach(function(c){ratings[c.id]=0;});
   var submitBtn=wrap.querySelector('#hod-fb-submit');
   var note=wrap.querySelector('#hod-fb-note');
   var result=wrap.querySelector('#hod-fb-result');
 
-  function paintStars(n){
+  function paintRow(rowEl, n){
+    var stars=rowEl.querySelectorAll('span');
     stars.forEach(function(s){
       var v=parseInt(s.getAttribute('data-r'),10);
-      if(v<=n){ s.style.opacity='1'; s.style.color='#F2C744'; s.style.transform='scale(1.05)'; }
-      else    { s.style.opacity='.35'; s.style.color='#fff'; s.style.transform='scale(1)'; }
+      if(v<=n){ s.style.opacity='1'; s.style.color='#F2C744'; }
+      else    { s.style.opacity='.3'; s.style.color='#fff'; }
     });
   }
-  stars.forEach(function(s){
-    s.onmouseover=function(){ paintStars(parseInt(s.getAttribute('data-r'),10)); };
-    s.onmouseout =function(){ paintStars(rating); };
-    s.onclick    =function(){ rating=parseInt(s.getAttribute('data-r'),10); paintStars(rating); submitBtn.disabled=false; submitBtn.style.opacity='1'; };
+  function refreshSubmit(){
+    // Enable submit only when ALL 4 categories have been rated.
+    var allRated=CATS.every(function(c){return ratings[c.id]>0;});
+    submitBtn.disabled=!allRated;
+    submitBtn.style.opacity=allRated?'1':'.45';
+  }
+  wrap.querySelectorAll('.hod-fb-stars').forEach(function(rowEl){
+    var cat=rowEl.getAttribute('data-cat');
+    var stars=rowEl.querySelectorAll('span');
+    stars.forEach(function(s){
+      s.onmouseover=function(){ paintRow(rowEl, parseInt(s.getAttribute('data-r'),10)); };
+      s.onmouseout =function(){ paintRow(rowEl, ratings[cat]); };
+      s.onclick    =function(){ ratings[cat]=parseInt(s.getAttribute('data-r'),10); paintRow(rowEl, ratings[cat]); refreshSubmit(); };
+    });
   });
 
   submitBtn.onclick=function(){
-    if(!rating){ return; }
+    if(submitBtn.disabled) return;
     submitBtn.disabled=true; submitBtn.textContent='Sending…'; submitBtn.style.opacity='.6';
+    var avg=(ratings.food+ratings.ambience+ratings.hygiene+ratings.service)/4;
+    var allFourPlus=CATS.every(function(c){return ratings[c.id]>=4;});
     var payload={
-      rating:rating,
+      ratings:ratings,
+      avgRating:Math.round(avg*10)/10,
+      allFourPlus:allFourPlus,
+      // Back-compat alias so older POS dashboards reading `rating` still work.
+      rating:Math.round(avg),
       comment:(note.value||'').slice(0,500),
       bookingRef:bookingRef,
       orderTotal:(typeof total==='number'?total:0),
@@ -6402,7 +6485,9 @@ function renderHodFeedbackForm(container, total){
       ua:(navigator&&navigator.userAgent||'').slice(0,200)
     };
     function done(){
-      var isHappy=rating>=4;
+      // Google review only when ALL FOUR are 4★+ (Khushi spec — don't
+      // funnel mixed feedback to public Google reviews).
+      var isHappy=allFourPlus;
       result.style.display='block';
       if(isHappy){
         result.innerHTML=''
@@ -6417,7 +6502,7 @@ function renderHodFeedbackForm(container, total){
           +'<div style="font-size:12px;color:#aaa;line-height:1.5;">Our manager will personally review your note. We will do better next time.</div>';
       }
       // Hide the form controls so the screen settles on the result.
-      wrap.querySelector('#hod-fb-stars').style.display='none';
+      var grid=wrap.querySelector('#hod-fb-grid'); if(grid) grid.style.display='none';
       note.style.display='none';
       submitBtn.style.display='none';
     }
