@@ -6057,10 +6057,17 @@ function renderWalletPage(bookingRef){
     // For tab checkout (rounds already placed), cart may be empty
     var _isTabCheckout=payInfo&&payInfo.rounds&&payInfo.rounds.length>0;
     if(!items.length&&!_isTabCheckout){showToast('Please select at least one item.','err',3000);return;}
-    var total=getCartTotal();
+    // 2026-05-13 round 9 fix: when this is a tab checkout (cart already
+    // emptied into rounds), getCartTotal() returns 0. Fall back to the
+    // running tab amount passed in via _pay.amount, otherwise the
+    // "Payment Done!" screen shows "✅ ₹0 paid online" — confusing the
+    // customer even though the captain side correctly shows the real
+    // amount stamped via _writePaidOnline.
+    var _cartTotal=getCartTotal();
     var coverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
     if(!firestore){showToast('Not connected. Try again.','err',3000);return;}
-    var _pay=payInfo||{mode:'cash',amount:total};
+    var _pay=payInfo||{mode:'cash',amount:_cartTotal};
+    var total = (_cartTotal>0) ? _cartTotal : (typeof _pay.amount==='number'?_pay.amount:0);
     var orderData={
       items:items.map(function(it){return {n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};}),
       total:total,
@@ -6668,14 +6675,23 @@ function renderTableReservations(){
 // they're nudged toward the Google My Business review link to convert
 // happy guests into public reviews. <4 stars they get a thank-you so the
 // venue privately captures the gripe without amplifying it publicly.
-function showCaptainFeedback(container, total){
+function showCaptainFeedback(container, total, alreadyPaid){
   if(!container) return;
   var card=document.createElement('div');
   card.style.cssText='padding:36px 22px 18px;text-align:center;color:#fff;font-family:var(--fs);';
-  var amt=(typeof total==='number'&&total>0) ? '<div style="font-size:13px;color:#888;margin-top:6px;">Order Total · ₹'+total.toLocaleString('en-IN')+'</div>' : '';
-  card.innerHTML='<div style="font-size:48px;margin-bottom:14px;">✨</div>'
-    +'<div style="font-size:20px;font-weight:800;color:#C9A84C;font-family:var(--fp);margin-bottom:8px;">Captain on the way</div>'
-    +'<div style="font-size:14px;color:#aaa;line-height:1.5;max-width:320px;margin:0 auto;">Your captain has been notified. They will be at your table shortly to settle the bill.</div>'
+  var amt=(typeof total==='number'&&total>0) ? '<div style="font-size:13px;color:#888;margin-top:6px;">'+(alreadyPaid?'Paid':'Order Total')+' · ₹'+total.toLocaleString('en-IN')+'</div>' : '';
+  // 2026-05-13 round 9 fix: honour the alreadyPaid flag passed in from
+  // the Pay Online success path. Without this, online-paid customers
+  // saw "Captain on the way · They will be at your table shortly to
+  // settle the bill" — confusing because the bill is already settled.
+  var heading = alreadyPaid ? 'Bill Settled · Thank you' : 'Captain on the way';
+  var sub = alreadyPaid
+    ? 'Your payment is confirmed. Enjoy the rest of your evening — the captain has been notified online.'
+    : 'Your captain has been notified. They will be at your table shortly to settle the bill.';
+  var icon = alreadyPaid ? '🙏' : '✨';
+  card.innerHTML='<div style="font-size:48px;margin-bottom:14px;">'+icon+'</div>'
+    +'<div style="font-size:20px;font-weight:800;color:#C9A84C;font-family:var(--fp);margin-bottom:8px;">'+heading+'</div>'
+    +'<div style="font-size:14px;color:#aaa;line-height:1.5;max-width:320px;margin:0 auto;">'+sub+'</div>'
     +amt
     +'<div style="margin-top:18px;font-size:12px;color:#666;">Thank you for visiting House of Dopamine</div>';
   container.appendChild(card);
