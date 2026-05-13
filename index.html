@@ -5726,12 +5726,14 @@ function renderWalletPage(bookingRef){
       callBtn.onclick=function(){
         var nowMs=Date.now();
         if(nowMs<_wcCooldownUntil){return;}
-        if(!firestore){
-          // Firebase didn't initialise (offline / blocked) — fall back to
-          // dialler so the guest still has a way to reach staff. This is
-          // also what lets the button stay useful if waiterCalls writes
-          // are denied by Firestore rules during a deploy window.
-          window.location.href='tel:+919686444906';
+        // 2026-05-13 (Khushi spec v3) — NEVER fall back to tel: dialler.
+        // The number 9686444906 is the venue's main reception, not a
+        // captain's phone — dialling it during service is worse than
+        // doing nothing. If firestore isn't ready, show an error toast
+        // and ask the guest to wave down a captain instead.
+        var fb=window.firestore || (window.firebase && window.firebase.firestore && window.firebase.firestore());
+        if(!fb){
+          if(typeof showToast==='function') showToast('Connection issue — please wave down a captain.','err',4000);
           return;
         }
         _wcCooldownUntil=nowMs+30000;
@@ -5739,8 +5741,16 @@ function renderWalletPage(bookingRef){
         callBtn.style.opacity='.7';
         callBtn.style.cursor='wait';
         callLbl.textContent='Calling…';
+        function _resetBtn(){
+          callBtn.style.background='transparent';
+          callBtn.style.padding='0';
+          callBtn.style.opacity='1';
+          callBtn.style.cursor='pointer';
+          callBtn.disabled=false;
+          callLbl.textContent='Call Waiter';
+        }
         try{
-          firestore.collection('waiterCalls').add({
+          fb.collection('waiterCalls').add({
             coverRef:cv.ref||cv.bookingId||cv.id||'',
             customerName:cv.name||'Guest',
             tableId:cv.tableId||null,
@@ -5754,36 +5764,71 @@ function renderWalletPage(bookingRef){
             callBtn.style.borderRadius='8px';
             callBtn.style.padding='4px 8px';
             callLbl.textContent='✓ Captain notified';
-            setTimeout(function(){
-              callBtn.style.background='transparent';
-              callBtn.style.padding='0';
-              callBtn.style.opacity='1';
-              callBtn.style.cursor='pointer';
-              callBtn.disabled=false;
-              callLbl.textContent='Call Waiter';
-            },30000);
+            setTimeout(_resetBtn,30000);
           }).catch(function(err){
             console.warn('[waiterCall] write failed',err);
-            callLbl.textContent='Call Waiter';
-            callBtn.disabled=false;
-            callBtn.style.opacity='1';
-            callBtn.style.cursor='pointer';
+            _resetBtn();
             _wcCooldownUntil=0;
-            // Last-resort: dial the venue main line so the guest still
-            // gets a human if Firestore is unreachable.
-            window.location.href='tel:+919686444906';
+            if(typeof showToast==='function') showToast('Could not notify captain — please wave one down.','err',4000);
           });
         }catch(e){
           console.warn('[waiterCall] threw',e);
-          callLbl.textContent='Call Waiter';
-          callBtn.disabled=false;
-          callBtn.style.opacity='1';
-          callBtn.style.cursor='pointer';
+          _resetBtn();
           _wcCooldownUntil=0;
-          window.location.href='tel:+919686444906';
+          if(typeof showToast==='function') showToast('Could not notify captain — please wave one down.','err',4000);
         }
       };
     }
+  }
+
+  // 2026-05-13 (Khushi spec v3) — Wire the Call Waiter header button even
+  // for screens that don't go through renderWalletContent (e.g. the
+  // post-release "Table session ended" empty state). Mirrors the wiring
+  // above but reads cv-like fallbacks from URL since cv may not exist.
+  function wireCallWaiterFallback(refStr){
+    var callBtn=document.getElementById('wv-hd2-call-btn');
+    var callLbl=document.getElementById('wv-hd2-call-label');
+    if(!callBtn||!callLbl) return;
+    callBtn.disabled=false;
+    callBtn.style.opacity='1';
+    callBtn.style.cursor='pointer';
+    var _cd=0;
+    callBtn.onclick=function(){
+      var nowMs=Date.now();
+      if(nowMs<_cd) return;
+      var fb=window.firestore || (window.firebase && window.firebase.firestore && window.firebase.firestore());
+      if(!fb){
+        if(typeof showToast==='function') showToast('Connection issue — please wave down a captain.','err',4000);
+        return;
+      }
+      _cd=nowMs+30000;
+      callBtn.disabled=true; callLbl.textContent='Calling…';
+      try{
+        fb.collection('waiterCalls').add({
+          coverRef:refStr||'',
+          customerName:'Guest',
+          tableId:null,
+          floorLabel:null,
+          status:'pending',
+          createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+          acknowledgedAt:null,
+          acknowledgedBy:null
+        }).then(function(){
+          callBtn.style.background='rgba(0,200,100,.18)';
+          callLbl.textContent='✓ Captain notified';
+          setTimeout(function(){
+            callBtn.style.background='transparent';
+            callBtn.disabled=false;
+            callLbl.textContent='Call Waiter';
+          },30000);
+        }).catch(function(){
+          callBtn.disabled=false; callLbl.textContent='Call Waiter'; _cd=0;
+          if(typeof showToast==='function') showToast('Could not notify captain — please wave one down.','err',4000);
+        });
+      }catch(e){
+        callBtn.disabled=false; callLbl.textContent='Call Waiter'; _cd=0;
+      }
+    };
   }
 
   function showCheckout(cv,bal,tabRounds,tabRunningTotal){
@@ -5932,13 +5977,42 @@ function renderWalletPage(bookingRef){
         .onSnapshot(function(tSnap){
           inner.innerHTML='';
           if(tSnap.empty){
-            inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-              +'<div style="font-size:48px;margin-bottom:12px;">🪑</div>'
-              +'<div style="font-size:16px;font-weight:800;color:var(--gold);margin-bottom:8px;">Table Reservation</div>'
-              +'<div style="font-size:13px;color:var(--muted);line-height:1.7;">Your table will be set up when you arrive at HOD.<br>Show your booking reference at the entrance.</div>'
-              +'<div style="font-family:monospace;font-size:16px;color:var(--gold);margin-top:12px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
-            +'</div>';return;
+            // Two scenarios land here: (a) brand-new pre-arrival booking
+            // for which the captain hasn't created a tableReservations doc
+            // yet, or (b) the captain has RELEASED the table (doc deleted
+            // or archived). We use a localStorage breadcrumb set in
+            // renderWalletContent below — if the customer was previously
+            // shown a real wallet for this ref, they're in scenario (b).
+            var visitKey='hod_wallet_visited_'+bookingRef;
+            var hasVisited=false;
+            try{ hasVisited=!!localStorage.getItem(visitKey); }catch(e){}
+            if(hasVisited){
+              // Post-release / session-ended state — Khushi spec 2026-05-13.
+              inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
+                +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
+                +'<div style="font-family:var(--fp);font-size:22px;font-weight:800;color:var(--gold);margin-bottom:10px;">Thank you for visiting!</div>'
+                +'<div style="font-size:14px;color:var(--muted);line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
+                +'<div style="font-family:monospace;font-size:13px;color:rgba(242,199,68,.55);margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
+                +'<div style="margin-top:24px;font-size:12px;color:#888;">See you again soon ✨</div>'
+              +'</div>';
+              // Drop a feedback prompt under the thank-you so we still
+              // capture how the evening went.
+              try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
+            } else {
+              inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
+                +'<div style="font-size:48px;margin-bottom:12px;">🪑</div>'
+                +'<div style="font-size:16px;font-weight:800;color:var(--gold);margin-bottom:8px;">Table Reservation</div>'
+                +'<div style="font-size:13px;color:var(--muted);line-height:1.7;">Your table will be set up when you arrive at HOD.<br>Show your booking reference at the entrance.</div>'
+                +'<div style="font-family:monospace;font-size:16px;color:var(--gold);margin-top:12px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
+              +'</div>';
+            }
+            try{ wireCallWaiterFallback(bookingRef); }catch(e){}
+            return;
           }
+          // Customer has a live tableReservations doc — drop a breadcrumb
+          // so a future doc-delete (captain release) shows the
+          // "Thank you for visiting" screen instead of the pre-arrival one.
+          try{ localStorage.setItem('hod_wallet_visited_'+bookingRef,'1'); }catch(e){}
           var td=tSnap.docs[0].data();
           renderWalletContent({
             ref:bookingRef,name:td.customerName||'',phone:td.phone||'',
