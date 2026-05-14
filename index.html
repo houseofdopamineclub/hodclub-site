@@ -1152,47 +1152,36 @@ function _autoResetStockIfNeeded(evs){
   });
 }
 
-// ── Compare two event arrays for meaningful changes (prevents flicker)
-function _eventsChanged(a,b){
-  if(!a||!b||a.length!==b.length)return true;
-  var sa=a.slice().sort(function(x,y){return (x.id||'').localeCompare(y.id||'');});
-  var sb=b.slice().sort(function(x,y){return (x.id||'').localeCompare(y.id||'');});
-  var keys=['title','dj','date','time','venue','capacity','sold','stagPrice','couplePrice','groupPrice','price','entryOnlyPrice','groupPerHeadPrice','table4Price','vipPrice','gf4Stock','vvipStock','published','genre','description','color','image'];
-  for(var i=0;i<sa.length;i++){
-    if((sa[i].id||'')!==(sb[i].id||''))return true;
-    for(var k=0;k<keys.length;k++){var key=keys[k];var va=sa[i][key],vb=sb[i][key];if((va===undefined?null:va)!==(vb===undefined?null:vb))return true;}
-  }
-  return false;
-}
-
 // ── Firebase: Events real-time listener — started ONCE at app init
 // NEVER call this inside render() — it creates duplicate listeners
 function startEventsListener(){
   if(!firestore)return;
   if(S._eventsUnsub){try{S._eventsUnsub();}catch(e){}}
-  var _renderTimer=null;
   var unsub=firestore.collection('events').orderBy('date').onSnapshot(function(snap){
     var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
-    // ── FLICKER FIX: Only re-render if events data actually changed.
-    // Firestore onSnapshot fires multiple times on initial load (cached -> server -> metadata).
-    var prev=S._cachedEvents;S._cachedEvents=evs;
-    if(!_eventsChanged(prev,evs)){return;}
+    S._cachedEvents=evs;
     // ── v3: 6AM nightly stock auto-reset for table inventory.
+    // Operational night rolls over at 6AM. If an event's lastStockResetDate !== today,
+    // restore gf4Stock & vvipStock to their _gf4Default / _vvipDefault snapshots.
+    // Skipped for past events (date < today) so we never resurrect stock for old gigs.
     try{ _autoResetStockIfNeeded(evs); }catch(e){console.warn('[HOD] stock reset:',e);}
     // Sync to localStorage
     var db=getDB();db.events=evs;try{saveDB(db);}catch(e){}
-    // Debounce: batch rapid re-renders within 150ms window
-    if(_renderTimer)clearTimeout(_renderTimer);
-    _renderTimer=setTimeout(function(){
-      _renderTimer=null;
-      // Re-render on home or admin events tab.
-      if(S.view==='home'){
-        if(!S.modal){render();}
-        else{var modalEvExists=evs.some(function(e){return e.id===S.modal;});if(modalEvExists){render();}}
+    // Re-render on home or admin events tab.
+    // CRITICAL: Also re-render if a modal is pending but the event isn't loaded yet
+    // (this happens when user lands via ?event=... ad link before Firestore sync).
+    if(S.view==='home'){
+      if(!S.modal){render();}
+      else {
+        // Modal pending — check if its event is now available
+        var modalEvExists=evs.some(function(e){return e.id===S.modal;});
+        if(modalEvExists){render();}
       }
-      else if(S.view==='admin'&&S.adminTab==='events'){render();}
-    },150);
-  },function(err){console.warn('Events listener error:',err);});
+    }
+    else if(S.view==='admin'&&S.adminTab==='events'){render();}
+  },function(err){
+    console.warn('Events listener error:',err);
+  });
   S._eventsUnsub=unsub;
   S._eventsListenerStarted=true;
 }
@@ -5054,6 +5043,29 @@ function renderWalletPage(bookingRef){
           for(var i=0;i<words.length;i++)if(!_wordMatch(words[i],hay))return false;
           return true;
         });
+        // Smart ranking: exact match > prefix > whole-word > substring
+        hits.sort(function(a,b){
+          var na=_norm(a.n), nb=_norm(b.n);
+          var pa=0, pb=0;
+          for(var i=0;i<words.length;i++){
+            var w=words[i];
+            // Exact match: "beer" === "beer"
+            if(na===w) pa+=20;
+            else if(nb===w) pb+=20;
+            else {
+              // Starts-with match: "beer" in "beer breezer"
+              if(na.indexOf(w)===0) pa+=10;
+              else if(nb.indexOf(w)===0) pb+=10;
+              // Whole-word match: "beer" in "... beer ..."
+              else if((' '+na+' ').indexOf(' '+w+' ')>=0) pa+=5;
+              else if((' '+nb+' ').indexOf(' '+w+' ')>=0) pb+=5;
+              // Substring anywhere
+              else if(na.indexOf(w)>=0) pa+=1;
+              else if(nb.indexOf(w)>=0) pb+=1;
+            }
+          }
+          return pb-pa; // higher score first
+        });
         if(hits.length)out.push({cat:catObj.cat,items:hits});
       });
       return out;
@@ -5601,7 +5613,7 @@ function renderWalletPage(bookingRef){
               +  '<div style="font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);letter-spacing:1px;">HOUSE OF DOPAMINE</div>'
               +  '<div style="font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:.6px;">ORDER PLACED · BARTENDER REDEEM</div>'
               +'</div>'
-              +'<div style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Show this QR to your <strong style="color:var(--text);">bartender</strong> to prepare your order</div>'
+              +'<div style="text-align:center;font-size:16px;color:#F2C744;margin-bottom:14px;line-height:1.5;font-weight:600;">Show this QR to your <strong style="color:#F2C744;">bartender</strong> to prepare your order</div>'
               +'<div id="order-qr-popup" style="width:160px;height:160px;margin:0 auto 12px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'
               +'<div style="text-align:center;font-family:monospace;font-size:12px;color:var(--gold);letter-spacing:2px;margin-bottom:12px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>'
               +'<div style="border-top:1px dashed rgba(255,255,255,.15);border-bottom:1px dashed rgba(255,255,255,.15);padding:10px 0;margin-bottom:10px;">'
@@ -5612,7 +5624,7 @@ function renderWalletPage(bookingRef){
               +  '<span style="font-size:13px;font-weight:900;color:var(--text);">Total</span>'
               +  '<span style="font-family:var(--fp);font-size:20px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;">\u20b9'+ct.toLocaleString('en-IN')+'</span>'
               +'</div>'
-              +'<div style="font-size:11px;color:rgba(34,197,94,.85);background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:9px 12px;margin-bottom:14px;line-height:1.6;text-align:center;">✓ Bartender will scan, confirm, and deduct from your wallet automatically.</div>';
+              +'<div style="font-size:14px;color:#F2C744;background:rgba(242,199,68,.1);border:1px solid rgba(242,199,68,.4);border-radius:8px;padding:10px 14px;margin-bottom:14px;line-height:1.6;text-align:center;font-weight:600;">✓ Bartender will scan, confirm, and deduct from your wallet automatically.</div>';
             var closeBtn=document.createElement('button');
             closeBtn.style.cssText='width:100%;padding:12px;border-radius:10px;background:rgba(242,199,68,.15);border:1.5px solid rgba(242,199,68,.5);color:var(--gold);font-size:13px;font-weight:800;cursor:pointer;font-family:var(--fs);letter-spacing:.6px;text-transform:uppercase;';
             closeBtn.textContent='Got it ✓';
