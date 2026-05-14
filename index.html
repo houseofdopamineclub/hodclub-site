@@ -1152,36 +1152,47 @@ function _autoResetStockIfNeeded(evs){
   });
 }
 
+// ── Compare two event arrays for meaningful changes (prevents flicker)
+function _eventsChanged(a,b){
+  if(!a||!b||a.length!==b.length)return true;
+  var sa=a.slice().sort(function(x,y){return (x.id||'').localeCompare(y.id||'');});
+  var sb=b.slice().sort(function(x,y){return (x.id||'').localeCompare(y.id||'');});
+  var keys=['title','dj','date','time','venue','capacity','sold','stagPrice','couplePrice','groupPrice','price','entryOnlyPrice','groupPerHeadPrice','table4Price','vipPrice','gf4Stock','vvipStock','published','genre','description','color','image'];
+  for(var i=0;i<sa.length;i++){
+    if((sa[i].id||'')!==(sb[i].id||''))return true;
+    for(var k=0;k<keys.length;k++){var key=keys[k];var va=sa[i][key],vb=sb[i][key];if((va===undefined?null:va)!==(vb===undefined?null:vb))return true;}
+  }
+  return false;
+}
+
 // ── Firebase: Events real-time listener — started ONCE at app init
 // NEVER call this inside render() — it creates duplicate listeners
 function startEventsListener(){
   if(!firestore)return;
   if(S._eventsUnsub){try{S._eventsUnsub();}catch(e){}}
+  var _renderTimer=null;
   var unsub=firestore.collection('events').orderBy('date').onSnapshot(function(snap){
     var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
-    S._cachedEvents=evs;
+    // ── FLICKER FIX: Only re-render if events data actually changed.
+    // Firestore onSnapshot fires multiple times on initial load (cached -> server -> metadata).
+    var prev=S._cachedEvents;S._cachedEvents=evs;
+    if(!_eventsChanged(prev,evs)){return;}
     // ── v3: 6AM nightly stock auto-reset for table inventory.
-    // Operational night rolls over at 6AM. If an event's lastStockResetDate !== today,
-    // restore gf4Stock & vvipStock to their _gf4Default / _vvipDefault snapshots.
-    // Skipped for past events (date < today) so we never resurrect stock for old gigs.
     try{ _autoResetStockIfNeeded(evs); }catch(e){console.warn('[HOD] stock reset:',e);}
     // Sync to localStorage
     var db=getDB();db.events=evs;try{saveDB(db);}catch(e){}
-    // Re-render on home or admin events tab.
-    // CRITICAL: Also re-render if a modal is pending but the event isn't loaded yet
-    // (this happens when user lands via ?event=... ad link before Firestore sync).
-    if(S.view==='home'){
-      if(!S.modal){render();}
-      else {
-        // Modal pending — check if its event is now available
-        var modalEvExists=evs.some(function(e){return e.id===S.modal;});
-        if(modalEvExists){render();}
+    // Debounce: batch rapid re-renders within 150ms window
+    if(_renderTimer)clearTimeout(_renderTimer);
+    _renderTimer=setTimeout(function(){
+      _renderTimer=null;
+      // Re-render on home or admin events tab.
+      if(S.view==='home'){
+        if(!S.modal){render();}
+        else{var modalEvExists=evs.some(function(e){return e.id===S.modal;});if(modalEvExists){render();}}
       }
-    }
-    else if(S.view==='admin'&&S.adminTab==='events'){render();}
-  },function(err){
-    console.warn('Events listener error:',err);
-  });
+      else if(S.view==='admin'&&S.adminTab==='events'){render();}
+    },150);
+  },function(err){console.warn('Events listener error:',err);});
   S._eventsUnsub=unsub;
   S._eventsListenerStarted=true;
 }
