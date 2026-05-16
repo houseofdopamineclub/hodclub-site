@@ -1178,7 +1178,12 @@ function startEventsListener(){
         if(modalEvExists){render();}
       }
     }
-    else if(S.view==='admin'&&S.adminTab==='events'){render();}
+    else if(S.view==='admin'&&S.adminTab==='events'){
+      render();
+      // 🔴 2026-05-16 (Khushi request) — auto-clean past events from Firestore
+      // when admin opens Events tab. Once per session. See cleanupPastEventsFromFirestore.
+      try{ cleanupPastEventsFromFirestore(); }catch(e){console.warn('[HOD] past cleanup:',e);}
+    }
   },function(err){
     console.warn('Events listener error:',err);
   });
@@ -1378,6 +1383,52 @@ function deleteEventFirebase(eventId){
   if(!firestore){return;}
   firestore.collection('events').doc(eventId).delete()
     .catch(function(e){console.error(e);});
+}
+
+// ── 🔴 2026-05-16 (Khushi request) — Auto-clean PAST EVENTS from Firestore.
+// Past events were already hidden from customers (isEventPast filter on home),
+// but stayed in Firestore forever holding base64 poster blobs (~100-300KB each).
+// This function scans the cached events for anything strictly past (per the
+// existing isEventPast() rule = >1 day after event date OR >end-time today)
+// and deletes them. Posters are stored INSIDE the event doc as data: URLs, so
+// deleting the doc removes the poster too — no separate Storage cleanup needed.
+//
+// SAFETY: only runs from admin Events tab (never customer side). Once per
+// session per page load (guarded by S._pastCleanupRan). Tells you what got
+// cleaned via toast. If anything errors it fails silently — never blocks UI.
+function cleanupPastEventsFromFirestore(){
+  if(!firestore){return;}
+  if(S._pastCleanupRan){return;}
+  S._pastCleanupRan=true;
+  var evs=S._cachedEvents||(getDB().events||[]);
+  if(!evs.length){return;}
+  var stale=evs.filter(function(e){
+    try{return isEventPast(e);}catch(_){return false;}
+  });
+  if(!stale.length){return;}
+  var deleted=0, failed=0, total=stale.length;
+  console.log('[HOD cleanup] Past events to delete:',stale.map(function(e){return e.id+' ('+(e.title||'?')+' '+e.date+')';}));
+  stale.forEach(function(ev){
+    firestore.collection('events').doc(ev.id).delete()
+      .then(function(){
+        deleted++;
+        if(deleted+failed===total){
+          if(typeof showToast==='function'){
+            showToast('🗑️ CLEANED '+deleted+' PAST EVENT'+(deleted===1?'':'S')+(failed?' ('+failed+' failed)':''),'ok',4500);
+          }
+        }
+      })
+      .catch(function(err){
+        failed++;
+        console.warn('[HOD cleanup] failed to delete',ev.id,err && err.message);
+        if(deleted+failed===total){
+          if(typeof showToast==='function'){
+            if(deleted){showToast('🗑️ CLEANED '+deleted+' PAST EVENT'+(deleted===1?'':'S')+', '+failed+' FAILED','warn',5000);}
+            else{showToast('⚠️ CLEANUP FAILED — CHECK CONSOLE','err',4500);}
+          }
+        }
+      });
+  });
 }
 
 // ── Auto-cleanup: remove old demo/seed events (e1–e5) from localStorage
@@ -3560,43 +3611,29 @@ function renderPrivacy(){
   var link=document.getElementById('pwa-manifest');
   if(link) link.href=manifestUrl;
 
-  // ── Register Service Worker (inline as blob for single-file deployment)
+  // ── 🔴 2026-05-16 (Khushi bug — site keeps refreshing/reloading).
+  // ROOT CAUSE: the previous SW was registered from a Blob URL (URL.createObjectURL),
+  // which produces a NEW unique URL on every page load. Browser saw it as a NEW SW
+  // each load → install → skipWaiting → clients.claim → some browsers (Chrome on
+  // Android especially) auto-reload all open tabs when SW changes mid-session →
+  // infinite refresh loop on slow connections.
+  //
+  // FIX: kill the SW entirely. Netlify CDN already caches the homepage faster than
+  // any service worker, and customers don't need offline use of a nightclub site.
+  // We ALSO actively unregister any previously-installed SW + delete its caches
+  // so customers who already loaded the buggy version recover automatically on
+  // their next visit.
   if('serviceWorker' in navigator){
-    var swCode = `
-const CACHE = 'hod-v4';
-const CORE = ['/'];
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)));
-  self.skipWaiting();
-});
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ));
-  self.clients.claim();
-});
-self.addEventListener('fetch', e => {
-  if(e.request.method !== 'GET') return;
-  // Network first for Firebase and Razorpay — always fresh
-  if(e.request.url.includes('firestore') || e.request.url.includes('razorpay') ||
-     e.request.url.includes('firebase') || e.request.url.includes('googleapis')){
-    return;
-  }
-  e.respondWith(
-    fetch(e.request).then(res => {
-      if(res && res.status === 200){
-        var clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
+    try{
+      navigator.serviceWorker.getRegistrations().then(function(regs){
+        regs.forEach(function(r){ r.unregister().catch(function(){}); });
+      }).catch(function(){});
+      if(window.caches && caches.keys){
+        caches.keys().then(function(keys){
+          keys.forEach(function(k){ caches.delete(k).catch(function(){}); });
+        }).catch(function(){});
       }
-      return res;
-    }).catch(() => caches.match(e.request))
-  );
-});`;
-    var swBlob = new Blob([swCode], { type: 'application/javascript' });
-    var swUrl = URL.createObjectURL(swBlob);
-    navigator.serviceWorker.register(swUrl, { scope: '/' })
-      .then(function(reg){ console.log('✅ HOD PWA: Service worker registered', reg.scope); })
-      .catch(function(e){ console.warn('SW registration failed (blob SW not supported in this browser):', e.message); });
+    }catch(e){ /* fail-silent — never block page load */ }
   }
 
   // ── Install prompts removed — app will be on Play Store & App Store
