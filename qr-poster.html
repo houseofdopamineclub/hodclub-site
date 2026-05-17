@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOD Song Request QR Poster</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .poster { width: 300px; background: #000; border-radius: 20px; padding: 30px 25px; text-align: center; color: #fff; }
+  .poster-logo { font-family: Georgia, serif; font-size: 28px; font-weight: 900; color: #c9a84c; margin-bottom: 4px; }
+  .poster-sub { font-size: 10px; color: #666; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; }
+  .poster-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .poster-desc { font-size: 12px; color: #999; margin-bottom: 20px; line-height: 1.4; }
+  .qr-box { background: #fff; border-radius: 12px; padding: 16px; margin: 0 auto 20px; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; }
+  .qr-box img { width: 100%; height: 100%; }
+  .poster-cta { font-size: 14px; font-weight: 700; color: #c9a84c; margin-bottom: 6px; }
+  .poster-tiers { font-size: 11px; color: #888; margin-bottom: 20px; }
+  .poster-footer { font-size: 9px; color: #444; letter-spacing: 1px; text-transform: uppercase; }
+  .no-print { margin-top: 30px; text-align: center; }
+  .no-print button { padding: 12px 30px; background: #000; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .no-print p { font-size: 12px; color: #999; margin-top: 10px; }
+  .no-print input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; width: 300px; margin-bottom: 10px; }
+  @media print { .no-print { display: none; } body { padding: 0; } }
+</style>
+</head>
+<body>
+
+<div>
+  <div class="poster" id="poster">
+    <div class="poster-logo">HOD</div>
+    <div class="poster-sub">House of Dopamine</div>
+    <div class="poster-title">Request a Song 🎵</div>
+    <div class="poster-desc">Scan the QR code to pick your favorite song — we'll play it for you tonight!</div>
+    <div class="qr-box" id="qrBox">
+      <canvas id="qrCanvas"></canvas>
+    </div>
+    <div class="poster-cta">Scan with your phone camera</div>
+    <div class="poster-tiers">Free requests · Priority ₹99 · VIP ₹299</div>
+    <div class="poster-footer">Koramangala · Bengaluru</div>
+  </div>
+  
+  <div class="no-print">
+    <p style="margin-bottom:10px; font-size:13px; color:#666;">Request page URL:</p>
+    <input type="text" id="urlInput" value="" placeholder="Enter your request page URL">
+    <br>
+    <button id="generateBtn">Generate QR Code</button>
+    <br><br>
+    <button id="printBtn" style="background:#c9a84c;color:#000;">Print Poster</button>
+    <p>Print this poster and place at tables / bar counter</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  const defaultUrl = window.location.href.replace('qr-poster.html', 'request.html');
+  document.getElementById('urlInput').value = defaultUrl;
+  
+  let qrInstance = null;
+  
+  function generateQR() {
+    const url = document.getElementById('urlInput').value.trim();
+    if (!url) { alert('Enter a URL first'); return; }
+    const container = document.getElementById('qrBox');
+    container.innerHTML = '';
+    qrInstance = new QRCode(container, {
+      text: url,
+      width: 168,
+      height: 168,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  }
+  
+  document.getElementById('generateBtn').addEventListener('click', generateQR);
+  document.getElementById('printBtn').addEventListener('click', () => window.print());
+  
+  // Auto-generate on load
+  setTimeout(generateQR, 500);
+</script>
+</body>
+</html>

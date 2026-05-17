@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOD Music</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: #0a0a0a; color: #fff; min-height: 100vh; padding-bottom: 120px; }
+  .login-screen { position: fixed; inset: 0; background: #0a0a0a; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  .login-box { background: #1a1a1a; padding: 40px 30px; border-radius: 16px; width: 90%; max-width: 400px; text-align: center; }
+  .login-box h1 { font-size: 28px; margin-bottom: 10px; }
+  .login-box h1 span { color: #ff3366; }
+  .login-box p { color: #666; margin-bottom: 30px; font-size: 14px; }
+  .login-box input { width: 100%; padding: 15px; background: #0a0a0a; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 16px; margin-bottom: 15px; }
+  .login-box button { width: 100%; padding: 15px; background: #ff3366; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+  .login-error { color: #ff3366; font-size: 13px; margin-top: 10px; display: none; }
+  .header { padding: 20px; display: flex; justify-content: space-between; align-items: center; background: #0a0a0a; position: sticky; top: 0; z-index: 100; border-bottom: 1px solid #1a1a1a; }
+  .logo { font-size: 20px; font-weight: 700; }
+  .logo span { color: #ff3366; }
+  .receiver-status { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: #1a1a1a; border-radius: 20px; font-size: 11px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #666; }
+  .status-dot.online { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+  .status-dot.offline { background: #ff3366; }
+  .dj-mode-banner { margin: 15px 20px; padding: 15px; background: linear-gradient(135deg, #2a1a00, #1a1a1a); border: 1px solid #ffaa00; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .dj-mode-banner.active { background: linear-gradient(135deg, #ffaa00, #ff8800); border-color: #ffaa00; }
+  .dj-mode-banner h3 { font-size: 14px; margin-bottom: 3px; }
+  .dj-mode-banner p { font-size: 12px; color: #999; }
+  .dj-mode-banner.active p { color: #000; opacity: 0.7; }
+  .dj-mode-banner.active h3 { color: #000; }
+  .toggle { width: 50px; height: 28px; background: #333; border-radius: 14px; position: relative; cursor: pointer; transition: background 0.3s; flex-shrink: 0; }
+  .toggle.on { background: #000; }
+  .toggle-knob { width: 22px; height: 22px; background: #fff; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: left 0.3s; }
+  .toggle.on .toggle-knob { left: 25px; }
+  .tabs { display: flex; padding: 0 20px; gap: 4px; margin-top: 15px; border-bottom: 1px solid #1a1a1a; overflow-x: auto; }
+  .tab { padding: 12px 16px; font-size: 13px; color: #666; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tab.active { color: #ff3366; border-color: #ff3366; }
+  .content { padding: 20px; }
+  .now-playing { background: linear-gradient(135deg, #1a1a1a, #0f0f0f); padding: 25px; border-radius: 16px; margin-bottom: 20px; }
+  .np-label { font-size: 10px; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-bottom: 12px; }
+  .np-title { font-size: 22px; font-weight: 700; margin-bottom: 5px; }
+  .np-artist { font-size: 14px; color: #999; margin-bottom: 20px; }
+  .np-progress { height: 3px; background: #2a2a2a; border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
+  .np-progress-fill { height: 100%; background: linear-gradient(90deg, #ff3366, #ff6b9f); width: 0%; transition: width 0.5s; }
+  .np-time { display: flex; justify-content: space-between; font-size: 11px; color: #666; }
+  .np-empty { text-align: center; padding: 40px 20px; color: #444; }
+  .search-bar { width: 100%; padding: 14px 16px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; color: #fff; font-size: 15px; margin-bottom: 15px; }
+  .search-bar:focus { outline: none; border-color: #ff3366; }
+  .track-list { display: flex; flex-direction: column; gap: 8px; }
+  .track { display: flex; align-items: center; padding: 12px 15px; background: #1a1a1a; border-radius: 10px; gap: 12px; cursor: pointer; transition: background 0.15s; }
+  .track:active { background: #242424; }
+  .track.playing { background: linear-gradient(90deg, #2a0a1a, #1a1a1a); border: 1px solid #ff3366; }
+  .track-info { flex: 1; min-width: 0; }
+  .track-title { font-size: 14px; font-weight: 500; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .track-meta { font-size: 12px; color: #666; display: flex; gap: 8px; align-items: center; }
+  .track-energy { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600; }
+  .energy-chill { background: #1a3a5a; color: #4a9fd4; }
+  .energy-medium { background: #3a3a1a; color: #d4c44a; }
+  .energy-high { background: #5a2a1a; color: #ff8844; }
+  .energy-peak { background: #5a1a2a; color: #ff3366; }
+  .track-actions { display: flex; gap: 6px; }
+  .track-btn { width: 34px; height: 34px; border-radius: 50%; background: #2a2a2a; border: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .track-btn:active { background: #ff3366; }
+  .track-btn.add { background: #ff3366; }
+  .queue-item { display: flex; align-items: center; padding: 12px 15px; background: #1a1a1a; border-radius: 10px; gap: 12px; margin-bottom: 8px; }
+  .queue-num { width: 26px; height: 26px; border-radius: 50%; background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #888; font-weight: 600; flex-shrink: 0; }
+  .queue-item.next .queue-num { background: #ff3366; color: #fff; }
+  .empty-state { text-align: center; padding: 60px 20px; color: #444; }
+  .empty-state .big { font-size: 48px; margin-bottom: 15px; }
+  .empty-state h3 { font-size: 16px; color: #888; margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; color: #555; margin-bottom: 15px; }
+  .settings-group { background: #1a1a1a; border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+  .settings-group h3 { font-size: 13px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid #242424; }
+  .setting-row:first-of-type { border-top: none; padding-top: 0; }
+  .setting-row label { font-size: 14px; }
+  .setting-row .val { font-size: 13px; color: #999; }
+  .slider { width: 120px; }
+  .control-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #111; padding: 12px 20px; border-top: 1px solid #2a2a2a; display: flex; flex-direction: column; gap: 10px; z-index: 99; }
+  .control-mini-info { font-size: 12px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .control-buttons { display: flex; align-items: center; gap: 12px; }
+  .control-btn { width: 44px; height: 44px; border-radius: 50%; background: #2a2a2a; border: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .control-btn:active { transform: scale(0.95); }
+  .volume-control { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #666; }
+  .volume-slider { flex: 1; }
+  input[type="range"] { -webkit-appearance: none; height: 4px; background: #333; border-radius: 2px; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #ff3366; border-radius: 50%; cursor: pointer; }
+  input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: #ff3366; border-radius: 50%; cursor: pointer; border: none; }
+  .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: #ff3366; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #00aa55; }
+  .link-btn { display: inline-block; padding: 10px 16px; background: #2a2a2a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+  .link-btn:hover { background: #ff3366; }
+  
+  /* Upload tab styles */
+  .dropzone { border: 2px dashed #333; border-radius: 16px; padding: 40px 20px; text-align: center; transition: all 0.2s; cursor: pointer; margin-bottom: 20px; background: #0f0f0f; }
+  .dropzone:hover, .dropzone.dragging { border-color: #ff3366; background: #1a0f14; }
+  .dropzone-icon { font-size: 42px; margin-bottom: 10px; }
+  .dropzone-text { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+  .dropzone-subtext { font-size: 12px; color: #666; }
+  .energy-selector { background: #1a1a1a; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+  .energy-selector h3 { font-size: 13px; color: #888; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .energy-options { display: flex; gap: 8px; flex-wrap: wrap; }
+  .energy-btn { padding: 8px 14px; background: #2a2a2a; border: 2px solid transparent; color: #fff; border-radius: 8px; cursor: pointer; font-size: 12px; }
+  .energy-btn.selected { background: #ff3366; border-color: #ff3366; }
+  .energy-btn.chill.selected { background: #1a5a8a; border-color: #4a9fd4; }
+  .energy-btn.medium.selected { background: #5a5a1a; border-color: #d4c44a; }
+  .energy-btn.high.selected { background: #8a4a1a; border-color: #ff8844; }
+  .energy-btn.peak.selected { background: #8a1a3a; border-color: #ff3366; }
+  .upload-item { background: #1a1a1a; border-radius: 10px; padding: 12px 15px; margin-bottom: 6px; }
+  .upload-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .upload-item-name { font-size: 13px; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; }
+  .upload-item-status { font-size: 11px; color: #666; }
+  .upload-item-status.success { color: #00ff88; }
+  .upload-item-status.error { color: #ff3366; }
+  .upload-progress { height: 3px; background: #2a2a2a; border-radius: 2px; overflow: hidden; }
+  .upload-progress-fill { height: 100%; background: linear-gradient(90deg, #ff3366, #ff6b9f); width: 0%; transition: width 0.3s; }
+  .upload-progress-fill.success { background: #00ff88; }
+  .del-btn { background: none; border: none; color: #666; cursor: pointer; padding: 4px 8px; font-size: 16px; }
+  .del-btn:hover { color: #ff3366; }
+</style>
+</head>
+<body>
+
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <h1>HOD<span>.</span>MUSIC</h1>
+    <p>Owner / Manager access</p>
+    <input type="password" id="pwdInput" placeholder="Password" autofocus>
+    <button id="loginBtn">Sign In</button>
+    <div class="login-error" id="loginError">Invalid password</div>
+  </div>
+</div>
+
+<div class="header">
+  <div class="logo">HOD<span>.</span>MUSIC</div>
+  <div class="receiver-status">
+    <div class="status-dot" id="receiverDot"></div>
+    <span id="receiverStatus">Connecting...</span>
+  </div>
+</div>
+
+<div class="dj-mode-banner" id="djBanner">
+  <div>
+    <h3 id="djTitle">DJ Mode</h3>
+    <p id="djSubtitle">Off — app is controlling music</p>
+  </div>
+  <div class="toggle" id="djToggle">
+    <div class="toggle-knob"></div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="library">Library</div>
+  <div class="tab" data-tab="queue">Queue (<span id="queueCount">0</span>)</div>
+  <div class="tab" data-tab="upload">Upload</div>
+  <div class="tab" data-tab="requests">Requests (<span id="requestCount">0</span>)</div>
+  <div class="tab" data-tab="settings">Settings</div>
+</div>
+
+<div class="content">
+  <div class="now-playing" id="nowPlaying">
+    <div class="np-empty" id="npEmpty">
+      <div style="font-size: 36px; margin-bottom: 10px;">◈</div>
+      <div style="font-size: 14px; color: #666;">Nothing playing yet</div>
+      <div style="font-size: 12px; color: #444; margin-top: 5px;">Pick a song below to start</div>
+    </div>
+    <div id="npActive" style="display: none;">
+      <div class="np-label">Now Playing</div>
+      <div class="np-title" id="npTitle">—</div>
+      <div class="np-artist" id="npArtist">—</div>
+      <div class="np-progress"><div class="np-progress-fill" id="npProgress"></div></div>
+      <div class="np-time"><span id="npTimeCurrent">0:00</span><span id="npTimeTotal">0:00</span></div>
+    </div>
+  </div>
+
+  <div id="tab-library">
+    <input type="text" class="search-bar" id="searchInput" placeholder="Search library…">
+    <div class="track-list" id="libraryList"></div>
+  </div>
+
+  <div id="tab-queue" style="display: none;">
+    <div class="track-list" id="queueList"></div>
+  </div>
+
+  <div id="tab-upload" style="display: none;">
+    <div class="energy-selector">
+      <h3>Energy Level for Uploads</h3>
+      <p style="font-size: 12px; color: #666; margin-bottom: 12px;">Songs uploaded will be tagged with this energy level.</p>
+      <div class="energy-options">
+        <button class="energy-btn chill" data-energy="Chill">Chill</button>
+        <button class="energy-btn medium" data-energy="Medium">Medium</button>
+        <button class="energy-btn high selected" data-energy="High">High</button>
+        <button class="energy-btn peak" data-energy="Peak">Peak</button>
+      </div>
+    </div>
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept="audio/mpeg,audio/mp3,audio/wav,audio/flac,audio/*" multiple style="display: none;">
+      <div class="dropzone-icon">♫</div>
+      <div class="dropzone-text">Drop MP3 files here</div>
+      <div class="dropzone-subtext">Or tap to browse — supports MP3, WAV, FLAC</div>
+    </div>
+    <div id="uploadList"></div>
+  </div>
+
+  <div id="tab-requests" style="display: none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+      <div style="font-size:13px;color:#888;">Pending requests from customers</div>
+      <div style="display:flex;gap:8px;">
+        <button class="req-filter active" data-filter="pending" style="padding:6px 12px;background:#ff3366;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;">Pending</button>
+        <button class="req-filter" data-filter="approved" style="padding:6px 12px;background:#2a2a2a;color:#888;border:none;border-radius:6px;font-size:11px;cursor:pointer;">Approved</button>
+        <button class="req-filter" data-filter="played" style="padding:6px 12px;background:#2a2a2a;color:#888;border:none;border-radius:6px;font-size:11px;cursor:pointer;">Played</button>
+        <button class="req-filter" data-filter="all" style="padding:6px 12px;background:#2a2a2a;color:#888;border:none;border-radius:6px;font-size:11px;cursor:pointer;">All</button>
+      </div>
+    </div>
+    <div class="track-list" id="requestList"></div>
+    <div style="margin-top:20px;background:#1a1a1a;border-radius:12px;padding:15px;">
+      <div style="font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Song Suggestions (Wishlist)</div>
+      <div id="wishlistList" style="font-size:13px;color:#555;">No suggestions yet</div>
+    </div>
+  </div>
+
+  <div id="tab-settings" style="display: none;">
+    <div class="settings-group">
+      <h3>Playback</h3>
+      <div class="setting-row">
+        <label>Crossfade</label>
+        <div class="toggle" id="crossfadeToggle"><div class="toggle-knob"></div></div>
+      </div>
+      <div class="setting-row">
+        <label>Crossfade duration</label>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <input type="range" min="2" max="10" value="5" class="slider" id="crossfadeSlider">
+          <span class="val"><span id="crossfadeSecondsLabel">5</span>s</span>
+        </div>
+      </div>
+    </div>
+    <div class="settings-group">
+      <h3>Library Summary</h3>
+      <div style="padding: 10px 0;">
+        <div style="font-size: 24px; font-weight: 700;"><span id="librarySummaryCount">0</span> songs</div>
+        <div style="font-size: 12px; color: #888; margin-top: 5px;" id="libraryBreakdown">Chill: 0 · Medium: 0 · High: 0 · Peak: 0</div>
+      </div>
+    </div>
+    <div class="settings-group">
+      <h3>Receiver (Venue Laptop)</h3>
+      <div style="padding: 10px 0;">
+        <div style="font-size: 13px; color: #888; margin-bottom: 5px;">Last heartbeat: <span id="lastHeartbeat">Never</span></div>
+        <div style="font-size: 13px; color: #888; margin-bottom: 10px;">Status: <span id="receiverDetailStatus">Unknown</span></div>
+        <a href="receiver.html" class="link-btn" target="_blank">Open Receiver Page →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="control-bar" id="controlBar" style="display: none;">
+  <div class="control-mini-info" id="miniInfo">Not playing</div>
+  <div class="control-buttons">
+    <button class="control-btn" id="playPauseBtn">▶</button>
+    <button class="control-btn" id="skipBtn">⏭</button>
+    <div class="volume-control">
+      <span>🔉</span>
+      <input type="range" min="0" max="100" value="80" class="volume-slider" id="volumeSlider">
+      <span id="volumeLabel">80</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, onSnapshot, updateDoc, setDoc, collection, query, orderBy, addDoc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getStorage, ref as storageRef, uploadBytesResumable, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB6YfM1DyVq0NTEWXpMdbCYuWwr9cWwbt0",
+  authDomain: "hod-tickets.firebaseapp.com",
+  projectId: "hod-tickets",
+  storageBucket: "hod-tickets.firebasestorage.app",
+  messagingSenderId: "86190418978",
+  appId: "1:86190418978:web:8b1eafc784c4986fd3ee7b"
+};
+const MUSIC_PASSWORD = "hodowner2026";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+// ============== LOGIN ==============
+function attemptLogin() {
+  const pwd = document.getElementById('pwdInput').value;
+  if (pwd === MUSIC_PASSWORD) {
+    localStorage.setItem('hodMusic', 'authed');
+    document.getElementById('loginScreen').style.display = 'none';
+    initApp();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+document.getElementById('loginBtn').addEventListener('click', attemptLogin);
+document.getElementById('pwdInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') attemptLogin(); });
+if (localStorage.getItem('hodMusic') === 'authed') {
+  document.getElementById('loginScreen').style.display = 'none';
+  initApp();
+}
+
+// ============== STATE ==============
+let library = [];
+let queue = [];
+let currentState = {};
+let currentEnergy = 'High';
+let requests = [];
+let wishlist = [];
+let requestFilter = 'pending';
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const name = tab.dataset.tab;
+    ['library', 'queue', 'upload', 'requests', 'settings'].forEach(t => document.getElementById('tab-' + t).style.display = t === name ? 'block' : 'none');
+  });
+});
+
+// ============== COMMANDS ==============
+async function sendCommand(action, extra = {}) {
+  try {
+    await addDoc(collection(db, 'music_commands'), { action, timestamp: Date.now(), ...extra });
+    showToast(`Sent: ${action}`, 'success');
+  } catch (err) { showToast('Error: ' + err.message); }
+}
+
+async function playTrack(trackId) {
+  const track = library.find(t => t.id === trackId);
+  if (!track) return;
+  await sendCommand('play', { track });
+}
+
+async function addToQueue(trackId) {
+  const track = library.find(t => t.id === trackId);
+  if (!track) return;
+  const position = queue.length > 0 ? Math.max(...queue.map(q => q.position)) + 1 : 1;
+  await addDoc(collection(db, 'music_queue'), { ...track, trackRef: trackId, position, addedAt: Date.now() });
+  showToast('Added to queue', 'success');
+}
+
+async function removeFromQueue(queueId) {
+  await deleteDoc(doc(db, 'music_queue', queueId));
+  showToast('Removed from queue');
+}
+
+document.getElementById('volumeSlider').addEventListener('change', async (e) => {
+  document.getElementById('volumeLabel').textContent = e.target.value;
+  await updateDoc(doc(db, 'music_state', 'current'), { volume: e.target.value / 100 });
+});
+
+document.getElementById('crossfadeToggle').addEventListener('click', async () => {
+  const t = document.getElementById('crossfadeToggle');
+  const newVal = !t.classList.contains('on');
+  await updateDoc(doc(db, 'music_state', 'current'), { crossfadeEnabled: newVal });
+});
+
+document.getElementById('crossfadeSlider').addEventListener('change', async (e) => {
+  document.getElementById('crossfadeSecondsLabel').textContent = e.target.value;
+  await updateDoc(doc(db, 'music_state', 'current'), { crossfadeSeconds: parseInt(e.target.value) });
+});
+
+document.getElementById('djToggle').addEventListener('click', async () => {
+  const t = document.getElementById('djToggle');
+  const newVal = !t.classList.contains('on');
+  if (newVal && !confirm('Turn ON DJ Mode? This will pause the app and let the DJ play live.')) return;
+  await updateDoc(doc(db, 'music_state', 'current'), { djMode: newVal });
+  showToast(newVal ? 'DJ Mode ON' : 'DJ Mode OFF', 'success');
+});
+
+document.getElementById('skipBtn').addEventListener('click', () => sendCommand('skip'));
+document.getElementById('searchInput').addEventListener('input', renderLibrary);
+
+// Energy selection
+document.querySelectorAll('.energy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.energy-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    currentEnergy = btn.dataset.energy;
+  });
+});
+
+// ============== UPLOAD ==============
+function parseFilename(filename) {
+  const name = filename.replace(/\.(mp3|wav|flac|m4a|ogg)$/i, '');
+  if (name.includes(' - ')) {
+    const [artist, ...titleParts] = name.split(' - ');
+    return { artist: artist.trim(), title: titleParts.join(' - ').trim() };
+  }
+  return { artist: 'Unknown', title: name };
+}
+
+async function getAudioDuration(file) {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    audio.src = URL.createObjectURL(file);
+    audio.onloadedmetadata = () => { resolve(Math.round(audio.duration)); URL.revokeObjectURL(audio.src); };
+    audio.onerror = () => resolve(0);
+  });
+}
+
+async function uploadFile(file) {
+  const listEl = document.getElementById('uploadList');
+  const itemId = 'up_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const { artist, title } = parseFilename(file.name);
+  const itemDiv = document.createElement('div');
+  itemDiv.className = 'upload-item';
+  itemDiv.id = itemId;
+  itemDiv.innerHTML = `
+    <div class="upload-item-header">
+      <div class="upload-item-name">${escapeHtml(title)} — ${escapeHtml(artist)}</div>
+      <div class="upload-item-status" id="${itemId}-status">Uploading…</div>
+    </div>
+    <div class="upload-progress"><div class="upload-progress-fill" id="${itemId}-bar"></div></div>
+  `;
+  listEl.insertBefore(itemDiv, listEl.firstChild);
+  try {
+    const duration = await getAudioDuration(file);
+    const storagePath = `music_files/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const fileRef = storageRef(storage, storagePath);
+    const uploadTask = uploadBytesResumable(fileRef, file);
+    await new Promise((resolve, reject) => {
+      uploadTask.on('state_changed',
+        (snap) => {
+          const prog = (snap.bytesTransferred / snap.totalBytes) * 100;
+          document.getElementById(`${itemId}-bar`).style.width = prog + '%';
+          document.getElementById(`${itemId}-status`).textContent = `${Math.round(prog)}%`;
+        }, reject, resolve
+      );
+    });
+    await addDoc(collection(db, 'music_library'), {
+      title, artist, duration, energy: currentEnergy,
+      storagePath, fileSize: file.size, uploadedAt: Date.now()
+    });
+    document.getElementById(`${itemId}-status`).textContent = '✓ Uploaded';
+    document.getElementById(`${itemId}-status`).classList.add('success');
+    document.getElementById(`${itemId}-bar`).classList.add('success');
+  } catch (err) {
+    document.getElementById(`${itemId}-status`).textContent = 'Error: ' + err.message;
+    document.getElementById(`${itemId}-status`).classList.add('error');
+  }
+}
+
+async function handleFiles(files) {
+  const audioFiles = Array.from(files).filter(f => f.type.startsWith('audio/') || /\.(mp3|wav|flac|m4a|ogg)$/i.test(f.name));
+  if (audioFiles.length === 0) { showToast('No audio files detected'); return; }
+  showToast(`Uploading ${audioFiles.length} file(s)…`, 'success');
+  for (let i = 0; i < audioFiles.length; i += 3) {
+    await Promise.all(audioFiles.slice(i, i + 3).map(uploadFile));
+  }
+}
+
+async function deleteTrack(trackId, storagePath) {
+  if (!confirm('Delete this song from library?')) return;
+  try {
+    await deleteDoc(doc(db, 'music_library', trackId));
+    if (storagePath) await deleteObject(storageRef(storage, storagePath)).catch(() => {});
+    showToast('Deleted', 'success');
+  } catch (err) { showToast('Error: ' + err.message); }
+}
+
+// ============== RENDER ==============
+function renderLibrary() {
+  const searchVal = document.getElementById('searchInput').value.toLowerCase();
+  const list = document.getElementById('libraryList');
+  const filtered = library.filter(t => !searchVal || t.title.toLowerCase().includes(searchVal) || (t.artist || '').toLowerCase().includes(searchVal));
+  if (library.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="big">♫</div><h3>No songs yet</h3><p>Tap the Upload tab to add songs</p></div>`;
+    return;
+  }
+  if (filtered.length === 0) { list.innerHTML = `<div class="empty-state"><h3>No matches</h3></div>`; return; }
+  list.innerHTML = filtered.map(t => {
+    const isPlaying = currentState.currentTrackTitle === t.title;
+    const energyClass = t.energy ? 'energy-' + t.energy.toLowerCase() : '';
+    return `
+      <div class="track ${isPlaying ? 'playing' : ''}">
+        <div class="track-info">
+          <div class="track-title">${escapeHtml(t.title)}</div>
+          <div class="track-meta">
+            ${t.artist ? escapeHtml(t.artist) : 'Unknown'} 
+            ${t.duration ? '· ' + formatDuration(t.duration) : ''}
+            ${t.energy ? `<span class="track-energy ${energyClass}">${t.energy}</span>` : ''}
+          </div>
+        </div>
+        <div class="track-actions">
+          <button class="track-btn add" data-action="queue" data-id="${t.id}" title="Add to queue">+</button>
+          <button class="track-btn" data-action="play" data-id="${t.id}" title="Play now">▶</button>
+          <button class="track-btn" data-action="delete" data-id="${t.id}" data-path="${t.storagePath || ''}" title="Delete">×</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  list.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      if (btn.dataset.action === 'play') playTrack(id);
+      else if (btn.dataset.action === 'queue') addToQueue(id);
+      else if (btn.dataset.action === 'delete') deleteTrack(id, btn.dataset.path);
+    });
+  });
+}
+
+function renderQueue() {
+  const list = document.getElementById('queueList');
+  document.getElementById('queueCount').textContent = queue.length;
+  if (queue.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="big">≡</div><h3>Queue is empty</h3><p>Add songs from the Library tab</p></div>`;
+    return;
+  }
+  list.innerHTML = queue.map((t, i) => `
+    <div class="queue-item ${i === 0 ? 'next' : ''}">
+      <div class="queue-num">${i + 1}</div>
+      <div class="track-info">
+        <div class="track-title">${escapeHtml(t.title)}</div>
+        <div class="track-meta">${t.artist ? escapeHtml(t.artist) : 'Unknown'}${t.duration ? ' · ' + formatDuration(t.duration) : ''}</div>
+      </div>
+      <button class="track-btn" data-remove="${t.id}" title="Remove">×</button>
+    </div>
+  `).join('');
+  list.querySelectorAll('button[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => removeFromQueue(btn.dataset.remove));
+  });
+}
+
+function renderLibrarySummary() {
+  document.getElementById('librarySummaryCount').textContent = library.length;
+  const counts = { Chill: 0, Medium: 0, High: 0, Peak: 0 };
+  library.forEach(t => { if (t.energy && counts[t.energy] !== undefined) counts[t.energy]++; });
+  document.getElementById('libraryBreakdown').textContent = `Chill: ${counts.Chill} · Medium: ${counts.Medium} · High: ${counts.High} · Peak: ${counts.Peak}`;
+}
+
+function renderNowPlaying(state) {
+  if (state.currentTrackTitle && state.isPlaying !== false) {
+    document.getElementById('npEmpty').style.display = 'none';
+    document.getElementById('npActive').style.display = 'block';
+    document.getElementById('npTitle').textContent = state.currentTrackTitle || '—';
+    document.getElementById('npArtist').textContent = state.currentTrackArtist || '';
+    document.getElementById('controlBar').style.display = 'flex';
+    document.getElementById('miniInfo').textContent = `${state.isPlaying ? '▶' : '⏸'} ${state.currentTrackTitle}`;
+    const btn = document.getElementById('playPauseBtn');
+    btn.textContent = state.isPlaying ? '⏸' : '▶';
+    btn.onclick = () => sendCommand(state.isPlaying ? 'pause' : 'play');
+  } else {
+    document.getElementById('npEmpty').style.display = 'block';
+    document.getElementById('npActive').style.display = 'none';
+    document.getElementById('controlBar').style.display = 'none';
+  }
+}
+
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function formatDuration(s) { if (!s) return ''; const m = Math.floor(s/60), sec = Math.floor(s%60); return `${m}:${String(sec).padStart(2,'0')}`; }
+function timeAgo(ts) { const sec = Math.floor((Date.now() - ts) / 1000); if (sec < 60) return 'Just now'; if (sec < 3600) return Math.floor(sec / 60) + 'm ago'; return Math.floor(sec / 3600) + 'h ago'; }
+
+// Request filter buttons
+document.querySelectorAll('.req-filter').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.req-filter').forEach(b => { b.style.background = '#2a2a2a'; b.style.color = '#888'; b.classList.remove('active'); });
+    btn.style.background = '#ff3366'; btn.style.color = '#fff'; btn.classList.add('active');
+    requestFilter = btn.dataset.filter;
+    renderRequests();
+  });
+});
+
+async function approveRequest(reqId) {
+  await updateDoc(doc(db, 'music_requests', reqId), { status: 'approved', updatedAt: Date.now() });
+  showToast('Approved', 'success');
+}
+
+async function rejectRequest(reqId) {
+  await updateDoc(doc(db, 'music_requests', reqId), { status: 'rejected', updatedAt: Date.now() });
+  showToast('Rejected');
+}
+
+async function playRequestNow(reqId) {
+  const req = requests.find(r => r.id === reqId);
+  if (!req || !req.storagePath) { showToast('Cannot play — no audio file'); return; }
+  await sendCommand('play', { track: { id: req.songId, title: req.songTitle, artist: req.songArtist, storagePath: req.storagePath } });
+  await updateDoc(doc(db, 'music_requests', reqId), { status: 'played', updatedAt: Date.now() });
+  showToast('Playing now!', 'success');
+}
+
+function renderRequests() {
+  const list = document.getElementById('requestList');
+  let filtered = requests;
+  if (requestFilter === 'pending') filtered = requests.filter(r => r.status === 'pending');
+  else if (requestFilter === 'approved') filtered = requests.filter(r => r.status === 'approved' || r.status === 'will_play');
+  else if (requestFilter === 'played') filtered = requests.filter(r => r.status === 'played');
+  
+  const pendingCount = requests.filter(r => r.status === 'pending').length;
+  document.getElementById('requestCount').textContent = pendingCount;
+  
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="big">🎵</div><h3>No ${requestFilter} requests</h3><p>Customer requests will appear here in real-time</p></div>`;
+    return;
+  }
+  
+  const tierOrder = { vip: 0, priority: 1, free: 2 };
+  filtered.sort((a, b) => (tierOrder[a.tier] || 2) - (tierOrder[b.tier] || 2) || a.timestamp - b.timestamp);
+  
+  list.innerHTML = filtered.map(r => {
+    const tierBg = r.tier === 'vip' ? '#5a1a2a' : r.tier === 'priority' ? '#3a3a1a' : '#2a2a2a';
+    const tierColor = r.tier === 'vip' ? '#ff3366' : r.tier === 'priority' ? '#c9a84c' : '#888';
+    const tierLabel = r.tier === 'vip' ? 'VIP ₹299' : r.tier === 'priority' ? 'PRIORITY ₹99' : 'FREE';
+    const statusLabel = r.status === 'pending' ? 'Pending review' : r.status === 'approved' ? 'Approved' : r.status === 'played' ? 'Played' : r.status === 'rejected' ? 'Rejected' : r.status;
+    const statusColor = r.status === 'played' ? '#00C864' : r.status === 'approved' ? '#c9a84c' : r.status === 'rejected' ? '#ff3366' : '#888';
+    
+    return `
+      <div class="track" style="border-left:3px solid ${tierColor};">
+        <div class="track-info">
+          <div class="track-title">${escapeHtml(r.songTitle)}</div>
+          <div class="track-meta">
+            ${escapeHtml(r.songArtist)} · ${escapeHtml(r.requesterName || 'Anonymous')} · ${timeAgo(r.timestamp)}
+            <span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;background:${tierBg};color:${tierColor};">${tierLabel}</span>
+            <span style="color:${statusColor};font-size:10px;margin-left:4px;">${statusLabel}</span>
+          </div>
+        </div>
+        <div class="track-actions">
+          ${r.status === 'pending' ? `
+            <button class="track-btn add" data-req-action="approve" data-req-id="${r.id}" title="Approve">✓</button>
+            <button class="track-btn" data-req-action="reject" data-req-id="${r.id}" title="Reject">✗</button>
+          ` : ''}
+          ${r.status === 'pending' || r.status === 'approved' ? `
+            <button class="track-btn" data-req-action="play" data-req-id="${r.id}" title="Play now" style="background:#ff3366;">▶</button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  list.querySelectorAll('button[data-req-action]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.reqId;
+      if (btn.dataset.reqAction === 'approve') approveRequest(id);
+      else if (btn.dataset.reqAction === 'reject') rejectRequest(id);
+      else if (btn.dataset.reqAction === 'play') playRequestNow(id);
+    });
+  });
+}
+
+function renderWishlist() {
+  const list = document.getElementById('wishlistList');
+  if (wishlist.length === 0) { list.innerHTML = '<div style="color:#555;">No suggestions yet</div>'; return; }
+  list.innerHTML = wishlist.map(w => `
+    <div style="padding:8px 0;border-bottom:1px solid #242424;display:flex;justify-content:space-between;">
+      <div>${escapeHtml(w.title)} ${w.artist ? '— ' + escapeHtml(w.artist) : ''} <span style="color:#555;font-size:11px;">(${escapeHtml(w.suggestedBy)})</span></div>
+      <div style="color:#555;font-size:11px;">${timeAgo(w.timestamp)}</div>
+    </div>
+  `).join('');
+}
+
+// ============== INIT ==============
+function initApp() {
+  // Upload dropzone
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+  ['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add('dragging'); }));
+  ['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove('dragging'); }));
+  dropzone.addEventListener('drop', (e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); });
+
+  // Library
+  onSnapshot(query(collection(db, 'music_library'), orderBy('title')), (snap) => {
+    library = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderLibrary();
+    renderLibrarySummary();
+  });
+  // Queue
+  onSnapshot(query(collection(db, 'music_queue'), orderBy('position')), (snap) => {
+    queue = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderQueue();
+  });
+  // State
+  onSnapshot(doc(db, 'music_state', 'current'), async (snap) => {
+    if (!snap.exists()) {
+      await setDoc(doc(db, 'music_state', 'current'), { isPlaying: false, volume: 0.8, crossfadeEnabled: true, crossfadeSeconds: 5, djMode: false });
+      return;
+    }
+    const s = snap.data();
+    currentState = s;
+    renderNowPlaying(s);
+    document.getElementById('volumeSlider').value = Math.round((s.volume || 0.8) * 100);
+    document.getElementById('volumeLabel').textContent = Math.round((s.volume || 0.8) * 100);
+    const cft = document.getElementById('crossfadeToggle');
+    if (s.crossfadeEnabled) cft.classList.add('on'); else cft.classList.remove('on');
+    document.getElementById('crossfadeSlider').value = s.crossfadeSeconds || 5;
+    document.getElementById('crossfadeSecondsLabel').textContent = s.crossfadeSeconds || 5;
+    const djt = document.getElementById('djToggle');
+    const djb = document.getElementById('djBanner');
+    if (s.djMode) {
+      djt.classList.add('on'); djb.classList.add('active');
+      document.getElementById('djTitle').textContent = 'DJ Mode ACTIVE';
+      document.getElementById('djSubtitle').textContent = 'App paused — DJ playing live';
+    } else {
+      djt.classList.remove('on'); djb.classList.remove('active');
+      document.getElementById('djTitle').textContent = 'DJ Mode';
+      document.getElementById('djSubtitle').textContent = 'Off — app is controlling music';
+    }
+    const now = Date.now();
+    const lastBeat = s.lastHeartbeat || 0;
+    const online = (now - lastBeat) < 15000;
+    document.getElementById('receiverDot').className = 'status-dot ' + (online ? 'online' : 'offline');
+    document.getElementById('receiverStatus').textContent = online ? 'Receiver online' : 'Receiver offline';
+    document.getElementById('receiverDetailStatus').textContent = online ? 'Online' : 'Offline';
+    if (lastBeat) document.getElementById('lastHeartbeat').textContent = new Date(lastBeat).toLocaleTimeString();
+  });
+  setInterval(() => {
+    const lastBeat = currentState.lastHeartbeat || 0;
+    const online = (Date.now() - lastBeat) < 15000;
+    document.getElementById('receiverDot').className = 'status-dot ' + (online ? 'online' : 'offline');
+    document.getElementById('receiverStatus').textContent = online ? 'Receiver online' : 'Receiver offline';
+  }, 3000);
+  
+  // Requests listener
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  onSnapshot(query(collection(db, 'music_requests'), where('timestamp', '>=', todayStart.getTime()), orderBy('timestamp', 'desc')), (snap) => {
+    requests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderRequests();
+  });
+  
+  // Wishlist listener
+  onSnapshot(query(collection(db, 'music_wishlist'), orderBy('timestamp', 'desc')), (snap) => {
+    wishlist = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderWishlist();
+  });
+}
+</script>
+</body>
+</html>

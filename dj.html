@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOD DJ View</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  body { background: #0a0a0a; color: #fff; min-height: 100vh; }
+  .login-screen { position: fixed; inset: 0; background: #0a0a0a; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  .login-box { background: #1a1a1a; padding: 40px 30px; border-radius: 16px; width: 90%; max-width: 400px; text-align: center; }
+  .login-box h1 { font-size: 28px; margin-bottom: 10px; }
+  .login-box h1 span { color: #ff3366; }
+  .login-box p { color: #666; margin-bottom: 30px; font-size: 14px; }
+  .login-box input { width: 100%; padding: 15px; background: #0a0a0a; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 16px; margin-bottom: 15px; }
+  .login-box button { width: 100%; padding: 15px; background: #ff3366; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+  .login-error { color: #ff3366; font-size: 13px; margin-top: 10px; display: none; }
+  .header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; background: #0a0a0a; border-bottom: 1px solid #1a1a1a; position: sticky; top: 0; z-index: 100; }
+  .logo { font-size: 20px; font-weight: 700; }
+  .logo span { color: #ff3366; }
+  .badge { display: inline-flex; align-items: center; justify-content: center; background: #ff3366; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+  .content { max-width: 600px; margin: 0 auto; padding: 20px; }
+  .section-title { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; padding: 0 4px; }
+  .request-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; }
+  .request-card { background: #1a1a1a; border-radius: 12px; padding: 16px; border-left: 3px solid #333; }
+  .request-card.priority { border-left-color: #c9a84c; background: linear-gradient(90deg, rgba(201,168,76,.08), #1a1a1a); }
+  .request-card.vip { border-left-color: #ff3366; background: linear-gradient(90deg, rgba(255,51,102,.08), #1a1a1a); }
+  .request-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .request-song { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+  .request-artist { font-size: 13px; color: #888; }
+  .request-tier { padding: 3px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .request-tier.free { background: rgba(255,255,255,.08); color: #888; }
+  .request-tier.priority { background: rgba(201,168,76,.15); color: #c9a84c; }
+  .request-tier.vip { background: rgba(255,51,102,.15); color: #ff3366; }
+  .request-meta { font-size: 12px; color: #555; margin-bottom: 12px; }
+  .request-actions { display: flex; gap: 8px; }
+  .req-btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+  .req-btn:active { transform: scale(0.95); }
+  .req-btn.play { background: #ff3366; color: #fff; }
+  .req-btn.will-play { background: rgba(0,200,100,.15); color: #00C864; border: 1px solid rgba(0,200,100,.3); }
+  .req-btn.skip { background: rgba(255,255,255,.06); color: #888; }
+  .req-btn.played { background: rgba(0,200,100,.1); color: #00C864; pointer-events: none; }
+  .empty-state { text-align: center; padding: 60px 20px; color: #444; }
+  .empty-state .big { font-size: 48px; margin-bottom: 15px; }
+  .empty-state h3 { font-size: 16px; color: #888; margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; color: #555; }
+  .played-list .request-card { opacity: 0.5; }
+  .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: #ff3366; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #00aa55; }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+</style>
+</head>
+<body>
+
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <h1>HOD<span>.</span>MUSIC</h1>
+    <p>DJ access — enter tonight's code</p>
+    <input type="password" id="pwdInput" placeholder="DJ code" autofocus>
+    <button id="loginBtn">Enter</button>
+    <div class="login-error" id="loginError">Invalid code</div>
+  </div>
+</div>
+
+<div class="header">
+  <div>
+    <span class="logo">HOD<span>.</span>MUSIC</span>
+    <span style="font-size:12px;color:#666;margin-left:10px;">DJ VIEW</span>
+  </div>
+  <div style="font-size:13px;">
+    Requests <span class="badge pulse" id="requestBadge">0</span>
+  </div>
+</div>
+
+<div class="content">
+  <div id="pendingSection">
+    <div class="section-title">Pending Requests</div>
+    <div class="request-list" id="pendingList"></div>
+  </div>
+  
+  <div id="playedSection" style="display:none;">
+    <div class="section-title">Played Tonight</div>
+    <div class="request-list played-list" id="playedList"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, onSnapshot, query, orderBy, where, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB6YfM1DyVq0NTEWXpMdbCYuWwr9cWwbt0",
+  authDomain: "hod-tickets.firebaseapp.com",
+  projectId: "hod-tickets",
+  storageBucket: "hod-tickets.firebasestorage.app",
+  messagingSenderId: "86190418978",
+  appId: "1:86190418978:web:8b1eafc784c4986fd3ee7b"
+};
+const DJ_PASSWORD = "hoddjtonight";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Login
+function attemptLogin() {
+  const pwd = document.getElementById('pwdInput').value;
+  if (pwd === DJ_PASSWORD) {
+    sessionStorage.setItem('hodDJ', 'authed');
+    document.getElementById('loginScreen').style.display = 'none';
+    initDJView();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+document.getElementById('loginBtn').addEventListener('click', attemptLogin);
+document.getElementById('pwdInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') attemptLogin(); });
+if (sessionStorage.getItem('hodDJ') === 'authed') {
+  document.getElementById('loginScreen').style.display = 'none';
+  initDJView();
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => t.className = 'toast', 2500);
+}
+
+function timeAgo(ts) {
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 60) return 'Just now';
+  if (sec < 3600) return Math.floor(sec / 60) + ' min ago';
+  return Math.floor(sec / 3600) + 'h ago';
+}
+
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function markStatus(reqId, status) {
+  try {
+    await updateDoc(doc(db, 'music_requests', reqId), { status, updatedAt: Date.now() });
+    showToast(status === 'played' ? 'Marked as played' : status === 'will_play' ? 'Will play soon' : 'Skipped', 'success');
+  } catch (err) { showToast('Error: ' + err.message); }
+}
+
+function renderPending(requests) {
+  const list = document.getElementById('pendingList');
+  const badge = document.getElementById('requestBadge');
+  const pending = requests.filter(r => r.status === 'pending' || r.status === 'approved' || r.status === 'will_play');
+  
+  badge.textContent = pending.length;
+  if (pending.length === 0) badge.style.display = 'none'; else badge.style.display = '';
+  
+  if (pending.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="big">🎧</div><h3>No requests right now</h3><p>Requests from customers will appear here in real-time</p></div>';
+    return;
+  }
+  
+  // Sort: VIP first, then priority, then free. Within same tier, oldest first.
+  const tierOrder = { vip: 0, priority: 1, free: 2 };
+  pending.sort((a, b) => (tierOrder[a.tier] || 2) - (tierOrder[b.tier] || 2) || a.timestamp - b.timestamp);
+  
+  list.innerHTML = pending.map(r => `
+    <div class="request-card ${r.tier}">
+      <div class="request-top">
+        <div>
+          <div class="request-song">${escapeHtml(r.songTitle)}</div>
+          <div class="request-artist">${escapeHtml(r.songArtist)}</div>
+        </div>
+        <span class="request-tier ${r.tier}">${r.tier === 'vip' ? 'VIP' : r.tier === 'priority' ? 'PRIORITY' : 'FREE'}</span>
+      </div>
+      <div class="request-meta">
+        ${escapeHtml(r.requesterName || 'Anonymous')} · ${timeAgo(r.timestamp)}
+      </div>
+      <div class="request-actions">
+        ${r.status === 'will_play' 
+          ? '<button class="req-btn played">Will play ✓</button>' 
+          : `<button class="req-btn will-play" data-id="${r.id}" data-action="will_play">Will play</button>`}
+        <button class="req-btn play" data-id="${r.id}" data-action="played">Played ✓</button>
+        <button class="req-btn skip" data-id="${r.id}" data-action="skipped">Skip</button>
+      </div>
+    </div>
+  `).join('');
+  
+  list.querySelectorAll('.req-btn[data-id]').forEach(btn => {
+    btn.addEventListener('click', () => markStatus(btn.dataset.id, btn.dataset.action));
+  });
+}
+
+function renderPlayed(requests) {
+  const played = requests.filter(r => r.status === 'played');
+  const section = document.getElementById('playedSection');
+  const list = document.getElementById('playedList');
+  
+  if (played.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  
+  list.innerHTML = played.slice(0, 10).map(r => `
+    <div class="request-card">
+      <div class="request-top">
+        <div>
+          <div class="request-song">${escapeHtml(r.songTitle)}</div>
+          <div class="request-artist">${escapeHtml(r.songArtist)}</div>
+        </div>
+        <span class="request-tier" style="background:rgba(0,200,100,.1);color:#00C864;">PLAYED</span>
+      </div>
+      <div class="request-meta">${escapeHtml(r.requesterName || 'Anonymous')} · ${timeAgo(r.timestamp)}</div>
+    </div>
+  `).join('');
+}
+
+function initDJView() {
+  // Listen to all requests from today
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  
+  onSnapshot(query(collection(db, 'music_requests'), where('timestamp', '>=', todayStart.getTime()), orderBy('timestamp', 'desc')), (snap) => {
+    const requests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderPending(requests);
+    renderPlayed(requests);
+  });
+}
+</script>
+</body>
+</html>

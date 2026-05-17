@@ -1,0 +1,32 @@
+# HOD — House of Dopamine
+# https://hodclub.in
+
+User-agent: *
+Allow: /
+
+# Block staff/admin URLs (query parameters)
+Disallow: /*?admin=
+Disallow: /*?admin
+Disallow: /*?door=
+Disallow: /*?door
+Disallow: /*?captain=
+Disallow: /*?captain
+Disallow: /*?bar=
+Disallow: /*?bar
+
+# Block per-customer URLs (no SEO value, contains personal booking refs)
+Disallow: /*?wallet=
+Disallow: /*?wallet
+Disallow: /*?verify=
+Disallow: /*?verify
+Disallow: /*?booking=
+Disallow: /*?booking
+
+# Block any future /admin /door /captain paths if added
+Disallow: /admin
+Disallow: /door
+Disallow: /captain
+Disallow: /bar
+
+# Sitemap location
+Sitemap: https://hodclub.in/sitemap.xml

@@ -2530,7 +2530,7 @@ function renderStep1(ev){
       '<span>👥</span><span style="font-size:12px;font-weight:600;">Group entry · ₹'+(ev.groupPerHeadPrice||500)+' per head · 100% redeemable on F&amp;B</span></div>';
   } else {
     headerMsg='<div style="font-size:13px;color:rgba(0,200,100,.9);display:flex;align-items:center;gap:6px;">'+
-      '<span>✅</span><span style="font-size:13px;font-weight:600;">Skip the queue · Cover charge 100% redeemable on F&amp;B</span></div>';
+      '<span>✅</span><span style="font-size:13px;font-weight:600;">ENTRY FREE · Skip the queue · Cover charge 100% redeemable on F&amp;B</span></div>';
   }
   bHeader.innerHTML=headerMsg;
   wrap.appendChild(bHeader);
@@ -3277,6 +3277,37 @@ function saveBooking(paymentId){
     suspiciousReason:isSuspicious===true?suspiciousReason:''
   };
   saveBookingToFirebase(booking, null);
+  // 🔴 BUGFIX 2026-05-16 (Khushi) — entry-only customer bookings must mint a
+  // ₹0 cover wallet doc so hodclub.in/?wallet=HOD-XXX opens directly into the
+  // menu+wallet view (matching guestlist behavior). Without this, the wallet
+  // listener finds no cover doc and falls back to the "Your wallet activates
+  // at HOD" placeholder ticket page — customer cannot pre-browse the menu.
+  // Cover/table/group bookings already get wallets via their own flows; only
+  // entryonly was missing this and needed parity with guestlist.
+  if(firestore && bd.entryType==='entryonly'){
+    try{
+      // ⚠ CREATE-ONLY (transaction): if the cover doc already exists we MUST NOT
+      // touch coverBalance/coverActivated/coverUsed — a customer could top up
+      // between booking and tonight, and a naive merge:true would CLOBBER that
+      // balance back to ₹0. Mirrors ensureZeroBalanceCoverForGuest in
+      // firestore-hod.ts (~779). Idempotent on retries / re-submits.
+      var _coverRef=firestore.collection('covers').doc(ref);
+      firestore.runTransaction(function(tx){
+        return tx.get(_coverRef).then(function(snap){
+          if(snap.exists) return; // existing cover — leave balances alone
+          tx.set(_coverRef,{
+            ref:ref, bookingId:ref,
+            name:bd.name||'Guest', phone:(bd.phone||'').replace(/\D/g,'').slice(-10),
+            coverBalance:0, coverActivated:0, coverUsed:0,
+            source:'booking', sourceDocId:ref,
+            eventId:ev.id||'', eventTitle:ev.title||'',
+            createdAt:new Date().toISOString(),
+            isEntryOnly:true,
+          });
+        });
+      }).catch(function(e){console.warn('[HOD] entryonly cover mint failed:',e);});
+    }catch(e){console.warn('[HOD] entryonly cover mint error:',e);}
+  }
   updateSoldCount(ev.id, bd.qty||1);
   // ── v3: decrement nightly table stock when a table is booked.
   // Firestore transaction guarantees atomicity (no oversell on parallel bookings).
@@ -5632,7 +5663,7 @@ function renderWalletPage(bookingRef){
               +  '<div style="font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);letter-spacing:1px;">HOUSE OF DOPAMINE</div>'
               +  '<div style="font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:.6px;">ORDER PLACED · BARTENDER REDEEM</div>'
               +'</div>'
-              +'<div style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6;">Show this QR to your <strong style="color:var(--text);">bartender</strong> to prepare your order</div>'
+              +'<div style="text-align:center;font-size:16px;color:#C9A84C;margin-bottom:14px;line-height:1.6;font-weight:600;">Show this QR to your <strong style="color:#E8C97A;">bartender</strong> to prepare your order</div>'
               +'<div id="order-qr-popup" style="width:160px;height:160px;margin:0 auto 12px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'
               +'<div style="text-align:center;font-family:monospace;font-size:12px;color:var(--gold);letter-spacing:2px;margin-bottom:12px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>'
               +'<div style="border-top:1px dashed rgba(255,255,255,.15);border-bottom:1px dashed rgba(255,255,255,.15);padding:10px 0;margin-bottom:10px;">'

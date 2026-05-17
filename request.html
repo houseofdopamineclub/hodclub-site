@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Request a Song — HOD</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: #080812; color: #fff; min-height: 100vh; }
+  .header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(3,3,5,.98); border-bottom: 1px solid rgba(201,168,76,.15); position: sticky; top: 0; z-index: 100; }
+  .logo { font-size: 20px; font-weight: 900; color: #c9a84c; font-family: Georgia, serif; }
+  .queue-pill { padding: 6px 12px; background: rgba(201,168,76,.1); border: 1px solid rgba(201,168,76,.2); border-radius: 20px; font-size: 11px; color: #c9a84c; }
+  .content { max-width: 480px; margin: 0 auto; padding: 20px; }
+  .hero { text-align: center; padding: 30px 0 20px; }
+  .hero h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .hero p { font-size: 13px; color: #888; }
+  .search-bar { width: 100%; padding: 14px 16px 14px 40px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; color: #fff; font-size: 15px; margin-bottom: 8px; }
+  .search-bar:focus { outline: none; border-color: #c9a84c; }
+  .search-wrap { position: relative; }
+  .search-icon { position: absolute; left: 14px; top: 15px; font-size: 16px; color: #666; pointer-events: none; }
+  .search-hint { font-size: 11px; color: #555; margin-bottom: 16px; text-align: center; }
+  .section-label { font-size: 10px; letter-spacing: 1.5px; color: #666; text-transform: uppercase; margin: 12px 0 8px; padding: 0 4px; display: flex; align-items: center; gap: 8px; }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.06); }
+  .song-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .song { display: flex; align-items: center; padding: 12px 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); border-radius: 10px; gap: 12px; cursor: pointer; transition: all 0.15s; }
+  .song:active, .song.selected { background: rgba(201,168,76,.12); border-color: rgba(201,168,76,.4); }
+  .song-art { width: 44px; height: 44px; border-radius: 6px; background: rgba(255,255,255,.06); overflow: hidden; flex-shrink: 0; }
+  .song-art img { width: 100%; height: 100%; object-fit: cover; }
+  .song-info { flex: 1; min-width: 0; }
+  .song-title { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .song-artist { font-size: 12px; color: #888; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .song-source { font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .source-library { background: rgba(0,200,100,.1); color: #00C864; }
+  .source-global { background: rgba(201,168,76,.1); color: #c9a84c; }
+  .song-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #333; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .song.selected .song-check { background: #c9a84c; border-color: #c9a84c; color: #000; }
+  .empty-search { text-align: center; padding: 30px; color: #555; font-size: 13px; }
+  .loading-search { text-align: center; padding: 20px; color: #666; font-size: 13px; }
+  .divider { height: 1px; background: rgba(255,255,255,.06); margin: 20px 0; }
+  .tier-section { margin-bottom: 20px; }
+  .tier-section h3 { font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .tiers { display: flex; flex-direction: column; gap: 10px; }
+  .tier { display: flex; align-items: center; padding: 14px 16px; background: rgba(255,255,255,.04); border: 2px solid rgba(255,255,255,.08); border-radius: 12px; cursor: pointer; transition: all 0.15s; gap: 14px; }
+  .tier:active, .tier.selected { border-color: rgba(201,168,76,.5); background: rgba(201,168,76,.08); }
+  .tier-radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #444; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .tier.selected .tier-radio { border-color: #c9a84c; background: #c9a84c; }
+  .tier.selected .tier-radio::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #000; }
+  .tier-info { flex: 1; }
+  .tier-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .tier-desc { font-size: 11px; color: #888; }
+  .tier-price { font-size: 16px; font-weight: 700; color: #c9a84c; }
+  .tier-free .tier-price { color: #00C864; }
+  .tier-queue-info { font-size: 10px; color: #666; margin-top: 4px; text-align: right; }
+  .name-section { margin-bottom: 20px; }
+  .name-section label { font-size: 13px; color: #888; display: block; margin-bottom: 8px; }
+  .name-input { width: 100%; padding: 12px 16px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; color: #fff; font-size: 15px; }
+  .name-input:focus { outline: none; border-color: #c9a84c; }
+  .name-hint { font-size: 11px; color: #555; margin-top: 6px; }
+  .submit-btn { width: 100%; padding: 16px; background: linear-gradient(135deg, #c9a84c, #a8893a); color: #000; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 10px; letter-spacing: 0.5px; }
+  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .submit-btn:active:not(:disabled) { transform: scale(0.98); }
+  .submit-note { text-align: center; font-size: 11px; color: #555; margin-bottom: 30px; }
+  .confirmation { display: none; text-align: center; padding: 60px 20px; }
+  .confirmation.visible { display: block; }
+  .conf-icon { font-size: 64px; margin-bottom: 20px; }
+  .conf-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .conf-subtitle { font-size: 14px; color: #888; margin-bottom: 20px; line-height: 1.5; }
+  .conf-status { display: inline-block; padding: 10px 24px; border-radius: 20px; font-size: 14px; font-weight: 600; margin-bottom: 30px; }
+  .conf-status.pending { background: rgba(201,168,76,.1); border: 1px solid rgba(201,168,76,.3); color: #c9a84c; }
+  .conf-status.approved { background: rgba(0,200,100,.1); border: 1px solid rgba(0,200,100,.3); color: #00C864; }
+  .conf-status.playing { background: rgba(255,51,102,.1); border: 1px solid rgba(255,51,102,.3); color: #ff3366; animation: pulse 1.5s infinite; }
+  .conf-status.played { background: rgba(0,200,100,.1); border: 1px solid rgba(0,200,100,.3); color: #00C864; }
+  .conf-status.skipped { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: #888; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.6} }
+  .conf-another { padding: 14px 30px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); color: #fff; border-radius: 10px; cursor: pointer; font-size: 14px; }
+  .toast { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); background: #c9a84c; color: #000; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; z-index: 200; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #EF4444; color: #fff; }
+  .footer { text-align: center; padding: 30px 20px; font-size: 11px; color: #333; }
+  .footer a { color: #c9a84c; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">HOD</div>
+  <div class="queue-pill" id="queuePill">Loading...</div>
+</div>
+
+<div class="content">
+  <div id="mainView">
+    <div class="hero">
+      <h1>Request a Song</h1>
+      <p>Search any song — we'll play it for you tonight</p>
+    </div>
+
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-bar" id="searchInput" placeholder="Search any song or artist...">
+    </div>
+    <div class="search-hint">Search millions of songs worldwide</div>
+
+    <div id="libraryResults"></div>
+    <div id="globalResults"></div>
+
+    <div class="divider"></div>
+
+    <div class="tier-section">
+      <h3>Choose your request type</h3>
+      <div class="tiers">
+        <div class="tier tier-free selected" data-tier="free" data-price="0">
+          <div class="tier-radio"></div>
+          <div class="tier-info">
+            <div class="tier-name">Free Request</div>
+            <div class="tier-desc">Goes into review queue — played if it matches the vibe</div>
+          </div>
+          <div>
+            <div class="tier-price">Free</div>
+            <div class="tier-queue-info" id="freeQueueInfo"></div>
+          </div>
+        </div>
+        <div class="tier" data-tier="priority" data-price="99">
+          <div class="tier-radio"></div>
+          <div class="tier-info">
+            <div class="tier-name">Priority</div>
+            <div class="tier-desc">Skips the line — auto-approved and queued next</div>
+          </div>
+          <div>
+            <div class="tier-price">₹99</div>
+            <div class="tier-queue-info">Plays faster</div>
+          </div>
+        </div>
+        <div class="tier" data-tier="vip" data-price="299">
+          <div class="tier-radio"></div>
+          <div class="tier-info">
+            <div class="tier-name">VIP Request</div>
+            <div class="tier-desc">Top priority — your song plays within minutes</div>
+          </div>
+          <div>
+            <div class="tier-price">₹299</div>
+            <div class="tier-queue-info">Plays next</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="name-section">
+      <label>Your name (optional)</label>
+      <input type="text" class="name-input" id="nameInput" placeholder="e.g. Rahul">
+      <div class="name-hint">Shown when your song plays — leave blank to stay anonymous</div>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" disabled>Select a song first</button>
+    <div class="submit-note">Your request helps shape tonight's vibe at HOD</div>
+  </div>
+
+  <div class="confirmation" id="confirmView">
+    <div class="conf-icon" id="confIcon">🎵</div>
+    <div class="conf-title" id="confTitle">Request Sent!</div>
+    <div class="conf-subtitle" id="confSubtitle">We'll play it if it matches tonight's vibe!</div>
+    <div class="conf-status pending" id="confStatus">Pending review</div>
+    <br><br>
+    <button class="conf-another" id="anotherBtn">Request Another Song</button>
+  </div>
+</div>
+
+<div class="footer">
+  <a href="https://hodclub.netlify.app">HOD — House of Dopamine</a> · Koramangala, Bengaluru
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, where, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB6YfM1DyVq0NTEWXpMdbCYuWwr9cWwbt0",
+  authDomain: "hod-tickets.firebaseapp.com",
+  projectId: "hod-tickets",
+  storageBucket: "hod-tickets.firebasestorage.app",
+  messagingSenderId: "86190418978",
+  appId: "1:86190418978:web:8b1eafc784c4986fd3ee7b"
+};
+const RAZORPAY_KEY = "rzp_live_Sgf6ON1mQY95kT";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let library = [];
+let selectedSong = null;
+let selectedTier = 'free';
+let selectedPrice = 0;
+let freeRequestCount = 0;
+let searchTimeout = null;
+let lastRequestId = null;
+
+const params = new URLSearchParams(window.location.search);
+const customerRef = params.get('ref') || '';
+const customerName = params.get('name') || '';
+if (customerName) document.getElementById('nameInput').value = customerName;
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Load HOD library
+onSnapshot(query(collection(db, 'music_library'), orderBy('title')), (snap) => {
+  library = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+});
+
+// Track pending requests
+onSnapshot(query(collection(db, 'music_requests'), where('status', '==', 'pending')), (snap) => {
+  freeRequestCount = snap.size;
+  document.getElementById('queuePill').textContent = freeRequestCount > 0 ? `${freeRequestCount} pending` : 'No queue';
+  document.getElementById('freeQueueInfo').textContent = freeRequestCount > 0 ? `${freeRequestCount} ahead` : 'No wait';
+});
+
+// Search handler with debounce
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  clearTimeout(searchTimeout);
+  const q = e.target.value.trim();
+  if (q.length < 2) {
+    document.getElementById('libraryResults').innerHTML = '';
+    document.getElementById('globalResults').innerHTML = '';
+    return;
+  }
+  // Search library instantly
+  renderLibraryResults(q);
+  // Search global with debounce
+  document.getElementById('globalResults').innerHTML = '<div class="loading-search">Searching worldwide...</div>';
+  searchTimeout = setTimeout(() => searchGlobal(q), 400);
+});
+
+function renderLibraryResults(q) {
+  const el = document.getElementById('libraryResults');
+  const matches = library.filter(t => t.title.toLowerCase().includes(q.toLowerCase()) || (t.artist || '').toLowerCase().includes(q.toLowerCase()));
+  if (matches.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="section-label">From HOD library (auto-plays)</div><div class="song-list">' +
+    matches.slice(0, 5).map(t => `
+      <div class="song ${selectedSong && selectedSong._id === 'lib_'+t.id ? 'selected' : ''}" data-source="library" data-id="${t.id}">
+        <div class="song-art" style="background:rgba(0,200,100,.1);display:flex;align-items:center;justify-content:center;font-size:20px;">♫</div>
+        <div class="song-info">
+          <div class="song-title">${escapeHtml(t.title)}</div>
+          <div class="song-artist">${escapeHtml(t.artist || 'Unknown')}</div>
+        </div>
+        <span class="song-source source-library">Library</span>
+        <div class="song-check">${selectedSong && selectedSong._id === 'lib_'+t.id ? '✓' : ''}</div>
+      </div>
+    `).join('') + '</div>';
+  attachSongClickHandlers(el);
+}
+
+async function searchGlobal(q) {
+  const el = document.getElementById('globalResults');
+  try {
+    const resp = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&limit=10&country=IN`);
+    const data = await resp.json();
+    if (!data.results || data.results.length === 0) {
+      el.innerHTML = '<div class="empty-search">No global results found</div>';
+      return;
+    }
+    el.innerHTML = '<div class="section-label">All songs worldwide</div><div class="song-list">' +
+      data.results.map(t => {
+        const uid = 'itunes_' + t.trackId;
+        return `
+          <div class="song ${selectedSong && selectedSong._id === uid ? 'selected' : ''}" data-source="global" data-track-id="${t.trackId}" data-title="${escapeHtml(t.trackName)}" data-artist="${escapeHtml(t.artistName)}" data-art="${t.artworkUrl100 || ''}">
+            <div class="song-art">${t.artworkUrl100 ? '<img src="'+t.artworkUrl100+'" alt="">' : '<div style="width:100%;height:100%;background:rgba(201,168,76,.1);display:flex;align-items:center;justify-content:center;font-size:20px;">♫</div>'}</div>
+            <div class="song-info">
+              <div class="song-title">${escapeHtml(t.trackName)}</div>
+              <div class="song-artist">${escapeHtml(t.artistName)}</div>
+            </div>
+            <span class="song-source source-global">Global</span>
+            <div class="song-check">${selectedSong && selectedSong._id === uid ? '✓' : ''}</div>
+          </div>
+        `;
+      }).join('') + '</div>';
+    attachSongClickHandlers(el);
+  } catch (err) {
+    el.innerHTML = '<div class="empty-search">Search unavailable — try typing the song name below</div>';
+  }
+}
+
+function attachSongClickHandlers(container) {
+  container.querySelectorAll('.song').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.dataset.source === 'library') {
+        const t = library.find(l => l.id === el.dataset.id);
+        if (t) selectedSong = { _id: 'lib_'+t.id, songId: t.id, title: t.title, artist: t.artist || 'Unknown', storagePath: t.storagePath || '', source: 'library', artUrl: '' };
+      } else {
+        selectedSong = {
+          _id: 'itunes_' + el.dataset.trackId,
+          songId: 'itunes_' + el.dataset.trackId,
+          title: el.dataset.title,
+          artist: el.dataset.artist,
+          storagePath: '',
+          source: 'global',
+          artUrl: el.dataset.art || ''
+        };
+      }
+      // Re-render both lists to update checkmarks
+      const q = document.getElementById('searchInput').value.trim();
+      if (q.length >= 2) renderLibraryResults(q);
+      document.querySelectorAll('#globalResults .song').forEach(s => {
+        const uid = s.dataset.source === 'library' ? 'lib_'+s.dataset.id : 'itunes_'+s.dataset.trackId;
+        if (uid === selectedSong._id) { s.classList.add('selected'); s.querySelector('.song-check').textContent = '✓'; }
+        else { s.classList.remove('selected'); s.querySelector('.song-check').textContent = ''; }
+      });
+      updateSubmitBtn();
+    });
+  });
+}
+
+// Tier selection
+document.querySelectorAll('.tier').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.tier').forEach(t => t.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedTier = el.dataset.tier;
+    selectedPrice = parseInt(el.dataset.price);
+    updateSubmitBtn();
+  });
+});
+
+function updateSubmitBtn() {
+  const btn = document.getElementById('submitBtn');
+  if (!selectedSong) { btn.disabled = true; btn.textContent = 'Select a song first'; }
+  else if (selectedPrice > 0) { btn.disabled = false; btn.textContent = `Pay ₹${selectedPrice} & Request`; }
+  else { btn.disabled = false; btn.textContent = 'Submit Free Request'; }
+}
+
+// Submit request
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  if (!selectedSong) return;
+  const requestData = {
+    songId: selectedSong.songId,
+    songTitle: selectedSong.title,
+    songArtist: selectedSong.artist,
+    storagePath: selectedSong.storagePath || '',
+    source: selectedSong.source,
+    artUrl: selectedSong.artUrl || '',
+    requesterName: document.getElementById('nameInput').value.trim() || 'Anonymous',
+    customerRef: customerRef,
+    tier: selectedTier,
+    price: selectedPrice,
+    status: selectedPrice > 0 ? 'approved' : 'pending',
+    paymentId: null,
+    timestamp: Date.now()
+  };
+
+  if (selectedPrice > 0) {
+    const options = {
+      key: RAZORPAY_KEY,
+      amount: selectedPrice * 100,
+      currency: 'INR',
+      name: 'HOD — House of Dopamine',
+      description: `Song Request: ${selectedSong.title}`,
+      prefill: { name: document.getElementById('nameInput').value.trim() || '' },
+      theme: { color: '#c9a84c' },
+      handler: async function(response) {
+        requestData.paymentId = response.razorpay_payment_id;
+        requestData.status = 'approved';
+        try {
+          const docRef = await addDoc(collection(db, 'music_requests'), requestData);
+          lastRequestId = docRef.id;
+          showConfirmation('paid');
+          listenToRequestStatus(docRef.id);
+        } catch (err) { showToast('Error: ' + err.message, 'error'); }
+      },
+      modal: { ondismiss: function() { showToast('Payment cancelled', 'error'); } }
+    };
+    const rzp = new Razorpay(options);
+    rzp.open();
+  } else {
+    try {
+      const docRef = await addDoc(collection(db, 'music_requests'), requestData);
+      lastRequestId = docRef.id;
+      showConfirmation('free');
+      listenToRequestStatus(docRef.id);
+    } catch (err) { showToast('Error: ' + err.message, 'error'); }
+  }
+});
+
+// Live status listener — updates confirmation page in real-time
+function listenToRequestStatus(requestId) {
+  onSnapshot(doc(db, 'music_requests', requestId), (snap) => {
+    if (!snap.exists()) return;
+    const r = snap.data();
+    const statusEl = document.getElementById('confStatus');
+    const iconEl = document.getElementById('confIcon');
+    const subtitleEl = document.getElementById('confSubtitle');
+    
+    if (r.status === 'pending') {
+      statusEl.className = 'conf-status pending';
+      statusEl.textContent = 'Pending review';
+      iconEl.textContent = '🎵';
+      subtitleEl.textContent = `"${r.songTitle}" is in the review queue. We'll play it if it matches tonight's vibe!`;
+    } else if (r.status === 'approved' || r.status === 'will_play') {
+      statusEl.className = 'conf-status approved';
+      statusEl.textContent = r.status === 'will_play' ? 'Coming up next!' : 'Approved — in queue';
+      iconEl.textContent = '✨';
+      subtitleEl.textContent = `"${r.songTitle}" has been approved! Listen for it soon.`;
+    } else if (r.status === 'played') {
+      statusEl.className = 'conf-status played';
+      statusEl.textContent = 'Playing now!';
+      iconEl.textContent = '🎶';
+      subtitleEl.textContent = `"${r.songTitle}" is playing right now! Enjoy!`;
+    } else if (r.status === 'skipped' || r.status === 'rejected') {
+      statusEl.className = 'conf-status skipped';
+      statusEl.textContent = 'Couldn\'t play this time';
+      iconEl.textContent = '🙏';
+      subtitleEl.textContent = `"${r.songTitle}" didn't match tonight's vibe. Try requesting another one!`;
+    }
+  });
+}
+
+function showConfirmation(type) {
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('confirmView').classList.add('visible');
+  const statusEl = document.getElementById('confStatus');
+  
+  if (type === 'paid') {
+    document.getElementById('confTitle').textContent = 'You\'re all set!';
+    document.getElementById('confSubtitle').textContent = `"${selectedSong.title}" has been added to the priority queue. It'll play shortly!`;
+    statusEl.className = 'conf-status approved';
+    statusEl.textContent = selectedTier === 'vip' ? 'Playing next' : 'Priority queued';
+  } else {
+    document.getElementById('confTitle').textContent = 'Request Sent!';
+    document.getElementById('confSubtitle').textContent = `"${selectedSong.title}" is in the review queue. We'll play it if it matches tonight's vibe!`;
+    statusEl.className = 'conf-status pending';
+    statusEl.textContent = freeRequestCount > 1 ? `${freeRequestCount - 1} requests ahead` : 'You\'re next in review';
+  }
+  if (selectedSong.source === 'global') {
+    document.getElementById('confSubtitle').textContent += '\n(DJ will play this from their collection)';
+  }
+}
+
+document.getElementById('anotherBtn').addEventListener('click', () => {
+  document.getElementById('mainView').style.display = 'block';
+  document.getElementById('confirmView').classList.remove('visible');
+  selectedSong = null; selectedTier = 'free'; selectedPrice = 0; lastRequestId = null;
+  document.getElementById('searchInput').value = '';
+  document.getElementById('libraryResults').innerHTML = '';
+  document.getElementById('globalResults').innerHTML = '';
+  document.querySelectorAll('.tier').forEach(t => t.classList.remove('selected'));
+  document.querySelector('.tier-free').classList.add('selected');
+  updateSubmitBtn();
+});
+</script>
+</body>
+</html>
