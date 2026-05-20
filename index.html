@@ -5858,32 +5858,134 @@ function renderWalletPage(bookingRef){
         inner.appendChild(roundsSection);
       }
 
+      // 🆕 2026-05-20 (Khushi) — YOUR TAB visual overhaul.
+      //  • Cream/light-gold card so DARK text on light bg = readable in
+      //    bright club lighting.
+      //  • BIG bold "Round 1", "Round 2" headers (16px, dark gold) with a
+      //    dotted divider between rounds (matches captain BillPreview
+      //    aesthetic).
+      //  • Item rows: 14px dark text, tabular-num prices, served chip.
+      //  • Grand total row: 22px bold + "Inclusive of all taxes" subtitle
+      //    computed via hodComputeBreakdown (single source of truth — same
+      //    math as captain's bill).
+      //  • 🆕 "VIEW BILL" button that opens a modal mirroring the captain's
+      //    Bill Preview (HOUSE OF DOPAMINE header, items, SC/CGST/SGST,
+      //    GRAND TOTAL). Read-only — no Place Order, just CLOSE.
       function renderRoundsHistory(){
         var sec=document.getElementById('tab-rounds-history');
         if(!sec)return;
         sec.innerHTML='';
-        var tt=getTabTotal();
         if(!tabRounds.length)return;
+        var tt=getTabTotal();
+        var bd=null;
+        try{
+          var _all=[];
+          tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_all.push(i);});});
+          bd=hodComputeBreakdown(_all);
+        }catch(_e){bd=null;}
+        var grand=bd?bd.grandTotal:tt;
+
         var hdr=document.createElement('div');
-        hdr.style.cssText='background:rgba(242,199,68,.06);border:1px solid rgba(242,199,68,.15);border-radius:14px;padding:14px 16px;';
-        var statusC={'preparing':'#ffc800','activated':'#00C864','served':'#00C864','paid':'#00C864'};
+        hdr.style.cssText='background:linear-gradient(135deg,#f5e8c0,#ecdba0);border:2px solid #b89545;border-radius:16px;padding:18px 18px 16px;box-shadow:0 6px 22px rgba(0,0,0,.35);color:#1a1408;font-family:var(--fs);';
+
+        // Header row: YOUR TAB · ₹total
+        var headHtml=''
+          +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;border-bottom:2px dashed #8a6a1f;padding-bottom:10px;">'
+          +'<span style="font-size:14px;font-weight:900;color:#5c3f0a;letter-spacing:2px;">📋 YOUR TAB</span>'
+          +'<span style="font-size:22px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+grand+'</span>'
+          +'</div>';
+
+        var statusC={'preparing':'#a85800','activated':'#0a7a3c','served':'#0a7a3c','paid':'#0a7a3c'};
         var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':'✅ Served','paid':'💳 Paid'};
-        var rows=tabRounds.map(function(r){
-          var sc=statusC[r.status]||'var(--muted)';
+
+        var roundsHtml=tabRounds.map(function(r,idx){
+          var sc=statusC[r.status]||'#5c3f0a';
           var sl=statusL[r.status]||r.status;
-          var ilist=r.items.map(function(it){return '<div style="display:flex;justify-content:space-between;font-size:11px;padding:1px 0;"><span>'+sanitize(it.qty+'× '+it.n)+'</span><span style="color:var(--gold);">₹'+(it.p*it.qty)+'</span></div>';}).join('');
-          return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);">'
-            +'<div style="flex:1;"><div style="font-size:11px;font-weight:800;color:var(--gold);">Round '+r.roundNum+'</div>'
-            +'<div style="margin-top:3px;">'+ilist+'</div></div>'
-            +'<div style="text-align:right;padding-left:10px;"><div style="font-size:13px;font-weight:900;">₹'+r.roundTotal+'</div>'
-            +'<div style="font-size:10px;color:'+sc+';">'+sl+'</div></div></div>';
+          var rBd=null;
+          try{rBd=hodComputeBreakdown(r.items||[]);}catch(_e){rBd=null;}
+          var rTotal=rBd?rBd.grandTotal:(r.roundTotal||0);
+          var ilist=(r.items||[]).map(function(it){
+            return '<div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0;color:#1a1408;font-weight:600;">'
+              +'<span style="flex:1;padding-right:8px;">'+sanitize(it.qty+'× '+it.n)+'</span>'
+              +'<span style="color:#3a2a08;font-variant-numeric:tabular-nums;font-weight:700;">₹'+(it.p*it.qty)+'</span></div>';
+          }).join('');
+          var sep=idx<tabRounds.length-1?'border-bottom:1.5px dashed #8a6a1f;':'';
+          return '<div style="padding:10px 0 12px;'+sep+'">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+            +'<span style="font-size:17px;font-weight:900;color:#5c3f0a;letter-spacing:.5px;">● Round '+r.roundNum+'</span>'
+            +'<span style="display:flex;align-items:center;gap:8px;">'
+            +'<span style="font-size:11px;font-weight:800;color:'+sc+';background:rgba(255,255,255,.55);padding:3px 9px;border-radius:12px;letter-spacing:.4px;">'+sl+'</span>'
+            +'<span style="font-size:17px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+rTotal+'</span>'
+            +'</span></div>'
+            +ilist+'</div>';
         }).join('');
-        hdr.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
-          +'<span style="font-size:12px;font-weight:800;color:var(--gold);letter-spacing:1px;">YOUR TAB</span>'
-          +'<span style="font-size:16px;font-weight:900;color:var(--gold);">₹'+tt+'</span></div>'+rows;
+
+        // Inclusive-of-tax footer + VIEW BILL button
+        var footHtml=''
+          +'<div style="margin-top:6px;padding-top:10px;border-top:2px dashed #8a6a1f;text-align:right;font-size:12px;font-style:italic;color:#5c3f0a;font-weight:600;">Inclusive of all taxes (SC + GST)</div>'
+          +'<button id="hod-view-bill-btn" type="button" style="margin-top:14px;width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#5c3f0a,#3a2a08);border:none;color:#f5e8c0;font-size:15px;font-weight:900;letter-spacing:1.2px;cursor:pointer;font-family:var(--fs);box-shadow:0 4px 14px rgba(0,0,0,.3);">📄 VIEW BILL</button>';
+
+        hdr.innerHTML=headHtml+roundsHtml+footHtml;
         sec.appendChild(hdr);
+
+        var vb=document.getElementById('hod-view-bill-btn');
+        if(vb)vb.addEventListener('click',function(){showBillOnlyModal();});
       }
       renderRoundsHistory();
+
+      // 🆕 2026-05-20 (Khushi) — read-only Bill Preview modal for the
+      // customer side. Mirrors captain CaptainMode.tsx BillPreviewModal:
+      // HOD header, table/guest meta, ITEMS list, SUBTOTAL · SC · CGST ·
+      // SGST · GRAND TOTAL. No Place Order — just CLOSE.
+      function showBillOnlyModal(){
+        if(!tabRounds.length)return;
+        var allItems=[];
+        tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
+        var bd;try{bd=hodComputeBreakdown(allItems);}catch(e){bd=null;}
+        if(!bd)return;
+        var overlay=document.createElement('div');
+        overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;font-family:var(--fs);';
+        var card=document.createElement('div');
+        card.style.cssText='background:#0A0A0A;border:2px solid #E5A82A;border-radius:14px;max-width:460px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.6);color:#F2EBD3;';
+        var rowHtml=function(label,val,bold){
+          return '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:'+(bold?16:14)+'px;font-weight:'+(bold?900:600)+';color:'+(bold?'#F2EBD3':'rgba(242,235,211,.85)')+';"><span>'+label+'</span><span style="font-variant-numeric:tabular-nums;">'+val+'</span></div>';
+        };
+        var itemsHtml=allItems.map(function(it){
+          return '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:14px;color:#F2EBD3;">'
+            +'<span style="flex:1;padding-right:8px;">'+sanitize(it.qty+' × '+it.n)+'</span>'
+            +'<span style="font-variant-numeric:tabular-nums;font-weight:700;">₹'+Math.round((it.p||0)*(it.qty||0))+'</span></div>';
+        }).join('');
+        var meta=''
+          +(cv.tableId?'<div><b style="color:#F2EBD3;">TABLE:</b> '+sanitize(cv.tableId)+(cv.floorLabel?' · '+sanitize(cv.floorLabel):'')+'</div>':'')
+          +'<div><b style="color:#F2EBD3;">GUEST:</b> '+sanitize(cv.customerName||'—')+'</div>';
+        card.innerHTML=''
+          +'<div style="padding:16px 18px;border-bottom:1px solid rgba(229,168,42,.3);">'
+          +'<div style="font-size:12px;color:#E5A82A;font-weight:700;letter-spacing:1px;margin-bottom:4px;">📋 BILL PREVIEW · NOT YET PRINTED</div>'
+          +'<div style="font-size:22px;font-weight:900;color:#F2EBD3;font-family:\'Playfair Display\',serif;">HOUSE OF DOPAMINE</div>'
+          +'<div style="font-size:11px;color:rgba(242,235,211,.6);margin-top:2px;">'+sanitize(cv.floorLabel||'')+'</div>'
+          +'</div>'
+          +'<div style="padding:12px 18px;border-bottom:1px dashed rgba(242,235,211,.2);font-size:13px;color:rgba(242,235,211,.85);">'+meta+'</div>'
+          +'<div style="padding:12px 18px;border-bottom:1px dashed rgba(242,235,211,.2);">'
+          +'<div style="font-size:12px;color:#E5A82A;font-weight:700;letter-spacing:1px;margin-bottom:8px;">ITEMS</div>'
+          +itemsHtml+'</div>'
+          +'<div style="padding:12px 18px;border-bottom:1px dashed rgba(242,235,211,.2);">'
+          +rowHtml('Subtotal','₹'+Math.round((bd.foodSubtotal||0)+(bd.alcSubtotal||0)+(bd.nonAlcSubtotal||0)))
+          +rowHtml('Service Charge (10%)','₹'+(bd.serviceCharge||0).toFixed(0))
+          +rowHtml('CGST','₹'+((bd.gst||0)/2).toFixed(2))
+          +rowHtml('SGST','₹'+((bd.gst||0)/2).toFixed(2))
+          +'<div style="height:1px;background:rgba(229,168,42,.4);margin:8px 0;"></div>'
+          +rowHtml('GRAND TOTAL','₹'+Math.round(bd.grandTotal),true)
+          +'</div>'
+          +'<div style="padding:14px;">'
+          +'<button id="hod-bill-close-btn" type="button" style="width:100%;padding:14px;border-radius:10px;background:transparent;border:1px solid rgba(242,235,211,.4);color:#F2EBD3;font-size:14px;font-weight:800;letter-spacing:.5px;cursor:pointer;text-transform:uppercase;font-family:var(--fs);">✗ CLOSE</button>'
+          +'</div>';
+        overlay.appendChild(card);
+        function _close(){if(overlay.parentNode)overlay.parentNode.removeChild(overlay);}
+        overlay.addEventListener('click',function(e){if(e.target===overlay)_close();});
+        document.body.appendChild(overlay);
+        var cb=document.getElementById('hod-bill-close-btn');
+        if(cb)cb.addEventListener('click',_close);
+      }
 
       // ── Checkout modal
       function showCheckoutModal(tt){
@@ -6212,8 +6314,32 @@ function renderWalletPage(bookingRef){
           callBtn.disabled=false;
           callLbl.textContent='Call Waiter';
         }
+        // 🔴 2026-05-20 (Khushi bug fix) — root cause of "couldn't notify":
+        // production Firestore rules reject unauth writes to `waiterCalls`,
+        // so the old code (which depended on that write succeeding) always
+        // showed the red error. Fix: race BOTH surfaces in parallel and
+        // succeed if EITHER lands.
+        //   1. customerCallRequest on tableReservations (linked tables) —
+        //      proven path: same write the "I'M AT MY TABLE" flow uses,
+        //      already allowed by prod rules.
+        //   2. waiterCalls.add (every cover) — works once Khushi deploys
+        //      the unauth rule on Mac; harmless fallback until then.
+        // For a pure bar walk-in (no linkedTableRef) only path #2 is
+        // available — if rules block it we surface an honest "wave to
+        // bartender" message instead of misleading "wave one down".
         try{
-          fb.collection('waiterCalls').add({
+          var hasLinkedTable = !!(cv && cv.linkedTableRef);
+          var p1 = hasLinkedTable
+            ? fb.collection('tableReservations').doc(cv.linkedTableRef).update({
+                customerCallRequest: {
+                  at: new Date().toISOString(),
+                  itemsPreview: 'Call Waiter',
+                  total: 0,
+                  source: 'header_call_button'
+                }
+              })
+            : Promise.reject(new Error('no_linked_table'));
+          var p2 = fb.collection('waiterCalls').add({
             coverRef:cv.ref||cv.bookingId||cv.id||'',
             customerName:cv.name||'Guest',
             tableId:cv.tableId||cv.linkedTableId||null,
@@ -6222,39 +6348,28 @@ function renderWalletPage(bookingRef){
             createdAt:firebase.firestore.FieldValue.serverTimestamp(),
             acknowledgedAt:null,
             acknowledgedBy:null
-          }).then(function(){
-            // 🔴 2026-05-20 (Khushi) — ALSO write customerCallRequest on the
-            // linked tableReservations doc so the table lights up RED in the
-            // captain's CALLING tab (Calling tab filters by customerCallRequest,
-            // not by waiterCalls). Two surfaces:
-            //   1. waiterCalls    → top-of-screen WaiterCallBanner (beep + ack)
-            //   2. customerCallRequest on tableReservations → blinking RED
-            //      pulse on the table card + Calling tab badge count
-            // 🛟 FALLBACK: best-effort try/catch — if this mirror fails, the
-            // waiterCalls banner still fires (captain still gets beep+banner);
-            // only the table-card pulse + Calling tab badge are missed.
-            try {
-              if (cv && cv.linkedTableRef) {
-                fb.collection('tableReservations').doc(cv.linkedTableRef).update({
-                  customerCallRequest: {
-                    at: new Date().toISOString(),
-                    itemsPreview: 'Call Waiter',
-                    total: 0,
-                    source: 'header_call_button'
-                  }
-                }).catch(function(e2){ console.warn('[waiterCall] customerCallRequest mirror failed', e2); });
-              }
-            } catch(e3) { console.warn('[waiterCall] mirror threw', e3); }
-            callBtn.style.background='rgba(0,200,100,.18)';
-            callBtn.style.borderRadius='8px';
-            callBtn.style.padding='4px 8px';
-            callLbl.textContent='✓ Captain notified';
-            setTimeout(_resetBtn,30000);
-          }).catch(function(err){
-            console.warn('[waiterCall] write failed',err);
-            _resetBtn();
-            _wcCooldownUntil=0;
-            if(typeof showToast==='function') showToast('Could not notify captain — please wave one down.','err',4000);
+          });
+          Promise.allSettled([p1, p2]).then(function(results){
+            var anyOk = results.some(function(r){ return r.status === 'fulfilled'; });
+            results.forEach(function(r, i){
+              if (r.status === 'rejected') console.warn('[waiterCall] surface '+(i+1)+' failed', r.reason);
+            });
+            if (anyOk) {
+              callBtn.style.background='rgba(0,200,100,.18)';
+              callBtn.style.borderRadius='8px';
+              callBtn.style.padding='4px 8px';
+              callLbl.textContent='✓ Captain notified';
+              setTimeout(_resetBtn,30000);
+            } else {
+              _resetBtn();
+              _wcCooldownUntil=0;
+              // 🛟 Honest fallback message — for bar walk-ins the bartender
+              // IS right there; for table guests the captain will come round.
+              var msg = hasLinkedTable
+                ? 'Could not reach captain — please wave them down.'
+                : 'Please show your QR to the bartender — they will help you.';
+              if(typeof showToast==='function') showToast(msg,'err',4500);
+            }
           });
         }catch(e){
           console.warn('[waiterCall] threw',e);
