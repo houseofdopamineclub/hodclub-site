@@ -5499,7 +5499,18 @@ function renderWalletPage(bookingRef){
         if(!ct){showToast('Select items first','err',2000);return;}
         // Block if order exceeds wallet balance (cover customers only)
         if(!cv.isTableBooking){
-          var pendingTotal=tabRounds.filter(function(r){return r.status==='preparing';}).reduce(function(s,r){return s+(r.roundTotal||0);},0);
+          var pendingTotalRaw=tabRounds.filter(function(r){return r.status==='preparing';}).reduce(function(s,r){return s+(r.roundTotal||0);},0);
+          // 🔴 2026-05-20 (Khushi Bug 2 fallback, architect-narrowed) — clamp
+          // pendingTotal to bal. Captain's redeemFromWalletAtTable now marks
+          // preparing rounds as "served" in the same transaction that debits
+          // coverBalance — this clamp is belt-and-suspenders for LEGACY
+          // wallets written before that fix shipped (and for transient
+          // mid-settle states). Use Math.min so we never go negative AND
+          // never under-block: if real pending exceeds balance we still cap
+          // at `bal` so the next order is blocked unless ct<=0. Telemetry:
+          // log when clamp fires so we can spot real issues vs legacy stale.
+          var pendingTotal=Math.min(pendingTotalRaw,bal);
+          if(pendingTotalRaw>bal){try{console.warn('[wallet-clamp] pendingTotalRaw',pendingTotalRaw,'>bal',bal,'— capped to bal');}catch(_){}}
           if((ct+pendingTotal)>bal){
             // Show clear popup
             var _ov=document.createElement('div');
@@ -5617,6 +5628,35 @@ function renderWalletPage(bookingRef){
           isTableBooking:!!cv.isTableBooking,tableId:cv.tableId||'',floorLabel:cv.floorLabel||''
         },{merge:true}).then(function(){
           tabRounds=updatedRounds;
+          // 🔴 2026-05-20 (Khushi Bug 1 fix) — AUTO-IMPORT customer's self-
+          // order onto the captain's running tab.
+          // Before: customer placed soup → only landed on the cover wallet.
+          //         Captain saw the 🔔 ping, tapped ✓ ON IT, then had to
+          //         manually re-key the soup via ADD ORDER (lost context).
+          // Now: if this wallet was created via door's COVER+TABLE flow
+          // (cv.linkedTableRef = the tableReservations doc id), we ALSO
+          // append the round to that doc's tabRounds + bump tabTotal by
+          // the raw subtotal `ct`. Captain's bill card and rounds list
+          // both show the item instantly. KOT print still requires the
+          // captain to tap (anti-fraud — kitchen doesn't print uncontrolled).
+          // We tag source:'customer_self_order' so future captain UI can
+          // pill those rounds for clarity.
+          // 🛟 FALLBACK: best-effort try/catch. If the write fails (rules
+          // change / network blip), the cover wallet still has the round
+          // and the existing 🔔 CUSTOMER CALLING banner still fires —
+          // captain can fall back to manual ADD ORDER like before. Zero
+          // regression for pure-cover (non-linked) wallets.
+          try {
+            if (cv && cv.linkedTableRef) {
+              var _fv = (window.firebase && window.firebase.firestore && window.firebase.firestore.FieldValue);
+              var _autoRound = Object.assign({}, newRound, { source:'customer_self_order' });
+              var _patch = { tabRounds: (_fv ? _fv.arrayUnion(_autoRound) : updatedRounds) };
+              if (_fv) { _patch.tabTotal = _fv.increment(ct); }
+              firestore.collection('tableReservations').doc(cv.linkedTableRef)
+                .update(_patch)
+                .catch(function(err){ try { console.warn('[auto-import] tableReservations update failed', err && err.message); } catch(_){} });
+            }
+          } catch (_e) {}
           var placedItems=Object.values(cart).map(function(it){return it.qty+'× '+it.n;}).join(', ');
           cart={};
           updateCartBar();
