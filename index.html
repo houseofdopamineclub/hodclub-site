@@ -5648,12 +5648,27 @@ function renderWalletPage(bookingRef){
             tbOv.onclick=function(e){if(e.target===tbOv)tbOv.remove();};
             document.body.appendChild(tbOv);
           } else {
-            // COVER/EVENT: show QR popup for bartender
-            // 🔴 2026-05-13 (Khushi) — restyled to match the View Bill /
-            // captain-mode modal aesthetic: gold-bordered dark sheet,
-            // dashed dividers, monospace ref code, tabular price.
-            // Functionality unchanged — still shows the verify QR the
-            // bartender scans to redeem against the wallet.
+            // 🆕 2026-05-20 (Khushi spec) — LINKED-TABLE WALLET CHOICE.
+            // If this wallet was created via door's "ACTIVATE COVER + TABLE"
+            // flow (cv.linkedTableRef set), the customer might be at the
+            // bar OR sitting at their table waiting for captain. Show a
+            // 2-button "WHERE ARE YOU?" popup:
+            //   🍺 AT BAR  → existing QR popup (bartender redeems)
+            //   🍽 AT TABLE → write customerCallRequest on the linked
+            //                 tableReservations doc → captain tablet
+            //                 pulses red "🔔 CUSTOMER CALLING".
+            // 🛟 FALLBACK: if linkedTableRef write fails or the field is
+            // missing, fall straight through to the bartender QR (existing
+            // safe path). Customer can always walk to bar / wave captain.
+            var _linkedTblRef = cv.linkedTableRef || '';
+            var _linkedTblId  = cv.linkedTableId  || '';
+            var _linkedFloor  = cv.linkedFloorLabel || '';
+            var _placedItemsStr = placedItems;
+            var _placedTotal = ct;
+            var _showBartenderQR = function(){
+            // (function-wrapped existing bartender QR popup — invoked
+            //  either directly for non-linked wallets, or via the AT BAR
+            //  button below for linked-table wallets.)
             var overlay=document.createElement('div');
             overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);font-family:var(--fs);';
             var modal=document.createElement('div');
@@ -5685,6 +5700,81 @@ function renderWalletPage(bookingRef){
             document.body.appendChild(overlay);
             // Generate QR
             setTimeout(function(){generateLocalQR('order-qr-popup','https://hodclub.in/?verify='+(cv.ref||cv.bookingId||'')+'');},100);
+            }; // end _showBartenderQR
+
+            // 🆕 2026-05-20 — branch on linkedTableRef.
+            // If wallet is NOT linked to a table → straight to bartender QR
+            // (unchanged behaviour for walk-in covers / event tickets).
+            // We REQUIRE linkedTableRef (the actual Firestore doc id) — if
+            // only linkedTableId (the human-readable "F-12") is present
+            // without a doc ref, we can't write the ping anywhere, so fall
+            // through to bartender QR. (Architect note 2026-05-20.)
+            if(!_linkedTblRef){
+              _showBartenderQR();
+            } else {
+              // LINKED-TABLE WALLET → "WHERE ARE YOU?" 2-button popup.
+              var chOv=document.createElement('div');
+              chOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);font-family:var(--fs);';
+              var chMd=document.createElement('div');
+              chMd.style.cssText='background:linear-gradient(180deg,#1a1a1a,#0c0c0c);border:1.5px solid rgba(242,199,68,.4);border-radius:22px;padding:26px 22px 20px;width:100%;max-width:380px;text-align:center;color:#fff;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(242,199,68,.15);';
+              chMd.innerHTML=
+                 '<div style="font-size:46px;margin-bottom:10px;line-height:1;">📍</div>'
+                +'<div style="font-family:var(--fp);font-size:20px;font-weight:900;color:#F2C744;margin-bottom:6px;letter-spacing:.4px;">WHERE ARE YOU?</div>'
+                +'<div style="font-size:13px;color:#aaa;line-height:1.55;margin-bottom:18px;">Your order of <strong style="color:#F2C744;">₹'+_placedTotal.toLocaleString('en-IN')+'</strong> is in.<br>Tell us where to bring it.</div>'
+                +'<div style="background:rgba(242,199,68,.06);border:1px dashed rgba(242,199,68,.25);border-radius:10px;padding:10px 12px;margin-bottom:18px;font-size:12px;color:#888;line-height:1.5;">'
+                +  '<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.2px;margin-bottom:4px;">YOUR TABLE</div>'
+                +  '<div style="font-size:14px;color:#F2C744;font-weight:800;">'+sanitize(_linkedTblId||'-')+(_linkedFloor?' · '+sanitize(_linkedFloor):'')+'</div>'
+                +'</div>';
+              // 🍺 AT BAR button → existing bartender QR popup
+              var barBtn=document.createElement('button');
+              barBtn.style.cssText='width:100%;padding:18px 14px;border-radius:14px;background:linear-gradient(180deg,#C9A84C,#A88838);border:none;color:#0c0c0c;font-family:var(--fs);font-size:15px;font-weight:900;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;margin-bottom:10px;box-shadow:0 4px 14px rgba(242,199,68,.25);';
+              barBtn.innerHTML='🍺 I\'M AT THE BAR<div style="font-size:10px;font-weight:700;opacity:.7;letter-spacing:.4px;text-transform:none;margin-top:3px;">Show QR to bartender</div>';
+              barBtn.onclick=function(){chOv.remove();_showBartenderQR();};
+              chMd.appendChild(barBtn);
+              // 🍽 AT TABLE button → ping captain
+              var tblBtn=document.createElement('button');
+              tblBtn.style.cssText='width:100%;padding:18px 14px;border-radius:14px;background:linear-gradient(180deg,#10b981,#047857);border:none;color:#fff;font-family:var(--fs);font-size:15px;font-weight:900;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;margin-bottom:10px;box-shadow:0 4px 14px rgba(16,185,129,.3);';
+              tblBtn.innerHTML='🍽 I\'M AT MY TABLE<div style="font-size:10px;font-weight:700;opacity:.85;letter-spacing:.4px;text-transform:none;margin-top:3px;">Captain will come to you</div>';
+              tblBtn.onclick=function(){
+                tblBtn.disabled=true;
+                tblBtn.innerHTML='Calling captain...';
+                // Write customerCallRequest on the linked tableReservations doc.
+                // Fail-open: if this errors, fall back to bartender QR + show
+                // a hint so the customer still has a path.
+                firestore.collection('tableReservations').doc(_linkedTblRef).update({
+                  customerCallRequest:{
+                    at:new Date().toISOString(),
+                    itemsPreview:_placedItemsStr,
+                    total:_placedTotal
+                  }
+                }).then(function(){
+                  chMd.innerHTML=
+                     '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🔔</div>'
+                    +'<div style="font-family:var(--fp);font-size:22px;font-weight:900;color:#10b981;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
+                    +'<div style="font-size:13px;color:#aaa;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#F2C744;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#666;font-size:11px;">Sit tight, enjoy the music 🎶</span></div>';
+                  var ok=document.createElement('button');
+                  ok.style.cssText='width:100%;padding:13px;border-radius:12px;background:linear-gradient(180deg,#C9A84C,#A88838);border:none;color:#0c0c0c;font-size:14px;font-weight:900;letter-spacing:.6px;cursor:pointer;text-transform:uppercase;font-family:var(--fs);';
+                  ok.textContent='Got it ✓';
+                  ok.onclick=function(){chOv.remove();};
+                  chMd.appendChild(ok);
+                }).catch(function(err){
+                  // Fallback — show bartender QR + a small hint
+                  chOv.remove();
+                  showToast('⚠️ Could not reach captain — show QR to bartender or wave for service.','err',5000);
+                  _showBartenderQR();
+                });
+              };
+              chMd.appendChild(tblBtn);
+              // Close (X) — small unobtrusive
+              var xBtn=document.createElement('button');
+              xBtn.style.cssText='width:100%;padding:10px;border-radius:10px;background:transparent;border:none;color:#666;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--fs);letter-spacing:.4px;text-transform:uppercase;';
+              xBtn.textContent='close';
+              xBtn.onclick=function(){chOv.remove();};
+              chMd.appendChild(xBtn);
+              chOv.appendChild(chMd);
+              chOv.onclick=function(e){if(e.target===chOv)chOv.remove();};
+              document.body.appendChild(chOv);
+            }
           }
 
           if(cv.isTableBooking&&cv.ref){
