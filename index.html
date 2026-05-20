@@ -48,6 +48,18 @@
 }
 html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-height:100vh;overflow-x:hidden;}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(201,168,76,.25);border-radius:2px}
+/* 🆕 2026-05-21 (Khushi) — FLICKER FIX: too many infinite CSS animations
+   stacked on mobile = GPU overload = visible flicker. On phones / reduced-
+   motion devices we keep the page beautiful but kill the looping animations
+   that re-paint every frame. Hero shimmer + entry fade-in still play once. */
+@media (max-width:768px), (prefers-reduced-motion: reduce){
+  .particles, .scan::after, .bv-ring { display:none !important; }
+  .btn-gold, .btn-pay, .btn-bk, .ev-price, .hstat-n, .sec-title span,
+  .logo-name, .tkt-card::before, .sc::before, .sc-n, .ticker-inner,
+  .hero-h1 strong { animation:none !important; background-position:0 0 !important; }
+  .ev-card { animation:none !important; opacity:1 !important; }
+  .float-pill, .hero-logo-large, .suc-icon { animation:none !important; }
+}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
 @keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
@@ -1135,20 +1147,61 @@ function _hodOperationalNightStr(){
 // Restores gf4Stock & vvipStock back to their admin-configured defaults
 // (_gf4Default / _vvipDefault) at the start of each operational night.
 // Idempotent: only writes if lastStockResetDate is stale. One write per event per night.
+//
+// 🆕 2026-05-21 (Khushi MIDNIGHT-GLITCH fix) — root cause of the
+// "glitch every millisecond around midnight, fine by morning" bug:
+//   1. Date rolls over at midnight IST.
+//   2. EVERY connected customer phone runs this function on every events
+//      onSnapshot fire (potentially many times per second).
+//   3. Each phone sees ~10 stale events → writes 10 stock-reset docs.
+//   4. Each of those writes triggers the events listener on EVERY OTHER
+//      connected phone (and itself) → which writes again → which fires
+//      again → cascade of thousands of writes/sec until all events
+//      stabilise (~morning).
+//   5. Each listener fire = full DOM re-render = visible glitch.
+// FIX (defence in depth):
+//   (a) PER-SESSION GUARD: this function runs at most ONCE per page load.
+//       Customer phones never spam Firestore — single attempt, then never
+//       again until they refresh.
+//   (b) STAGGERED WRITE: 250ms × index delay between events so even if
+//       multiple customers race, Firestore's per-doc write serialisation
+//       has time to absorb the conflict instead of returning errors that
+//       Firestore then re-broadcasts to every listener.
+//   (c) ADMIN GATE: only customers who open ?admin=… are allowed to write.
+//       Regular customers DO read events (they see correct stock counts
+//       within seconds once admin writes), but they NEVER attempt to mutate
+//       the events collection. Customers shouldn't be writing reset rows
+//       in the first place — that was a 2026-05-13 oversight.
+// 🛟 FALLBACK: if customer site is opened BEFORE admin opens their tablet,
+// stock for the night stays at last-night's count until admin loads the
+// dashboard once (line 1219 already calls this from admin events tab).
+// That's acceptable — admin opens dashboard every night before service.
+var _stockResetRanThisSession=false;
 function _autoResetStockIfNeeded(evs){
   if(!firestore || !evs || !evs.length) return;
+  if(_stockResetRanThisSession) return;             // (a) one-shot per session
+  _stockResetRanThisSession=true;
+  // (c) Only the admin tab is authorised to write stock-reset rows.
+  // Detect via URL param the same way the SEO noindex block at line 22 does.
+  try{
+    var _isAdminTab = new URLSearchParams(window.location.search).has('admin');
+    if(!_isAdminTab) return;
+  }catch(_e){return;}
   var today=_hodOperationalNightStr();
-  evs.forEach(function(ev){
+  evs.forEach(function(ev, idx){
     if(!ev || !ev.id) return;
     if(ev.lastStockResetDate===today) return;       // already reset tonight
     if(ev.date && ev.date < today) return;          // past event — leave alone
     var defaultGf4 = typeof ev._gf4Default==='number' ? ev._gf4Default : (ev.gf4Stock||4);
     var defaultVvip = typeof ev._vvipDefault==='number' ? ev._vvipDefault : (ev.vvipStock||2);
-    firestore.collection('events').doc(ev.id).update({
-      gf4Stock: defaultGf4,
-      vvipStock: defaultVvip,
-      lastStockResetDate: today
-    }).catch(function(err){console.warn('[HOD] stock reset write failed:',ev.id,err);});
+    // (b) Stagger writes so concurrent admins don't dog-pile Firestore.
+    setTimeout(function(){
+      firestore.collection('events').doc(ev.id).update({
+        gf4Stock: defaultGf4,
+        vvipStock: defaultVvip,
+        lastStockResetDate: today
+      }).catch(function(err){console.warn('[HOD] stock reset write failed:',ev.id,err);});
+    }, idx * 250);
   });
 }
 
@@ -1159,6 +1212,25 @@ function startEventsListener(){
   if(S._eventsUnsub){try{S._eventsUnsub();}catch(e){}}
   var unsub=firestore.collection('events').orderBy('date').onSnapshot(function(snap){
     var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
+    // 🆕 2026-05-21 (Khushi flicker fix) — Firestore re-fires this listener
+    // on every metadata change + every doc write across the venue. Each fire
+    // used to trigger a full render() which replaces every DOM node — even
+    // with atomic replaceChildren, every .ev-card / shimmer-text element
+    // re-mounts and its CSS animation restarts from frame 0, producing a
+    // visible blink on the customer's phone. Now we diff cached vs incoming;
+    // if the JSON payload hasn't actually changed we skip the re-render. The
+    // listener itself stays attached so real updates (new event, stock change,
+    // admin edit) still propagate instantly. 🛟 FALLBACK: if the diff throws,
+    // we fall through to the old re-render-everything path so we can never
+    // miss a legitimate update.
+    try{
+      var _newJson=JSON.stringify(evs);
+      if(S._cachedEventsJson===_newJson){
+        // No real change — skip re-render to prevent animation restart flicker.
+        return;
+      }
+      S._cachedEventsJson=_newJson;
+    }catch(_e){/* fall through to render */}
     S._cachedEvents=evs;
     // ── v3: 6AM nightly stock auto-reset for table inventory.
     // Operational night rolls over at 6AM. If an event's lastStockResetDate !== today,
