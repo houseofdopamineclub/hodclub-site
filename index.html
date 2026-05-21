@@ -6963,13 +6963,42 @@ function renderWalletPage(bookingRef){
                   inner.appendChild(glDiv);
                   setTimeout(function(){generateLocalQR('gl-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef));},200);
               };
+              // 🔴 2026-05-21 (Khushi LIVE-BUG) — guestlist tier picked on the
+              // BOOKING page routes through saveBooking() → writes to `bookings`
+              // collection (not `guestlist`). So HODGL refs from the booking
+              // flow are never found in `guestlist`. Final fallback: query
+              // `bookings` by ref and map booking fields → GL render shape.
+              //   entryType "guestlist_couple"/"guestlist_female"/"guestlist_stag"
+              //   → type "couple"/"ladies"/"stag"
+              // `prevErr` flag preserves the explicit "Error loading guest list."
+              // message when the upstream guestlist query failed (network /
+              // permission). If bookings positively matches, render anyway;
+              // if bookings is empty/errors, surface error not "not found".
+              var _glFromBooking=function(prevErr){
+                firestore.collection('bookings').where('ref','==',bookingRef).limit(1).get()
+                  .then(function(bs){
+                    if(bs&&!bs.empty){
+                      var b=bs.docs[0].data();
+                      var _et=(b.entryType||'').toString().toLowerCase().replace('guestlist_','');
+                      _glRender({
+                        name:b.name||'',eventId:b.eventId||'',
+                        type:(_et==='female'?'ladies':(_et||'stag'))
+                      });
+                    } else if(prevErr){
+                      inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Error loading guest list.</div>';
+                    } else {
+                      inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Guest list entry not found.</div>';
+                    }
+                  })
+                  .catch(function(){inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Error loading guest list.</div>';});
+              };
               var _glFallbackByRef=function(){
                 firestore.collection('guestlist').where('ref','==',bookingRef).limit(1).get()
                   .then(function(qs){
                     if(qs&&!qs.empty){_glRender(qs.docs[0].data());}
-                    else{inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Guest list entry not found.</div>';}
+                    else{_glFromBooking(false);}
                   })
-                  .catch(function(){inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Error loading guest list.</div>';});
+                  .catch(function(){_glFromBooking(true);});
               };
               firestore.collection('guestlist').doc(bookingRef).get()
                 .then(function(glDoc){
