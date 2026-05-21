@@ -6842,7 +6842,11 @@ function renderWalletPage(bookingRef){
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:var(--muted);font-size:12px;">Entry</span><span style="font-weight:700;font-size:13px;color:#00C864;">FREE before 9 PM</span></div>'
                     +'</div>'
                     +'<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px 16px;margin-bottom:16px;text-align:center;">'
-                    +'<div id="gl-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#0C0C18;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'
+                    /* 🔴 2026-05-21 (Khushi LIVE-BUG) — wrapper bg MUST be #fff.
+                       qrcodejs doesn't render a quiet zone, so the dark navy bg
+                       made the QR unscannable on every phone. Padded white frame
+                       gives the ~4-module quiet zone every scanner requires. */
+                    +'<div id="gl-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#fff;border:8px solid #fff;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 14px rgba(242,199,68,.15);"></div>'
                     +'<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px;">Show this QR at the door</div>'
                     +'<div style="font-family:monospace;font-size:14px;color:var(--gold);letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
                     +'</div>'
@@ -6882,7 +6886,11 @@ function renderWalletPage(bookingRef){
                 // QR code
                 ticketDiv.innerHTML+=
                   '<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px 16px;margin-bottom:16px;text-align:center;">'+
-                    '<div id="ticket-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#0C0C18;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'+
+                    /* 🔴 2026-05-21 (Khushi LIVE-BUG) — wrapper bg MUST be #fff.
+                       qrcodejs doesn't render a quiet zone, so the dark navy bg
+                       made the QR unscannable on every phone. Padded white frame
+                       gives the ~4-module quiet zone every scanner requires. */
+                    '<div id="ticket-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#fff;border:8px solid #fff;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 14px rgba(242,199,68,.15);"></div>'+
                     '<div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px;">Show this QR at the door</div>'+
                     '<div style="font-family:monospace;font-size:14px;color:var(--gold);letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'+
                   '</div>';
