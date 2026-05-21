@@ -3425,10 +3425,13 @@ function saveBooking(paymentId){
   saveDB(db);
   // ── BUG FIX: Use event-specific prices in email
   sendBookingEmail(booking, ev.title, fmtDate(ev.date), ev.time+(ev.endTime?' – '+ev.endTime:''), ev.venue, ev);
-  // 🔴 2026-05-21 (Khushi) — category-aware template routing. Customer-site
-  // bookings always go through Razorpay → ALWAYS paid online → _paid variants.
-  // Maps entryType (stag/couple/female/group/entryonly) to the right template.
+  // 🔴 2026-05-21 (Khushi) — category-aware template routing.
+  // Detects paid-online vs pay-at-venue via `paymentId` prefix:
+  //   • starts with "pay_"          → Razorpay paid online → _paid variant
+  //   • starts with "cash_pending_" → reserve now, pay at door → _unpaid variant
+  //   • starts with "free_"         → guestlist/free entry → _paid variant (₹0)
   try {
+    var _isUnpaid = !!(paymentId && String(paymentId).indexOf('cash_pending_') === 0);
     var _cat = (bd.entryType||'stag').toString().toLowerCase();
     var _name = sanitize(bd.name||'Guest');
     var _evt = ev.title;
@@ -3438,17 +3441,27 @@ function saveBooking(paymentId){
     var _psmFB = {stag:ev.stagPrice||999,couple:ev.couplePrice||1499,female:0,group:ev.groupPerHeadPrice||500,entryonly:ev.entryOnlyPrice||599};
     var _rawT = (bd.qty||1)*(_psmFB[_cat]||0) + (bd.tablePrice||0);
     var _amt = String(Math.round(bd.finalTotal!==undefined ? bd.finalTotal : _rawT));
+    var _suffix = _isUnpaid ? '_unpaid' : '_paid';
+    var _isGuestlist = (bd.bookMode === 'guestlist') || (_cat.indexOf('guestlist') === 0) || (String(ref||'').indexOf('HODGL') === 0) || (String(ref||'').indexOf('GL-') === 0);
     var _tplName, _tplParams;
-    if (_cat === 'group') {
-      _tplName = 'group_confirmed_paid';
+    if (_isGuestlist) {
+      // Guestlist is ALWAYS free → single `guestlist_ready` template, no paid/unpaid split.
+      // Params: [name, eventTitle, dateNice, tierLabel, link]
+      var _glTier = _cat==='guestlist_couple' ? 'COUPLE'
+                   : (_cat==='guestlist_female'||_cat==='guestlist_ladies') ? 'LADIES'
+                   : 'STAG';
+      _tplName = 'guestlist_ready';
+      _tplParams = [_name, _evt, _date, _glTier, _link];
+    } else if (_cat === 'group') {
+      _tplName = 'group_confirmed' + _suffix;
       _tplParams = [_name, _evt, _date, _qty, _amt, _link];
     } else if (_cat === 'entryonly') {
-      _tplName = 'entry_only_paid';
+      _tplName = 'entry_only' + _suffix;
       _tplParams = [_name, _evt, _date, _qty, _amt, _link];
     } else {
       // stag / couple / female (ladies) → ticket
       var _tierLabel = _cat==='couple' ? 'COUPLE' : (_cat==='female'||_cat==='ladies') ? 'LADIES' : 'STAG';
-      _tplName = 'ticket_confirmed_paid';
+      _tplName = 'ticket_confirmed' + _suffix;
       _tplParams = [_name, _evt, _date, _tierLabel + ' × ' + _qty, _amt, _link];
     }
     _HOD_sendWhatsAppTemplate(bd.phone, _tplName, _tplParams);
