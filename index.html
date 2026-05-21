@@ -2414,8 +2414,13 @@ function renderStep1(ev){
     }
   }
   // After-9pm: guestlist closed → silently bump to cover tab
+  // 🔴 2026-05-21 (Khushi LIVE-BUG) — was firing for ALL events because it
+  // only checked clock time. Future events (e.g. 26 May) showed "CLOSED · 9PM"
+  // at 9:24 PM on 21 May. Now gated on event date === today (IST).
   var _now=new Date();
-  var _afterNine = _now.getHours()>=21;
+  var _todayStr=(typeof today==='function')?today():_now.toISOString().split('T')[0];
+  var _isEventToday=(ev.date===_todayStr);
+  var _afterNine = _isEventToday && _now.getHours()>=21;
   if(S.bdata.bookMode==='guestlist' && _afterNine){
     S.bdata.bookMode='cover';
     S.bdata.selectedOption='stag';S.bdata.entryType='stag';S.bdata.entryPrice=ev.stagPrice||999;
@@ -2807,7 +2812,14 @@ function renderStep1(ev){
 
     function showDupWarning(existingRef, existingType){
       // Soft warning — show existing booking, let them decide
-      var typeLabel={'stag':'Stag Entry','couple':'Couple Entry','female':'Ladies Entry (FREE)','group':'Group Entry (4 ppl)','table4':'Table for 4','vip':'VIP Table for 6'}[existingType]||'Entry';
+      // 🔴 2026-05-21 (Khushi LIVE-BUG) — added 'entry', 'ladies', and full
+      // fallback so the dialog never shows a bare "Entry" placeholder.
+      var typeLabel={
+        'stag':'Stag Entry','couple':'Couple Entry',
+        'female':'Ladies Entry (FREE)','ladies':'Ladies Entry (FREE)',
+        'entry':'Entry Ticket','group':'Group Entry (4 ppl)',
+        'table4':'Table for 4','vip':'VIP Table for 6'
+      }[existingType]||((existingType||'').toUpperCase()+' Entry')||'Booking';
       var dupOverlay=document.createElement('div');
       dupOverlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
       var dupModal=document.createElement('div');
@@ -2829,7 +2841,19 @@ function renderStep1(ev){
       var viewBtn=document.createElement('button');
       viewBtn.style.cssText='width:100%;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--fs);margin-bottom:8px;';
       viewBtn.textContent='View My Existing Ticket';
-      viewBtn.onclick=function(){dupOverlay.remove();set({view:'myBookings'});};
+      // 🔴 2026-05-21 (Khushi LIVE-BUG) — was dumping the user into an empty
+      // phone-lookup page with 360 old test bookings. Now jumps DIRECT to the
+      // ticket/wallet page for the actual ref so the QR + activation message
+      // shows immediately. Fallback: if no ref (shouldn't happen), open the
+      // bookings page so they at least see something.
+      viewBtn.onclick=function(){
+        dupOverlay.remove();
+        if(existingRef && existingRef!=='—'){
+          window.location.href='/?wallet='+encodeURIComponent(existingRef);
+        } else {
+          set({view:'myBookings'});
+        }
+      };
       // Cancel button
       var cancelDupBtn=document.createElement('button');
       cancelDupBtn.style.cssText='width:100%;padding:11px;border-radius:12px;background:transparent;border:1px solid rgba(255,255,255,.08);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--fs);';
@@ -3636,15 +3660,35 @@ function renderMyBookings(){
           bookedAt:g.joinedAt||''};
       });
       var mine=myBks.concat(myTbls).concat(myGL);
-      mine.sort(function(a,b){var da=a.date||a.bookedAt||'';var db2=b.date||b.bookedAt||'';return da>db2?-1:da<db2?1:0;});
+      // 🔴 2026-05-21 (Khushi LIVE-BUG) — test phones had 360 historical bookings,
+      // recent ones drowning at the bottom. Fix:
+      //   1. Drop anything older than 60 days (Khushi's test phone + real users
+      //      both benefit — old scanned tickets are noise).
+      //   2. Normalize dates to comparable timestamps so the sort actually puts
+      //      newest first (was string-comparing mixed ISO-date + ISO-datetime).
+      var _cutoffMs=Date.now()-60*86400000;
+      function _ts(b){
+        var d=b.date||(b.bookedAt||'').split('T')[0]||'';
+        // Try date first (YYYY-MM-DD); fallback to bookedAt full timestamp.
+        var t=Date.parse(d);
+        if(isNaN(t)) t=Date.parse(b.bookedAt||'');
+        return isNaN(t)?0:t;
+      }
+      var mineAll=mine.slice();
+      mine=mine.filter(function(b){var t=_ts(b);return t===0||t>=_cutoffMs;});
+      mine.sort(function(a,b){return _ts(b)-_ts(a);}); // newest first
+      var _hiddenCount=mineAll.length-mine.length;
       resultsDiv.innerHTML='';
       if(!mine.length){
-        resultsDiv.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:36px;margin-bottom:12px">🎟️</div><div>No bookings found for this number.</div></div>';
+        resultsDiv.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--muted);"><div style="font-size:36px;margin-bottom:12px">🎟️</div><div>No bookings found for this number.</div>'
+          +(_hiddenCount>0?'<div style="font-size:11px;color:var(--muted);margin-top:8px;">('+_hiddenCount+' older bookings hidden)</div>':'')
+          +'</div>';
         return;
       }
       var countDiv=document.createElement('div');
       countDiv.style.cssText='font-size:12px;font-weight:700;color:var(--gold);letter-spacing:1px;margin-bottom:14px;';
-      countDiv.textContent='Found '+mine.length+' booking'+(mine.length>1?'s':'');
+      countDiv.textContent='Showing '+mine.length+' recent booking'+(mine.length>1?'s':'')
+        +(_hiddenCount>0?' · '+_hiddenCount+' older hidden':'');
       resultsDiv.appendChild(countDiv);
       mine.forEach(function(b){
         var card2=document.createElement('div');
@@ -6880,11 +6924,13 @@ function renderWalletPage(bookingRef){
             if(field==='ref'){_startCoversListener('bookingId');return;}
             if(bookingRef.startsWith('TBL-')||bookingRef.startsWith('AGG-')||bookingRef.startsWith('HODTAB')){_startTableListener();return;}
             // Guest list entry (legacy GL-… and new HODGL… both routed here)
+            // 🔴 2026-05-21 (Khushi LIVE-BUG) — older entries were written with
+            // Firestore AUTO-IDs (ref stored only in `ref` field). doc(ref).get()
+            // misses them → "Guest list entry not found". Fallback: if doc-id
+            // lookup misses, query by `ref` field. Same fallback on .catch().
             if(bookingRef.startsWith('GL-')||bookingRef.startsWith('HODGL')){
-              firestore.collection('guestlist').doc(bookingRef).get().then(function(glDoc){
-                inner.innerHTML='';
-                if(glDoc.exists){
-                  var gl=glDoc.data();
+              var _glRender=function(gl){
+                  inner.innerHTML='';
                   var ev3=(S._cachedEvents||[]).find(function(e){return e.id===gl.eventId;});
                   var glDiv=document.createElement('div');
                   glDiv.style.cssText='padding:20px;max-width:480px;margin:0 auto;';
@@ -6916,10 +6962,21 @@ function renderWalletPage(bookingRef){
                     +'</div>';
                   inner.appendChild(glDiv);
                   setTimeout(function(){generateLocalQR('gl-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef));},200);
-                } else {
-                  inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Guest list entry not found.</div>';
-                }
-              }).catch(function(){inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Error loading guest list.</div>';});
+              };
+              var _glFallbackByRef=function(){
+                firestore.collection('guestlist').where('ref','==',bookingRef).limit(1).get()
+                  .then(function(qs){
+                    if(qs&&!qs.empty){_glRender(qs.docs[0].data());}
+                    else{inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Guest list entry not found.</div>';}
+                  })
+                  .catch(function(){inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--muted);">Error loading guest list.</div>';});
+              };
+              firestore.collection('guestlist').doc(bookingRef).get()
+                .then(function(glDoc){
+                  if(glDoc.exists){_glRender(glDoc.data());}
+                  else{_glFallbackByRef();}
+                })
+                .catch(function(){_glFallbackByRef();});
               return;
             }
             // No cover yet — look up booking to show ticket info
