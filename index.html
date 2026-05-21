@@ -3219,9 +3219,9 @@ function joinGuestList(evId, name, phone, type, callback, email){
               qr_url:'https://hodclub.in/?verify='+glRef
             });
           }
-          // 🔴 2026-05-21 (Khushi) — switched to new approved `guestlist_ready`
+          // 🔴 2026-05-21 (Khushi) — switched to new approved `guestlist_entry_confirmed`
           // template. Params: [name, eventTitle, dateNice, tierLabel, link]
-          _HOD_sendWhatsAppTemplate(cleanPhone, 'guestlist_ready', [
+          _HOD_sendWhatsAppTemplate(cleanPhone, 'guestlist_entry_confirmed', [
             sanitize(name||'Guest'),
             ev3?ev3.title:'Tonight at H.O.D',
             ev3?(typeof fmtDate==='function'?fmtDate(ev3.date):ev3.date):'Tonight',
@@ -3369,37 +3369,18 @@ function saveBooking(paymentId){
     suspiciousReason:isSuspicious===true?suspiciousReason:''
   };
   saveBookingToFirebase(booking, null);
-  // 🔴 BUGFIX 2026-05-16 (Khushi) — entry-only customer bookings must mint a
-  // ₹0 cover wallet doc so hodclub.in/?wallet=HOD-XXX opens directly into the
-  // menu+wallet view (matching guestlist behavior). Without this, the wallet
-  // listener finds no cover doc and falls back to the "Your wallet activates
-  // at HOD" placeholder ticket page — customer cannot pre-browse the menu.
-  // Cover/table/group bookings already get wallets via their own flows; only
-  // entryonly was missing this and needed parity with guestlist.
-  if(firestore && bd.entryType==='entryonly'){
-    try{
-      // ⚠ CREATE-ONLY (transaction): if the cover doc already exists we MUST NOT
-      // touch coverBalance/coverActivated/coverUsed — a customer could top up
-      // between booking and tonight, and a naive merge:true would CLOBBER that
-      // balance back to ₹0. Mirrors ensureZeroBalanceCoverForGuest in
-      // firestore-hod.ts (~779). Idempotent on retries / re-submits.
-      var _coverRef=firestore.collection('covers').doc(ref);
-      firestore.runTransaction(function(tx){
-        return tx.get(_coverRef).then(function(snap){
-          if(snap.exists) return; // existing cover — leave balances alone
-          tx.set(_coverRef,{
-            ref:ref, bookingId:ref,
-            name:bd.name||'Guest', phone:(bd.phone||'').replace(/\D/g,'').slice(-10),
-            coverBalance:0, coverActivated:0, coverUsed:0,
-            source:'booking', sourceDocId:ref,
-            eventId:ev.id||'', eventTitle:ev.title||'',
-            createdAt:new Date().toISOString(),
-            isEntryOnly:true,
-          });
-        });
-      }).catch(function(e){console.warn('[HOD] entryonly cover mint failed:',e);});
-    }catch(e){console.warn('[HOD] entryonly cover mint error:',e);}
-  }
+  // 🔴 2026-05-21 (Khushi LIVE-BUG REVERT) — entry-only passes must NOT auto-
+  // unlock the menu/wallet UI when the customer opens the wallet link before
+  // door check-in. Removed the previous 2026-05-16 block that pre-minted a ₹0
+  // cover doc for entryonly bookings (which made the wallet listener at ~6877
+  // resolve immediately → render the full menu/order screen → bypass the door
+  // girl's CHECK-IN step entirely). Now entryonly customers see the same
+  // "ticket awaiting activation at door" placeholder (~6927) that paid covers
+  // see — QR + "Your wallet activates at HOD" — exactly as Khushi requested.
+  // 🛟 FALLBACK: if a door PC ever needs to pre-warm an entryonly cover doc,
+  // the captain Mark-Paid / Door check-in path on the POS already creates it
+  // (firestore-hod.ts ~779 ensureZeroBalanceCoverForGuest) — no functionality
+  // lost, just no longer auto-fires from the customer's confirmation tap.
   updateSoldCount(ev.id, bd.qty||1);
   // ── v3: decrement nightly table stock when a table is booked.
   // Firestore transaction guarantees atomicity (no oversell on parallel bookings).
@@ -3443,14 +3424,32 @@ function saveBooking(paymentId){
     var _amt = String(Math.round(bd.finalTotal!==undefined ? bd.finalTotal : _rawT));
     var _suffix = _isUnpaid ? '_unpaid' : '_paid';
     var _isGuestlist = (bd.bookMode === 'guestlist') || (_cat.indexOf('guestlist') === 0) || (String(ref||'').indexOf('HODGL') === 0) || (String(ref||'').indexOf('GL-') === 0);
+    // 🔴 2026-05-21 (Khushi LIVE-BUG) — TABLE bookings from the customer site
+    // were falling through to the `ticket_confirmed_*` branch (STAG × 1) because
+    // the router only inspected `bd.entryType` (defaults to 'stag' for tables)
+    // and never checked `bd.tableType`. Add explicit table detection BEFORE the
+    // category split so the correct `table_confirmed` template fires with the
+    // same 7-param signature as DoorMode (~2727): [name, dateNice, arrivalTime,
+    // tableLabel, floorLabel, partySize, link]. Customer-side tables don't have
+    // a specific table.id (the door girl assigns it on arrival) so we send the
+    // tier label ("TABLE FOR 4" / "VVIP TABLE FOR 6") and "GROUND FLOOR" as
+    // sensible defaults that match what the customer saw on the booking page.
+    var _isTable = !!bd.tableType && (bd.tableType==='table4' || bd.tableType==='vip');
     var _tplName, _tplParams;
-    if (_isGuestlist) {
-      // Guestlist is ALWAYS free → single `guestlist_ready` template, no paid/unpaid split.
+    if (_isTable) {
+      var _tblLabel = bd.tableType==='vip' ? 'VVIP TABLE FOR 6' : 'TABLE FOR 4';
+      var _tblFloor = 'GROUND FLOOR';
+      var _tblPax = String(bd.tableType==='vip' ? 6 : 4);
+      var _tblArrival = (ev.time||'FROM 8 PM').toString();
+      _tplName = 'table_confirmed';
+      _tplParams = [_name, _date, _tblArrival, _tblLabel, _tblFloor, _tblPax, _link];
+    } else if (_isGuestlist) {
+      // Guestlist is ALWAYS free → single `guestlist_entry_confirmed` template, no paid/unpaid split.
       // Params: [name, eventTitle, dateNice, tierLabel, link]
       var _glTier = _cat==='guestlist_couple' ? 'COUPLE'
                    : (_cat==='guestlist_female'||_cat==='guestlist_ladies') ? 'LADIES'
                    : 'STAG';
-      _tplName = 'guestlist_ready';
+      _tplName = 'guestlist_entry_confirmed';
       _tplParams = [_name, _evt, _date, _glTier, _link];
     } else if (_cat === 'group') {
       _tplName = 'group_confirmed' + _suffix;
