@@ -3175,7 +3175,7 @@ function renderStep2(ev){
 // ── Firebase: Guest List
 function joinGuestList(evId, name, phone, type, callback, email){
   var cleanPhone=(phone||'').replace(/\D/g,'').slice(-10);
-  var glRef='GL-'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).substring(2,5).toUpperCase();
+  var glRef=(typeof mintHodRef==='function')?mintHodRef('guestlist'):('GL-'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).substring(2,5).toUpperCase());
   var entry={
     eventId:evId, name:sanitize(name), phone:cleanPhone,
     email:sanitize(email||''),
@@ -3219,12 +3219,13 @@ function joinGuestList(evId, name, phone, type, callback, email){
               qr_url:'https://hodclub.in/?verify='+glRef
             });
           }
-          // WhatsApp confirmation via HOD POS (guestlist_confirmed template — GL-)
-          _HOD_sendWhatsAppTemplate(cleanPhone, 'guestlist_confirmed', [
+          // 🔴 2026-05-21 (Khushi) — switched to new approved `guestlist_ready`
+          // template. Params: [name, eventTitle, dateNice, tierLabel, link]
+          _HOD_sendWhatsAppTemplate(cleanPhone, 'guestlist_ready', [
             sanitize(name||'Guest'),
-            (type==='couple'?'COUPLE':type==='ladies'?'LADIES':'STAG'),
+            ev3?ev3.title:'Tonight at H.O.D',
             ev3?(typeof fmtDate==='function'?fmtDate(ev3.date):ev3.date):'Tonight',
-            'FREE before 9 PM',
+            (type==='couple'?'COUPLE':type==='ladies'?'LADIES':'STAG'),
             'https://hodclub.in/?wallet='+glRef
           ]);
         })
@@ -3274,6 +3275,25 @@ function loadGuestList(evId, callback){
   }
 }
 
+// 🔴 2026-05-21 (Khushi) — easy-to-read category-prefixed refs. 6 digits so
+// they fit comfortably on tickets / SMS / WhatsApp / printed bills.
+// TIC=ticket · GL=guestlist · ENT=entry-only · TAB=table · GRP=group.
+// Old `HOD-XXXXXXXX` (base36) refs from before today still work — wallet
+// listeners and Firestore lookups are key-based, not prefix-parsed (except
+// the wallet routing filters at ~6822/6824 which were updated to accept
+// both old and new formats).
+function mintHodRef(cat){
+  var P={ticket:'TIC',guestlist:'GL',entryonly:'ENT',table:'TAB',group:'GRP'};
+  return 'HOD'+(P[cat]||'TIC')+String(Math.floor(100000+Math.random()*900000));
+}
+function _hodCatFromBdata(bd){
+  var et=(bd&&bd.entryType)||'';
+  if(et.indexOf('guestlist_')===0) return 'guestlist';
+  if(et==='entryonly') return 'entryonly';
+  if(et==='group') return 'group';
+  if(bd&&bd.tableType) return 'table';
+  return 'ticket';
+}
 var _bookingInProgress=false;
 function saveBooking(paymentId){
   if(_bookingInProgress){console.warn('Booking already in progress');return 'HOD-DUP-'+Date.now().toString(36);}
@@ -3284,7 +3304,7 @@ function saveBooking(paymentId){
   var ev=db.events.find(function(e){return e.id===S.modal;});
   if(!ev&&S._cachedEvents){ev=S._cachedEvents.find(function(e){return e.id===S.modal;});}
   if(!ev)return'ERROR';
-  var ref='HOD-'+Date.now().toString(36).toUpperCase().slice(-8);
+  var ref=mintHodRef(_hodCatFromBdata(bd));
 
   var entryTotal=0;
   var tableTotal=bd.tablePrice||0;
@@ -3405,12 +3425,34 @@ function saveBooking(paymentId){
   saveDB(db);
   // ── BUG FIX: Use event-specific prices in email
   sendBookingEmail(booking, ev.title, fmtDate(ev.date), ev.time+(ev.endTime?' – '+ev.endTime:''), ev.venue, ev);
-  // ── WhatsApp confirmation via HOD POS (cover_confirmed template — HOD-)
-  _HOD_sendWhatsAppTemplate(bd.phone, 'cover_confirmed', [
-    sanitize(bd.name||'Guest'), ev.title, fmtDate(ev.date),
-    (bd.entryType||'COVER').toString().toUpperCase(),
-    'https://hodclub.in/?wallet='+ref
-  ]);
+  // 🔴 2026-05-21 (Khushi) — category-aware template routing. Customer-site
+  // bookings always go through Razorpay → ALWAYS paid online → _paid variants.
+  // Maps entryType (stag/couple/female/group/entryonly) to the right template.
+  try {
+    var _cat = (bd.entryType||'stag').toString().toLowerCase();
+    var _name = sanitize(bd.name||'Guest');
+    var _evt = ev.title;
+    var _date = fmtDate(ev.date);
+    var _link = 'https://hodclub.in/?wallet='+ref;
+    var _qty = String(bd.qty||1);
+    var _psmFB = {stag:ev.stagPrice||999,couple:ev.couplePrice||1499,female:0,group:ev.groupPerHeadPrice||500,entryonly:ev.entryOnlyPrice||599};
+    var _rawT = (bd.qty||1)*(_psmFB[_cat]||0) + (bd.tablePrice||0);
+    var _amt = String(Math.round(bd.finalTotal!==undefined ? bd.finalTotal : _rawT));
+    var _tplName, _tplParams;
+    if (_cat === 'group') {
+      _tplName = 'group_confirmed_paid';
+      _tplParams = [_name, _evt, _date, _qty, _amt, _link];
+    } else if (_cat === 'entryonly') {
+      _tplName = 'entry_only_paid';
+      _tplParams = [_name, _evt, _date, _qty, _amt, _link];
+    } else {
+      // stag / couple / female (ladies) → ticket
+      var _tierLabel = _cat==='couple' ? 'COUPLE' : (_cat==='female'||_cat==='ladies') ? 'LADIES' : 'STAG';
+      _tplName = 'ticket_confirmed_paid';
+      _tplParams = [_name, _evt, _date, _tierLabel + ' × ' + _qty, _amt, _link];
+    }
+    _HOD_sendWhatsAppTemplate(bd.phone, _tplName, _tplParams);
+  } catch (_waErr) { console.warn('[HOD] WA template send failed', _waErr); }
   // ── Fire social proof toast to all connected users
   showSocialProofToast(booking, ev.title);
   return ref;
@@ -4572,11 +4614,16 @@ function renderTableFloorPlan(){
             qr_url:'https://hodclub.in/?verify='+ref2
           });
         }
-        // WhatsApp confirmation via HOD POS (booking_confirmed template — TBL-)
-        _HOD_sendWhatsAppTemplate(phone, 'booking_confirmed', [
-          name, bookDate, arrival, table.id+' ('+_HOD_TABLES[activeFloor].label+')',
-          String(ps), 'https://hodclub.in/?wallet='+ref2
-        ]);
+        // 🔴 2026-05-21 (Khushi) — switched to new approved `table_confirmed`.
+        // Params: [name, dateNice, arrivalTime, tableLabel, floorLabel, partySize, link]
+        try {
+          var _tDateNice = (typeof fmtDate==='function') ? fmtDate(bookDate) : bookDate;
+          _HOD_sendWhatsAppTemplate(phone, 'table_confirmed', [
+            name, _tDateNice, (arrival||'FROM NOW'),
+            table.id, _HOD_TABLES[activeFloor].label,
+            String(ps), 'https://hodclub.in/?wallet='+ref2
+          ]);
+        } catch (_tblWaErr) { console.warn('[HOD] table WA send failed', _tblWaErr); }
 doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bks);};
         conf.appendChild(doneBtn);bookPanel.appendChild(conf);
       }).catch(function(e){errD.textContent=e.message||'Booking failed. Try again.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;});
@@ -6819,9 +6866,9 @@ function renderWalletPage(bookingRef){
           inner.innerHTML='';
           if(snap.empty){
             if(field==='ref'){_startCoversListener('bookingId');return;}
-            if(bookingRef.startsWith('TBL-')||bookingRef.startsWith('AGG-')){_startTableListener();return;}
-            // Guest list entry
-            if(bookingRef.startsWith('GL-')){
+            if(bookingRef.startsWith('TBL-')||bookingRef.startsWith('AGG-')||bookingRef.startsWith('HODTAB')){_startTableListener();return;}
+            // Guest list entry (legacy GL-… and new HODGL… both routed here)
+            if(bookingRef.startsWith('GL-')||bookingRef.startsWith('HODGL')){
               firestore.collection('guestlist').doc(bookingRef).get().then(function(glDoc){
                 inner.innerHTML='';
                 if(glDoc.exists){
