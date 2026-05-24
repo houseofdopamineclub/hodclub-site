@@ -48,7 +48,7 @@
 }
 html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-height:100vh;overflow-x:hidden;}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(201,168,76,.25);border-radius:2px}
-/* 🆕 2026-05-21 (Khushi) — FLICKER FIX: too many infinite CSS animations
+/* 🆕 2026-05-24 — FLICKER FIX: too many infinite CSS animations
    stacked on mobile = GPU overload = visible flicker. On phones / reduced-
    motion devices we keep the page beautiful but kill the looping animations
    that re-paint every frame. Hero shimmer + entry fade-in still play once. */
@@ -1207,10 +1207,30 @@ function _autoResetStockIfNeeded(evs){
 
 // ── Firebase: Events real-time listener — started ONCE at app init
 // NEVER call this inside render() — it creates duplicate listeners
+//
+// 🔴 2026-05-24 (Khushi COST FIX) — Scope to RECENT events only.
+// Previously every customer phone subscribed to the ENTIRE events
+// collection (200+ historical docs, growing forever) and re-read on every
+// metadata change. With ~200 concurrent visitors per night this was ~60%
+// of the customer-site read bill (~₹2K/month wasted).
+// Now we only subscribe to events whose date >= (today − 7 days), so:
+//   • upcoming events ✅
+//   • last week's events (in case customer needs to check old wallet) ✅
+//   • ancient events ❌ (not shown anyway — UI hides past events)
+// String comparison on YYYY-MM-DD is lexicographically correct.
+// `.where('date','>=', ...)` + `.orderBy('date')` use the same field, so NO
+// composite index is needed (single-field index is auto-created by Firestore).
+// 🛟 Fallback: if the .where() throws or returns empty, the renderer keeps
+// the last cached events from localStorage (S._cachedEvents) so the customer
+// site never goes blank.
 function startEventsListener(){
   if(!firestore)return;
   if(S._eventsUnsub){try{S._eventsUnsub();}catch(e){}}
-  var unsub=firestore.collection('events').orderBy('date').onSnapshot(function(snap){
+  var _cutoff=(function(){
+    var d=new Date(Date.now()-7*24*60*60*1000);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  })();
+  var unsub=firestore.collection('events').where('date','>=',_cutoff).orderBy('date').onSnapshot(function(snap){
     var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
     // 🆕 2026-05-21 (Khushi flicker fix) — Firestore re-fires this listener
     // on every metadata change + every doc write across the venue. Each fire
