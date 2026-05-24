@@ -1111,18 +1111,23 @@ function _effPrice(itemName, basePrice){
   return basePrice;
 }
 function startMenuOverridesListener(){
+  // 🔴 2026-05-24 COST FIX (Khushi LIVE-NIGHT): was onSnapshot → every customer
+  // browsing hodclub.in opened a permanent listener on the WHOLE posMenuOverrides
+  // collection. Single biggest cause of 2.6M reads/day. Now one-time .get() on
+  // page load. Trade-off: a customer mid-browse won't see live 86/price flips
+  // until next refresh (acceptable — they refresh on every menu nav anyway).
   if(_menuOvUnsub || !firestore) return;
+  _menuOvUnsub = function(){}; // mark as "started" so we don't refire
   try{
-    _menuOvUnsub = firestore.collection('posMenuOverrides').onSnapshot(function(snap){
+    firestore.collection('posMenuOverrides').get().then(function(snap){
       var next = {};
       snap.forEach(function(d){ next[d.id] = d.data() || {}; });
       POS_MENU_OVERRIDES = next;
-      // If a wallet menu is currently rendered, refresh it so OOS/discount changes are visible immediately.
       try{
         var mc = document.getElementById('wallet-menu-content');
         if(mc && typeof window.__rebuildWalletMenu === 'function') window.__rebuildWalletMenu();
       }catch(e){}
-    }, function(err){ console.warn('posMenuOverrides listener error', err); });
+    }).catch(function(err){ console.warn('posMenuOverrides fetch error', err); });
   }catch(e){ console.warn('startMenuOverridesListener failed', e); }
 }
 
@@ -1437,7 +1442,9 @@ function loadBookingsFromFirebase(callback){
         return;
       }
     }
-    firestore.collection('bookings').orderBy('bookedAt','desc').get()
+    // 🔴 2026-05-24 COST FIX: was unbounded (thousands of docs every admin load).
+    // Limit to recent 200 — admin date-filters in UI; phone-lookup only needs recent.
+    firestore.collection('bookings').orderBy('bookedAt','desc').limit(200).get()
       .then(function(snap){
         var bks=[];snap.forEach(function(doc){bks.push(Object.assign({id:doc.id},doc.data()));});
         callback(bks);
@@ -3662,9 +3669,13 @@ function renderMyBookings(){
     var phone10=phone.slice(-10);
     lookupBtn.textContent='Searching...';lookupBtn.disabled=true;
     // Search bookings, table reservations, AND guest list
+    // 🔴 2026-05-24 COST FIX: tableReservations + guestlist were unbounded.
+    // tableReservations has 'date' (YYYY-MM-DD) → filter last 90d + upcoming.
+    // guestlist has no date field → use orderBy joinedAt desc + limit 300.
+    var _cutoff90 = (function(){ var d=new Date(); d.setDate(d.getDate()-90); return d.toISOString().slice(0,10); })();
     var pBks=new Promise(function(res){loadBookingsFromFirebase(function(bks){res(bks||[]);});});
-    var pTbl=firestore?firestore.collection('tableReservations').get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
-    var pGL=firestore?firestore.collection('guestlist').get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
+    var pTbl=firestore?firestore.collection('tableReservations').where('date','>=',_cutoff90).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
+    var pGL=firestore?firestore.collection('guestlist').orderBy('joinedAt','desc').limit(300).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
     Promise.all([pBks,pTbl,pGL]).then(function(results){
       lookupBtn.textContent='Find My Bookings →';lookupBtn.disabled=false;
       var myBks=(results[0]||[]).filter(function(b){return (b.phone||'').replace(/\D/g,'').endsWith(phone10);});
