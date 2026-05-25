@@ -5197,7 +5197,16 @@ function renderWalletPage(bookingRef){
     // covers/guestlist/entry-only/group. Non-cursive tabular numerals,
     // large font, sits centred so the customer (and bartender across
     // the counter) can read it at a glance. Hidden for table bookings.
-    if(!cv.isTableBooking){
+    // 🔴 2026-05-25 (Khushi LIVE-NIGHT) — TABLE BOOKINGS now also show
+    // the balance block ONCE a cover has been activated at the door
+    // (covers Khushi's "Chiru late arrival" flow: table booked +
+    // ₹1000 cover charged at the door → guest needs to see his ₹1000
+    // wallet balance to pre-order). Previously only non-table covers
+    // got the balance card. We still hide it for fresh table
+    // reservations (activated===0) — those rely on captain-side
+    // settlement, no wallet redemption needed.
+    var _showBal = (!cv.isTableBooking) || ((cv.coverActivated||0) > 0);
+    if(_showBal){
       var balBlock=document.createElement('div');
       var _bbColor = bal > 0 ? '#22C55E' : '#EF4444';
       var _bbBg = bal > 0 ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.06)';
