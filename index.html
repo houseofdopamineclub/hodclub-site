@@ -5995,6 +5995,44 @@ function renderWalletPage(bookingRef){
             _bsOv.appendChild(_bsMd);
             document.body.appendChild(_bsOv);
           };
+          // 🆕 2026-05-25 v3.3 (Khushi DOUBLE-SPEND GUARD) — If the cover
+          // has ANY open round at the captain's table (preparing /
+          // activated / served but not yet settled), the customer must
+          // settle the table tab BEFORE ordering at the bar. Otherwise
+          // both bartender and captain see the same wallet balance and
+          // can each spend it down to 0 — race condition / partial
+          // double-spend. The table button stays enabled (adding to the
+          // existing tab is safe — captain owns it). Bar button gets
+          // greyed out with a clear "settle first" message.
+          // 🛟 FALLBACK: if cv.tabRounds is unreadable, default OPEN
+          // (don't lock customer out — captain/bartender activation
+          // failures will catch real overdrafts via the cooldown +
+          // insufficient-balance txn check in activateCoverOrder).
+          var _hasOpenTab=false;
+          try {
+            _hasOpenTab = Array.isArray(cv.tabRounds) && cv.tabRounds.some(function(r){
+              if (!r) return false;
+              var st = String(r.status||'').toLowerCase();
+              return st==='preparing' || st==='activated' || st==='served';
+            });
+          } catch(_){ _hasOpenTab=false; }
+          if (_hasOpenTab) {
+            var _tabHint=document.createElement('div');
+            _tabHint.style.cssText='font-size:12px;color:#FBBF24;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;';
+            _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
+            _lpMd.appendChild(_tabHint);
+            _barBtn.style.background='rgba(120,120,120,.18)';
+            _barBtn.style.color='rgba(255,255,255,.4)';
+            _barBtn.style.cursor='not-allowed';
+            _barBtn.style.border='1.5px dashed rgba(251,191,36,.4)';
+            _barBtn.innerHTML='<span style="font-size:22px;opacity:.6;">🔒</span><span>BAR LOCKED — SETTLE TABLE FIRST</span>';
+            // Replace the click handler with a toast nudge instead of the
+            // actual at-bar write path. We KEEP the button visible (greyed)
+            // so the customer understands it exists; just not usable yet.
+            _barBtn.onclick=function(){
+              try { showToast('Ask your captain to settle the table bill first','warn',2500); } catch(_){}
+            };
+          }
           _lpMd.appendChild(_barBtn);
           var _lpCloseBtn=document.createElement('button');
           _lpCloseBtn.style.cssText='width:100%;padding:10px;border-radius:10px;background:transparent;border:none;color:#666;font-size:12px;cursor:pointer;font-family:var(--fs);';
