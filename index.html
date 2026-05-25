@@ -5763,10 +5763,41 @@ function renderWalletPage(bookingRef){
           _barBtn.innerHTML='<span style="font-size:22px;">🍸</span><span>I\'M AT THE BAR</span>';
           _barBtn.onclick=function(){
             _lpOv.remove();
-            // Build the bartender screen with items + ref. NO captain
-            // notification, NO round write, NO wallet debit — bartender
-            // rings the order in manually on POS using TBL- ref.
+            // 🔴 2026-05-25 v2 (Khushi) — DO write the round to covers
+            // so the bartender's open wallet auto-surfaces it as a
+            // "preparing" round (WalletOverlay line ~247 already
+            // subscribes). We INTENTIONALLY skip the linkedTableRef
+            // → tableReservations auto-import so the CAPTAIN's tab
+            // doesn't double-bill it (that path is reserved for the
+            // "at table" choice). Tagged source:'customer_self_order_bar'
+            // for future audit / captain-side pill differentiation.
+            // The "show this to bartender" popup ALSO stays as a
+            // visual fallback so the customer knows to walk to the bar
+            // even if the bartender doesn't yet have the wallet open.
             var _items=Object.values(cart);
+            try {
+              var _bRoundItems=_items.map(function(it){return {n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};});
+              var _bNewRound={roundNum:getRoundNum(),items:_bRoundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString(),source:'customer_self_order_bar'};
+              var _bCoverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
+              var _bUpdatedRounds=tabRounds.map(function(r){
+                if(r.status==='activated')return Object.assign({},r,{status:'served',servedAt:new Date().toISOString()});
+                return r;
+              }).concat([_bNewRound]);
+              if (firestore) {
+                firestore.collection('covers').doc(_bCoverDocId).set({
+                  tabRounds:_bUpdatedRounds,tabTotal:getTabTotal()+ct,
+                  ref:cv.ref||cv.bookingId||'',name:cv.name||'',phone:cv.phone||'',
+                  isTableBooking:!!cv.isTableBooking,tableId:cv.tableId||'',floorLabel:cv.floorLabel||''
+                },{merge:true}).then(function(){
+                  tabRounds=_bUpdatedRounds;
+                  cart={};
+                  try { updateCartBar(); } catch(_){}
+                  try { renderRoundsHistory(); } catch(_){}
+                }).catch(function(err){
+                  try { console.warn('[at-bar] covers write failed (popup-only fallback)', err && err.message); } catch(_){}
+                });
+              }
+            } catch(_eBar) { try { console.warn('[at-bar] write threw',_eBar); } catch(_){} }
             var _bsOv=document.createElement('div');
             _bsOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(10px);animation:fadeIn .25s ease;overflow-y:auto;';
             var _bsMd=document.createElement('div');
