@@ -5827,45 +5827,86 @@ function renderWalletPage(bookingRef){
           // customers. Stale-table loophole is a rare race; false-positive
           // on every customer is a real revenue hit. 4s is generous.
           var _staleTO=setTimeout(function(){ if (_tableBtn._verifying) _markFresh(); }, 4000);
+          // 🆕 2026-05-25 v3.2 (Khushi BUG REPORT round 2) — TWO-LAYER lookup.
+          // Khushi's SMK2 booking had a live captain card but my v3 query
+          // `where linkedCoverRef==cv.ref` returned 0 docs (the link
+          // wasn't written — either pre-dates linkCoverToTable, or door
+          // used a different activate path). v3.2 now:
+          //   1. PRIMARY: if cover has `linkedTableRef` (the table doc
+          //      ID), look up THAT doc directly — fast, authoritative,
+          //      one doc read.
+          //   2. FALLBACK: original `where linkedCoverRef==cv.ref` query.
+          //   3. SAFETY: if NEITHER finds a doc at all (link was never
+          //      written), FAIL-OPEN — let the customer through. The
+          //      original loophole (table re-seated to a NEW guest)
+          //      only matters when a DIFFERENT name/phone is now there;
+          //      we still catch that case via dead-status or phone-mismatch.
+          var _isDeadStatus=function(st){
+            st=String(st||'').toLowerCase();
+            return (st==='released'||st==='closed'||st==='paid'||st==='cancelled'||st==='checked_out'||st==='done'||st==='completed'||st==='void');
+          };
+          var _evalTableDoc=function(tr,sourceLabel){
+            if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); return; }
+            var phN=_normP(tr.customerPhone||tr.phone);
+            // Strict phone check ONLY when both sides have digits; protects
+            // against re-seated tables without locking out customers whose
+            // cover doc lacks phone data.
+            if (_cvPhoneN && phN && phN!==_cvPhoneN) {
+              _markStale('phone mismatch — table now seated under …'+phN.slice(-4));
+              return;
+            }
+            _markFresh();
+          };
+          var _runQueryFallback=function(){
+            firestore.collection('tableReservations').where('linkedCoverRef','==',cv.ref).get().then(function(snap){
+              clearTimeout(_staleTO);
+              if (snap.empty) {
+                // No doc was ever linked to this wallet via the
+                // where-field. Can't prove staleness either way — FAIL
+                // OPEN. (Better to accidentally serve one re-seated
+                // table than to block every legitimate customer.)
+                try { console.warn('[picker] no linkedCoverRef match, fail-open'); } catch(_){}
+                _markFresh(); return;
+              }
+              // Walk results; if any non-dead row matches identity → fresh.
+              var fresh=false, lastReason='all linked reservations look dead';
+              snap.forEach(function(d){
+                var tr=d.data()||{};
+                if (_isDeadStatus(tr.status)) { lastReason='all linked reservations dead'; return; }
+                var phN=_normP(tr.customerPhone||tr.phone);
+                if (_cvPhoneN && phN && phN!==_cvPhoneN) { lastReason='phone mismatch — re-seated to …'+phN.slice(-4); return; }
+                fresh=true;
+              });
+              if (fresh) _markFresh(); else _markStale(lastReason);
+            }).catch(function(e){
+              clearTimeout(_staleTO);
+              try { console.warn('[picker] query fallback failed, fail-open:', e && e.message); } catch(_){}
+              _markFresh();
+            });
+          };
           try {
-            if (firestore && cv.ref) {
-              firestore.collection('tableReservations').where('linkedCoverRef','==',cv.ref).get().then(function(snap){
+            if (!firestore || !cv.ref) {
+              clearTimeout(_staleTO);
+              _markFresh(); // can't check → let through
+            } else if (cv.linkedTableRef) {
+              // PRIMARY path — direct doc lookup
+              firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
                 clearTimeout(_staleTO);
-                var fresh=false, reason='no matching active reservation';
-                snap.forEach(function(d){
-                  var tr=d.data()||{};
-                  var st=String(tr.status||'').toLowerCase();
-                  var dead=(st==='released'||st==='closed'||st==='paid'||st==='cancelled'||st==='checked_out'||st==='done'||st==='completed'||st==='void');
-                  if (dead) return;
-                  var phN=_normP(tr.customerPhone||tr.phone);
-                  // 🆕 v3 LENIENT: phone check only when BOTH sides have
-                  // digits; otherwise the linkedCoverRef equality alone
-                  // (already enforced by the query) is sufficient proof.
-                  var phStrict = (!!_cvPhoneN && !!phN);
-                  if (phStrict && phN !== _cvPhoneN) { reason='phone mismatch — table re-seated to '+phN.slice(-4); return; }
-                  fresh=true;
-                });
-                if (fresh) _markFresh(); else _markStale(reason);
+                if (!d.exists) { _runQueryFallback(); return; }
+                _evalTableDoc(d.data()||{},'doc');
               }).catch(function(e){
                 clearTimeout(_staleTO);
-                // 🆕 v3 FAIL-OPEN on query error — keep button enabled so
-                // legitimate customers aren't blocked by a transient
-                // firestore hiccup. Worst case: the captain ping might
-                // hit a stale table; bartender Strategy C tile catches it.
-                _markFresh();
-                try { console.warn('[picker] stale-check query failed, defaulting fresh:', e && e.message); } catch(_){}
+                try { console.warn('[picker] direct lookup failed, falling back to query:', e && e.message); } catch(_){}
+                _runQueryFallback();
               });
             } else {
-              clearTimeout(_staleTO);
-              // 🆕 v3 FAIL-OPEN when we can't run the check at all (no
-              // firestore / no ref). Don't punish customers for missing
-              // wiring; let them proceed.
-              _markFresh();
+              // No linkedTableRef on cover — use legacy where-query path
+              _runQueryFallback();
             }
           } catch(_eStale) {
             clearTimeout(_staleTO);
             _markFresh();
-            try { console.warn('[picker] stale-check threw, defaulting fresh:', _eStale && _eStale.message); } catch(_){}
+            try { console.warn('[picker] stale-check threw, fail-open:', _eStale && _eStale.message); } catch(_){}
           }
           var _barBtn=document.createElement('button');
           _barBtn.style.cssText='width:100%;padding:18px;border-radius:14px;background:rgba(123,47,190,.15);border:1.5px solid rgba(123,47,190,.5);color:#fff;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--fs);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
