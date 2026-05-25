@@ -5750,14 +5750,93 @@ function renderWalletPage(bookingRef){
             +'<div style="font-family:var(--fp);font-size:22px;font-weight:800;color:#C9A84C;margin-bottom:6px;letter-spacing:.3px;">Where are you?</div>'
             +'<div style="font-size:13px;color:#aaa;line-height:1.5;margin-bottom:20px;">Tell us where you\'d like to order from.</div>';
           var _tableBtn=document.createElement('button');
-          _tableBtn.style.cssText='width:100%;padding:18px;border-radius:14px;background:linear-gradient(135deg,#C9A84C,#F0C060);border:none;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--fs);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
-          _tableBtn.innerHTML='<span style="font-size:22px;">🍽️</span><span>I\'M AT MY TABLE</span>';
+          _tableBtn.style.cssText='width:100%;padding:18px;border-radius:14px;background:rgba(120,120,120,.18);border:1.5px dashed rgba(201,168,76,.35);color:rgba(255,255,255,.55);font-size:15px;font-weight:900;cursor:wait;font-family:var(--fs);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
+          // 🆕 2026-05-25 v2 (architect fix) — Button starts DISABLED. Default
+          // to "stale" until the firestore freshness query resolves. Closes
+          // the race where a fast tap before the query returns would bypass
+          // the guardrail and ping the WRONG captain card.
+          _tableBtn._stale=true;
+          _tableBtn._verifying=true;
+          _tableBtn.innerHTML='<span style="font-size:18px;">⏳</span><span>CHECKING TABLE SESSION…</span>';
           _tableBtn.onclick=function(){
+            if (_tableBtn._verifying) { showToast('Checking your table — one moment','warn',1500); return; }
+            if (_tableBtn._stale) return; // hard-blocked when query resolved stale
             _lpOv.remove();
             placeBtn._loc='table';
             try { placeBtn.onclick(); } finally { placeBtn._loc=null; }
           };
           _lpMd.appendChild(_tableBtn);
+          // 🆕 2026-05-25 (Khushi STRATEGY A) — STALE-TABLE GUARDRAIL.
+          // Loophole: customer's original table can be RELEASED + re-seated
+          // to a NEW guest before customer redeems remaining wallet. If
+          // customer then picks "I'M AT MY TABLE", the captain ping fires
+          // on the WRONG table (the new guest's card) → wrong attribution.
+          // Mitigation: at picker-show time, look up tableReservations with
+          // this cover's ref. If NONE active (status released/closed/etc),
+          // OR active doc's phone differs from cv.phone → grey out the
+          // table button + show "🚫 TABLE SESSION ENDED" overlay text +
+          // nudge customer to the bar branch (which Strategy C makes
+          // bartender-visible as a backstop). Fail-open: if firestore
+          // query fails, leave button enabled (existing behaviour).
+          var _staleHint=document.createElement('div');
+          _staleHint.style.cssText='display:none;font-size:11px;color:#F87171;margin:-6px 0 12px;line-height:1.4;letter-spacing:.3px;text-align:center;font-weight:700;';
+          _staleHint.textContent='🚫 YOUR TABLE SESSION HAS ENDED — PLEASE WALK TO THE BAR';
+          _lpMd.appendChild(_staleHint);
+          // 🆕 2026-05-25 v2 (architect fix) — Strict identity. Phone MUST
+          // match (after normalising to digits) on BOTH sides; a missing
+          // phone anywhere is treated as STALE (cannot prove identity →
+          // refuse). Failure mode: customer is forced to bar branch, which
+          // Strategy C makes bartender-visible — still serves the order,
+          // just denies the (possibly-wrong) captain ping.
+          var _normP=function(p){ return String(p||'').replace(/\D/g,'').slice(-10); };
+          var _cvPhoneN=_normP(cv.phone);
+          var _markStale=function(reason){
+            _tableBtn._stale=true; _tableBtn._verifying=false;
+            _tableBtn.style.background='rgba(120,120,120,.18)';
+            _tableBtn.style.color='rgba(255,255,255,.45)';
+            _tableBtn.style.cursor='not-allowed';
+            _tableBtn.style.border='1.5px dashed rgba(248,113,113,.45)';
+            _tableBtn.innerHTML='<span style="font-size:22px;opacity:.6;">🚫</span><span>TABLE SESSION ENDED</span>';
+            _staleHint.style.display='block';
+            try { console.warn('[picker] table marked stale:', reason); } catch(_){}
+          };
+          var _markFresh=function(){
+            _tableBtn._stale=false; _tableBtn._verifying=false;
+            _tableBtn.style.background='linear-gradient(135deg,#C9A84C,#F0C060)';
+            _tableBtn.style.color='#000';
+            _tableBtn.style.cursor='pointer';
+            _tableBtn.style.border='none';
+            _tableBtn.innerHTML='<span style="font-size:22px;">🍽️</span><span>I\'M AT MY TABLE</span>';
+          };
+          // FAIL-SAFE TIMEOUT: if firestore never responds within 4s, stay
+          // stale (do NOT silently let through). User can still pick bar.
+          var _staleTO=setTimeout(function(){ if (_tableBtn._verifying) _markStale('timeout'); }, 4000);
+          try {
+            if (firestore && cv.ref && _cvPhoneN) {
+              firestore.collection('tableReservations').where('linkedCoverRef','==',cv.ref).get().then(function(snap){
+                clearTimeout(_staleTO);
+                var fresh=false;
+                snap.forEach(function(d){
+                  var tr=d.data()||{};
+                  var st=String(tr.status||'').toLowerCase();
+                  var dead=(st==='released'||st==='closed'||st==='paid'||st==='cancelled'||st==='checked_out'||st==='done'||st==='completed'||st==='void');
+                  var phN=_normP(tr.customerPhone||tr.phone);
+                  var phMatches=!!phN && phN===_cvPhoneN; // STRICT — both sides must have a real phone and match
+                  if (!dead && phMatches) fresh=true;
+                });
+                if (fresh) _markFresh(); else _markStale('no matching active reservation');
+              }).catch(function(e){
+                clearTimeout(_staleTO);
+                _markStale('query failed: '+(e&&e.message));
+              });
+            } else {
+              clearTimeout(_staleTO);
+              _markStale(!firestore?'no firestore':!cv.ref?'no ref':'no customer phone');
+            }
+          } catch(_eStale) {
+            clearTimeout(_staleTO);
+            _markStale('threw: '+(_eStale&&_eStale.message));
+          }
           var _barBtn=document.createElement('button');
           _barBtn.style.cssText='width:100%;padding:18px;border-radius:14px;background:rgba(123,47,190,.15);border:1.5px solid rgba(123,47,190,.5);color:#fff;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--fs);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
           _barBtn.innerHTML='<span style="font-size:22px;">🍸</span><span>I\'M AT THE BAR</span>';
