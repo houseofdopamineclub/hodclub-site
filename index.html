@@ -5778,16 +5778,28 @@ function renderWalletPage(bookingRef){
           // nudge customer to the bar branch (which Strategy C makes
           // bartender-visible as a backstop). Fail-open: if firestore
           // query fails, leave button enabled (existing behaviour).
+          // 🆕 2026-05-25 v3.1 (Khushi MESSAGE CLARITY) — Two clear options
+          // when the table is no longer bound to this customer:
+          //   1. Get in touch with the captain for a new table
+          //   2. Order at the bar and redeem the remaining wallet there
+          // Both paths preserve the wallet balance — no money is lost.
           var _staleHint=document.createElement('div');
-          _staleHint.style.cssText='display:none;font-size:11px;color:#F87171;margin:-6px 0 12px;line-height:1.4;letter-spacing:.3px;text-align:center;font-weight:700;';
-          _staleHint.textContent='🚫 YOUR TABLE SESSION HAS ENDED — PLEASE WALK TO THE BAR';
+          _staleHint.style.cssText='display:none;font-size:12px;color:#F87171;margin:-4px 0 14px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:10px;';
+          _staleHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;">🚫 YOUR TABLE SESSION HAS ENDED</div><div style="color:#FCA5A5;font-weight:500;font-size:11px;">Please get in touch with the <b style="color:#F87171;">CAPTAIN</b> for a new table,<br>OR tap <b style="color:#C9A84C;">🍸 I\'M AT THE BAR</b> below to order &amp; redeem your wallet at the bar.</div>';
           _lpMd.appendChild(_staleHint);
-          // 🆕 2026-05-25 v2 (architect fix) — Strict identity. Phone MUST
-          // match (after normalising to digits) on BOTH sides; a missing
-          // phone anywhere is treated as STALE (cannot prove identity →
-          // refuse). Failure mode: customer is forced to bar branch, which
-          // Strategy C makes bartender-visible — still serves the order,
-          // just denies the (possibly-wrong) captain ping.
+          // 🆕 2026-05-25 v3 (Khushi BUG REPORT) — Identity check is now
+          // LENIENT. v2 required strict phone match on BOTH sides; but
+          // Door's table-activate flow doesn't always propagate the
+          // phone onto the cover doc, so legit customers were getting
+          // a false-positive "TABLE SESSION ENDED" the moment they
+          // re-opened their wallet. New rule: the Firestore query
+          // already restricts to `where linkedCoverRef == cv.ref` —
+          // that equality alone proves the booking is still bound to
+          // THIS wallet (Door release clears the link before re-seating).
+          // We only escalate to a strict phone match when BOTH sides
+          // actually have phone digits; if either is missing, the ref
+          // equality + non-dead status is treated as proof-enough.
+          // Fail-open: any query error leaves button enabled.
           var _normP=function(p){ return String(p||'').replace(/\D/g,'').slice(-10); };
           var _cvPhoneN=_normP(cv.phone);
           var _markStale=function(reason){
@@ -5810,32 +5822,50 @@ function renderWalletPage(bookingRef){
           };
           // FAIL-SAFE TIMEOUT: if firestore never responds within 4s, stay
           // stale (do NOT silently let through). User can still pick bar.
-          var _staleTO=setTimeout(function(){ if (_tableBtn._verifying) _markStale('timeout'); }, 4000);
+          // 🆕 v3 FAIL-OPEN on timeout — was _markStale; now _markFresh
+          // so a slow firestore round-trip doesn't lock out legitimate
+          // customers. Stale-table loophole is a rare race; false-positive
+          // on every customer is a real revenue hit. 4s is generous.
+          var _staleTO=setTimeout(function(){ if (_tableBtn._verifying) _markFresh(); }, 4000);
           try {
-            if (firestore && cv.ref && _cvPhoneN) {
+            if (firestore && cv.ref) {
               firestore.collection('tableReservations').where('linkedCoverRef','==',cv.ref).get().then(function(snap){
                 clearTimeout(_staleTO);
-                var fresh=false;
+                var fresh=false, reason='no matching active reservation';
                 snap.forEach(function(d){
                   var tr=d.data()||{};
                   var st=String(tr.status||'').toLowerCase();
                   var dead=(st==='released'||st==='closed'||st==='paid'||st==='cancelled'||st==='checked_out'||st==='done'||st==='completed'||st==='void');
+                  if (dead) return;
                   var phN=_normP(tr.customerPhone||tr.phone);
-                  var phMatches=!!phN && phN===_cvPhoneN; // STRICT — both sides must have a real phone and match
-                  if (!dead && phMatches) fresh=true;
+                  // 🆕 v3 LENIENT: phone check only when BOTH sides have
+                  // digits; otherwise the linkedCoverRef equality alone
+                  // (already enforced by the query) is sufficient proof.
+                  var phStrict = (!!_cvPhoneN && !!phN);
+                  if (phStrict && phN !== _cvPhoneN) { reason='phone mismatch — table re-seated to '+phN.slice(-4); return; }
+                  fresh=true;
                 });
-                if (fresh) _markFresh(); else _markStale('no matching active reservation');
+                if (fresh) _markFresh(); else _markStale(reason);
               }).catch(function(e){
                 clearTimeout(_staleTO);
-                _markStale('query failed: '+(e&&e.message));
+                // 🆕 v3 FAIL-OPEN on query error — keep button enabled so
+                // legitimate customers aren't blocked by a transient
+                // firestore hiccup. Worst case: the captain ping might
+                // hit a stale table; bartender Strategy C tile catches it.
+                _markFresh();
+                try { console.warn('[picker] stale-check query failed, defaulting fresh:', e && e.message); } catch(_){}
               });
             } else {
               clearTimeout(_staleTO);
-              _markStale(!firestore?'no firestore':!cv.ref?'no ref':'no customer phone');
+              // 🆕 v3 FAIL-OPEN when we can't run the check at all (no
+              // firestore / no ref). Don't punish customers for missing
+              // wiring; let them proceed.
+              _markFresh();
             }
           } catch(_eStale) {
             clearTimeout(_staleTO);
-            _markStale('threw: '+(_eStale&&_eStale.message));
+            _markFresh();
+            try { console.warn('[picker] stale-check threw, defaulting fresh:', _eStale && _eStale.message); } catch(_){}
           }
           var _barBtn=document.createElement('button');
           _barBtn.style.cssText='width:100%;padding:18px;border-radius:14px;background:rgba(123,47,190,.15);border:1.5px solid rgba(123,47,190,.5);color:#fff;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--fs);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
@@ -5866,7 +5896,14 @@ function renderWalletPage(bookingRef){
                 firestore.collection('covers').doc(_bCoverDocId).set({
                   tabRounds:_bUpdatedRounds,tabTotal:getTabTotal()+ct,
                   ref:cv.ref||cv.bookingId||'',name:cv.name||'',phone:cv.phone||'',
-                  isTableBooking:!!cv.isTableBooking,tableId:cv.tableId||'',floorLabel:cv.floorLabel||''
+                  isTableBooking:!!cv.isTableBooking,tableId:cv.tableId||'',floorLabel:cv.floorLabel||'',
+                  // 🆕 2026-05-25 v2 (READ-COST FIX) — flag picked up by the
+                  // POS BarMode dashboard's narrow subscription
+                  // (subscribeIncomingCustomerOrders). Auto-cleared when
+                  // bartender activates the round via activateCoverOrder.
+                  hasIncomingCustomerOrder:true,
+                  incomingOrderAt:new Date().toISOString(),
+                  incomingOrderSource:'customer_self_order_bar'
                 },{merge:true}).then(function(){
                   tabRounds=_bUpdatedRounds;
                   cart={};
