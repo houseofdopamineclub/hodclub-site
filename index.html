@@ -6472,6 +6472,23 @@ function renderWalletPage(bookingRef){
 
     buildMenu(currentMenuData());
 
+    // 🔴 2026-05-25 (Khushi GO-LIVE BUG FIX) — expose a re-render hook on
+    // window so the posMenuOverrides onSnapshot listener (line ~1137) can
+    // force the open wallet menu to repaint the instant Admin toggles OOS
+    // or a discount. Without this hook, POS_MENU_OVERRIDES was being
+    // updated in memory but the DOM stayed stale → customers had to pull-
+    // to-refresh to see the change. menuContent + buildMenu + currentMenuData
+    // are closure-captured here so we can rebuild from outside.
+    // FALLBACK: if menuContent has been detached (wallet closed), the
+    // listener still safely no-ops because we only render when it's mounted.
+    window.__rebuildWalletMenu = function(){
+      try{
+        if(!menuContent || !menuContent.isConnected) return;
+        menuContent.innerHTML='';
+        buildMenu(currentMenuData());
+      }catch(e){ console.warn('__rebuildWalletMenu failed', e); }
+    };
+
     // 2026-05-13 (Khushi spec) — bottom-fixed "View Cart · N items · ₹X" red
     // footer removed. It duplicated the YOUR ORDER list + Place Order CTA
     // shown immediately above the menu and felt heavy on small screens.
