@@ -1111,15 +1111,24 @@ function _effPrice(itemName, basePrice){
   return basePrice;
 }
 function startMenuOverridesListener(){
-  // 🔴 2026-05-24 COST FIX (Khushi LIVE-NIGHT): was onSnapshot → every customer
-  // browsing hodclub.in opened a permanent listener on the WHOLE posMenuOverrides
-  // collection. Single biggest cause of 2.6M reads/day. Now one-time .get() on
-  // page load. Trade-off: a customer mid-browse won't see live 86/price flips
-  // until next refresh (acceptable — they refresh on every menu nav anyway).
+  // 🔴 2026-05-25 (Khushi GO-LIVE): re-enabled live onSnapshot so customers
+  // see 86/price flips INSTANTLY — required for bartender/manager to mark an
+  // item OOS mid-shift and have hodclub.in stop selling it.
+  //
+  // COST SAFETY (this is NOT the leak that cost 2.6M reads/day):
+  //   posMenuOverrides only contains docs for items that have been OVERRIDDEN
+  //   (OOS or discounted) — typically 5-30 docs total at peak, ~100 hard cap.
+  //   onSnapshot pricing = (docs in result) × (clients connected) × (changes).
+  //   ~30 docs × ~100 customers × ~10 flips/night ≈ 30K reads/night. Safe.
+  //
+  // The 2.6M leak was from bookings (5K+ docs) and tableReservations
+  // (3K+ docs) — those remain on .get(). Menu overrides stay LIVE.
+  //
+  // 🛟 FALLBACK: if onSnapshot ever fires too aggressively, .get()'ing on
+  //              page load is the obvious revert (uncomment the old block).
   if(_menuOvUnsub || !firestore) return;
-  _menuOvUnsub = function(){}; // mark as "started" so we don't refire
   try{
-    firestore.collection('posMenuOverrides').get().then(function(snap){
+    _menuOvUnsub = firestore.collection('posMenuOverrides').onSnapshot(function(snap){
       var next = {};
       snap.forEach(function(d){ next[d.id] = d.data() || {}; });
       POS_MENU_OVERRIDES = next;
@@ -1127,7 +1136,7 @@ function startMenuOverridesListener(){
         var mc = document.getElementById('wallet-menu-content');
         if(mc && typeof window.__rebuildWalletMenu === 'function') window.__rebuildWalletMenu();
       }catch(e){}
-    }).catch(function(err){ console.warn('posMenuOverrides fetch error', err); });
+    }, function(err){ console.warn('posMenuOverrides listener error', err); });
   }catch(e){ console.warn('startMenuOverridesListener failed', e); }
 }
 
