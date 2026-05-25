@@ -5845,6 +5845,21 @@ function renderWalletPage(bookingRef){
             st=String(st||'').toLowerCase();
             return (st==='released'||st==='closed'||st==='paid'||st==='cancelled'||st==='checked_out'||st==='done'||st==='completed'||st==='void');
           };
+          // 🆕 2026-05-25 v3.5 (Khushi DOUBLE-SPEND GUARD — extended) —
+          // Captain-placed rounds live on `tableReservations.tabRounds`,
+          // NOT on the cover doc. v3.3's check only saw customer-self-
+          // order rounds. Reuse this helper from both the direct doc
+          // lookup AND query fallback so any open captain round at the
+          // table also locks the bar button.
+          var _hasOpenRoundsFn=function(arr){
+            try {
+              return Array.isArray(arr) && arr.some(function(r){
+                if (!r) return false;
+                var st=String(r.status||'').toLowerCase();
+                return st==='preparing' || st==='activated' || st==='served';
+              });
+            } catch(_){ return false; }
+          };
           var _evalTableDoc=function(tr,sourceLabel){
             if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); return; }
             var phN=_normP(tr.customerPhone||tr.phone);
@@ -5856,6 +5871,12 @@ function renderWalletPage(bookingRef){
               return;
             }
             _markFresh();
+            // 🆕 v3.5 — fresh table; now check if captain has an open tab
+            // on this table doc and lock the bar btn if so. Safe to call
+            // even before _lockBarForOpenTab is assigned (no-op until then).
+            if (_hasOpenRoundsFn(tr.tabRounds)) {
+              try { if (typeof _lockBarForOpenTab === 'function') _lockBarForOpenTab('captain table rounds open'); } catch(_){}
+            }
           };
           var _runQueryFallback=function(){
             firestore.collection('tableReservations').where('linkedCoverRef','==',cv.ref).get().then(function(snap){
@@ -5869,15 +5890,22 @@ function renderWalletPage(bookingRef){
                 _markFresh(); return;
               }
               // Walk results; if any non-dead row matches identity → fresh.
-              var fresh=false, lastReason='all linked reservations look dead';
+              var fresh=false, lastReason='all linked reservations look dead', _anyOpenRounds=false;
               snap.forEach(function(d){
                 var tr=d.data()||{};
                 if (_isDeadStatus(tr.status)) { lastReason='all linked reservations dead'; return; }
                 var phN=_normP(tr.customerPhone||tr.phone);
                 if (_cvPhoneN && phN && phN!==_cvPhoneN) { lastReason='phone mismatch — re-seated to …'+phN.slice(-4); return; }
                 fresh=true;
+                // 🆕 v3.5 — track open captain rounds across any matching row
+                if (_hasOpenRoundsFn(tr.tabRounds)) _anyOpenRounds=true;
               });
-              if (fresh) _markFresh(); else _markStale(lastReason);
+              if (fresh) {
+                _markFresh();
+                if (_anyOpenRounds) {
+                  try { if (typeof _lockBarForOpenTab === 'function') _lockBarForOpenTab('captain table rounds open (via query)'); } catch(_){}
+                }
+              } else { _markStale(lastReason); }
             }).catch(function(e){
               clearTimeout(_staleTO);
               try { console.warn('[picker] query fallback failed, fail-open:', e && e.message); } catch(_){}
@@ -5995,44 +6023,42 @@ function renderWalletPage(bookingRef){
             _bsOv.appendChild(_bsMd);
             document.body.appendChild(_bsOv);
           };
-          // 🆕 2026-05-25 v3.3 (Khushi DOUBLE-SPEND GUARD) — If the cover
-          // has ANY open round at the captain's table (preparing /
-          // activated / served but not yet settled), the customer must
-          // settle the table tab BEFORE ordering at the bar. Otherwise
-          // both bartender and captain see the same wallet balance and
-          // can each spend it down to 0 — race condition / partial
-          // double-spend. The table button stays enabled (adding to the
-          // existing tab is safe — captain owns it). Bar button gets
-          // greyed out with a clear "settle first" message.
-          // 🛟 FALLBACK: if cv.tabRounds is unreadable, default OPEN
-          // (don't lock customer out — captain/bartender activation
-          // failures will catch real overdrafts via the cooldown +
-          // insufficient-balance txn check in activateCoverOrder).
-          var _hasOpenTab=false;
-          try {
-            _hasOpenTab = Array.isArray(cv.tabRounds) && cv.tabRounds.some(function(r){
-              if (!r) return false;
-              var st = String(r.status||'').toLowerCase();
-              return st==='preparing' || st==='activated' || st==='served';
-            });
-          } catch(_){ _hasOpenTab=false; }
-          if (_hasOpenTab) {
-            var _tabHint=document.createElement('div');
-            _tabHint.style.cssText='font-size:12px;color:#FBBF24;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;';
-            _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
-            _lpMd.appendChild(_tabHint);
+          // 🆕 2026-05-25 v3.3+v3.5 (Khushi DOUBLE-SPEND GUARD) — If the
+          // customer has ANY open round (preparing / activated / served
+          // but not yet settled) EITHER on the cover (customer-self-
+          // order rounds) OR on the linked tableReservation
+          // (captain-placed rounds), the bar button gets locked. The
+          // table button stays enabled (adding to existing tab is safe —
+          // captain owns it). The async stale-check above will also
+          // call _lockBarForOpenTab() if it detects captain rounds on
+          // the linked table doc (v3.5).
+          // 🛟 FALLBACK: if reads fail, default OPEN — don't lock
+          // legitimate customers out. The transactional balance check in
+          // activateCoverOrder is the last-line backstop.
+          var _tabHint=null;
+          var _lockBarForOpenTab=function(reason){
+            if (_barBtn._locked) return;
+            _barBtn._locked=true;
+            try { console.warn('[picker] bar locked:', reason||'open tab'); } catch(_){}
+            if (!_tabHint) {
+              _tabHint=document.createElement('div');
+              _tabHint.style.cssText='font-size:12px;color:#FBBF24;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;';
+              _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
+              // Insert hint BEFORE the bar button if button already in DOM
+              if (_barBtn.parentNode) _barBtn.parentNode.insertBefore(_tabHint, _barBtn);
+              else _lpMd.appendChild(_tabHint);
+            }
             _barBtn.style.background='rgba(120,120,120,.18)';
             _barBtn.style.color='rgba(255,255,255,.4)';
             _barBtn.style.cursor='not-allowed';
             _barBtn.style.border='1.5px dashed rgba(251,191,36,.4)';
             _barBtn.innerHTML='<span style="font-size:22px;opacity:.6;">🔒</span><span>BAR LOCKED — SETTLE TABLE FIRST</span>';
-            // Replace the click handler with a toast nudge instead of the
-            // actual at-bar write path. We KEEP the button visible (greyed)
-            // so the customer understands it exists; just not usable yet.
             _barBtn.onclick=function(){
               try { showToast('Ask your captain to settle the table bill first','warn',2500); } catch(_){}
             };
-          }
+          };
+          // Sync check (cv.tabRounds — covers customer-self-order rounds)
+          if (_hasOpenRoundsFn(cv.tabRounds)) _lockBarForOpenTab('cv rounds');
           _lpMd.appendChild(_barBtn);
           var _lpCloseBtn=document.createElement('button');
           _lpCloseBtn.style.cssText='width:100%;padding:10px;border-radius:10px;background:transparent;border:none;color:#666;font-size:12px;cursor:pointer;font-family:var(--fs);';
