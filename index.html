@@ -4879,13 +4879,26 @@ doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bk
   }
 
   // Load bookings for selected date and render (re-subscribes when date changes via dfIn.onchange)
-  var _unsubBks=null;
-  function _subscribeBookings(){
+  // 🆕 2026-05-26 v3.40 — Khushi 10-11pm 1.1M reads emergency.
+  // Old: onSnapshot stayed attached for the lifetime of the tab. Every
+  // captain reservation edit (~100/hr) broadcast the FULL floor collection
+  // (~80 docs) to every connected customer (~134). Math: 80×100×134 =
+  // ~1M reads/hr from this single listener — exactly the screenshot.
+  // New: identical poll + visibilitychange pattern as v3.39 menu fix.
+  //   (a) one-shot get() on attach
+  //   (b) setInterval every 20s ONLY while visible
+  //   (c) extra get() on foreground (covers "customer flips back to pick a table")
+  //   (d) pause polling while hidden → background tabs cost ZERO reads
+  // SAFETY: 20s max staleness. Double-book is server-enforced in the
+  // tableReservations transaction (rejects if slot already taken), so a
+  // customer tapping a stale-looking-free table just sees the booking fail
+  // and gets the live state. Acceptable trade for killing a 1M/hr leak.
+  var _unsubBks=null,_pollBksTimer=null,_pollBksVis=null;
+  function _readBksOnce(){
     var selDate=S._tableDate||new Date().toISOString().split('T')[0];
-    if(_unsubBks){try{_unsubBks();}catch(_){}_unsubBks=null;}
     if(!firestore){bks={};S._tableBks={};renderFloor({});return;}
-    _unsubBks=firestore.collection('tableReservations').where('date','==',selDate).where('floor','==',activeFloor)
-      .onSnapshot(function(snap){
+    firestore.collection('tableReservations').where('date','==',selDate).where('floor','==',activeFloor)
+      .get().then(function(snap){
         bks={};
         snap.forEach(function(d){
           var dat=d.data();dat._docId=d.id;
@@ -4893,7 +4906,29 @@ doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bk
           bks[dat.tableId].push(dat);
         });
         S._tableBks=bks;renderFloor(bks);
-      },function(){bks={};renderFloor({});});
+      }).catch(function(){bks={};renderFloor({});});
+  }
+  function _subscribeBookings(){
+    // Tear down any previous poll loop (date/floor change rebinds)
+    if(_unsubBks){try{_unsubBks();}catch(_){}_unsubBks=null;}
+    if(_pollBksTimer){clearInterval(_pollBksTimer);_pollBksTimer=null;}
+    if(_pollBksVis){document.removeEventListener('visibilitychange',_pollBksVis);_pollBksVis=null;}
+    // Prime once
+    _readBksOnce();
+    // Poll every 20s ONLY while visible
+    _pollBksTimer=setInterval(function(){
+      if(document.visibilityState==='visible')_readBksOnce();
+    },20000);
+    // Foreground rebind — instant refresh when customer flips back to tab
+    _pollBksVis=function(){
+      if(document.visibilityState==='visible')_readBksOnce();
+    };
+    document.addEventListener('visibilitychange',_pollBksVis);
+    // Keep _unsubBks as a no-op handle so existing teardown paths still work
+    _unsubBks=function(){
+      if(_pollBksTimer){clearInterval(_pollBksTimer);_pollBksTimer=null;}
+      if(_pollBksVis){document.removeEventListener('visibilitychange',_pollBksVis);_pollBksVis=null;}
+    };
   }
   _subscribeBookings();
 
