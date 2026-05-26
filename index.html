@@ -170,7 +170,15 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
 .meta-r.tap:hover{color:var(--gold);}
 .meta-r.tap:hover::after{color:var(--gold);transform:translate(2px,-1px);}
 .meta-r.tap:active{opacity:.7;}
-.ev-desc{font-size:12px;color:var(--muted);line-height:1.65;margin-bottom:16px;font-family:var(--fi);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.ev-desc{font-size:12px;color:var(--muted);line-height:1.65;margin-bottom:8px;font-family:var(--fi);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+/* 🔴 2026-05-26 (Khushi) — T&C dropdown shown on every event card + modal. */
+.ev-tc-toggle{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--gold);letter-spacing:.6px;text-transform:uppercase;cursor:pointer;padding:6px 10px;border-radius:8px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.22);user-select:none;margin-bottom:14px;transition:background .18s;}
+.ev-tc-toggle:hover{background:rgba(201,168,76,.16);}
+.ev-tc-body{display:none;font-size:11.5px;color:var(--muted);line-height:1.7;margin:6px 0 14px;padding:12px 14px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px;font-family:var(--fi);}
+.ev-tc-body.open{display:block;}
+.ev-tc-body ul{margin:0;padding-left:18px;}
+.ev-tc-body li{margin-bottom:5px;}
+.ev-tc-body li strong{color:var(--gold);font-weight:700;}
 /* COUNTDOWN */
 .ev-countdown{display:flex;gap:10px;margin-bottom:14px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border);}
 .cd-unit{text-align:center;flex:1;}
@@ -1597,6 +1605,40 @@ function qs(id){return document.getElementById(id);}
 function fmtDate(d){if(!d)return'';var dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});}
 function fmtShort(d){if(!d)return'';var dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-IN',{month:'short',day:'numeric'});}
 function today(){return new Date().toISOString().split('T')[0];}
+
+// 🔴 2026-05-26 (Khushi) — House T&C / club-rules block, used on every
+// event card AND inside the event modal. Customer sees the first few
+// description lines from the event itself; below that a single
+// "▾ HOUSE RULES & T&C" expander reveals the boilerplate club rules.
+function _buildHodTcBlock(uid){
+  var wrap=document.createElement('div');
+  var toggle=document.createElement('div');
+  toggle.className='ev-tc-toggle';
+  toggle.setAttribute('role','button');
+  toggle.setAttribute('tabindex','0');
+  toggle.innerHTML='▾ HOUSE RULES &amp; T&amp;C';
+  var body=document.createElement('div');
+  body.className='ev-tc-body';
+  body.id='hod-tc-'+uid;
+  body.innerHTML=''
+    +'<ul>'
+    +  '<li><strong>21+ ONLY</strong> — Government photo ID mandatory at the door (DL / Passport / Aadhaar / Voter).</li>'
+    +  '<li><strong>Smart casual dress code</strong> — no shorts, sleeveless tees, slippers, or sportswear for men. Right of admission reserved.</li>'
+    +  '<li><strong>Guest list</strong> is for ladies &amp; couples only. Stags pay applicable cover at the door.</li>'
+    +  '<li><strong>Free entry till 9 PM</strong>. After 9 PM, cover charges apply and are <strong>100% redeemable</strong> on food &amp; drinks.</li>'
+    +  '<li>No outside food, drinks, or vapes. Bag check at entry.</li>'
+    +  '<li>Management reserves the right to refuse entry or stop service without notice.</li>'
+    +  '<li>HOD is not liable for loss / damage of personal belongings. Please use the cloak.</li>'
+    +'</ul>';
+  toggle.onclick=function(){
+    var open=body.classList.toggle('open');
+    toggle.innerHTML=(open?'▴ HIDE':'▾ HOUSE RULES &amp; T&amp;C');
+  };
+  toggle.onkeydown=function(e){ if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle.click();} };
+  wrap.appendChild(toggle);
+  wrap.appendChild(body);
+  return wrap;
+}
 function tomorrow(){var d=new Date();d.setDate(d.getDate()+1);return d.toISOString().split('T')[0];}
 function dateLabel(d){if(d===today())return'TONIGHT 🔥';if(d===tomorrow())return'TOMORROW ⚡';return fmtShort(d).toUpperCase();}
 function spotsLeft(ev){return Math.max(0,ev.capacity-ev.sold);}
@@ -2102,6 +2144,11 @@ function buildEvCard(ev,idx){
   }
 
   var desc=el('p','ev-desc');desc.textContent=sanitize(ev.description||'');info.appendChild(desc);
+  // 🔴 2026-05-26 (Khushi) — T&C dropdown on every event card. First few
+  // lines of the actual event description stay clamped above; this is a
+  // separate expander with HOD house rules (21+, no casuals, guestlist
+  // policy, free-entry-till-9pm cover-redeemable, no outside food).
+  info.appendChild(_buildHodTcBlock(ev.id+'-card'));
 
   var footer=el('div','ev-footer');
   // ── LIVE NOW bar — fixed flat layout, no nested flex conflicts
@@ -2343,6 +2390,9 @@ function renderModal(){
   });
   body.appendChild(mMeta);
   var desc=el('p','m-desc');desc.textContent=sanitize(ev.description||'');body.appendChild(desc);
+  // 🔴 2026-05-26 (Khushi) — same T&C dropdown inside the booking modal so
+  // a customer who skips the card and taps "BOOK NOW" still sees the rules.
+  body.appendChild(_buildHodTcBlock(ev.id+'-modal'));
 
   // ── ONE PREMIUM SHARE BUTTON
   var evLink='https://hodclub.in?event='+encodeURIComponent(ev.id);
@@ -4379,6 +4429,9 @@ function renderTableFloorPlan(){
   function hidePanel(){
     bookPanel.style.transform='translateY(100%)';
     S._selectedTable=null;
+    // 🔴 2026-05-26 — clear the per-panel slot-refresh interval so we don't
+    // leak a timer (and Firestore reads) on every booking-panel open/close.
+    try{ if(bookPanel._hodSlotInterval){ clearInterval(bookPanel._hodSlotInterval); bookPanel._hodSlotInterval=null; } }catch(_){}
     // Don't remove bookPanel from DOM - just hide it.
     // Removing breaks the next booking attempt because bookPanel becomes a detached node.
     // Also remove any leftover backdrop.
@@ -4582,7 +4635,23 @@ function renderTableFloorPlan(){
     function _rebuildArrival(formDate){
       arrivalI.innerHTML='';
       var dao=document.createElement('option');dao.value='';dao.textContent='Estimated Arrival Time *';arrivalI.appendChild(dao);
-      _HOD_ALL_SLOTS.forEach(function(t){var ao=document.createElement('option');ao.value=t;ao.textContent=t;arrivalI.appendChild(ao);});
+      // 🔴 2026-05-26 (Khushi) — PAST-TIME GUARD. When the selected date is
+      // TODAY, hide slots already in the past (with 15-min buffer so we
+      // don't accept a "6:00 PM" reservation typed at 6:14 PM). Fail-open:
+      // any parsing trouble → no filter applied, all slots shown.
+      var _now=new Date();
+      var _todayIso=_now.toISOString().split('T')[0];
+      var _isToday=(formDate===_todayIso);
+      var _nowMin=_now.getHours()*60+_now.getMinutes()+15;
+      _HOD_ALL_SLOTS.forEach(function(t){
+        try{ if(_isToday && _t2m(t)>=0 && _t2m(t)<_nowMin) return; }catch(_){}
+        var ao=document.createElement('option');ao.value=t;ao.textContent=t;arrivalI.appendChild(ao);
+      });
+      // Friendly hint if every slot for today is in the past.
+      if(_isToday && arrivalI.options.length<=1){
+        var no=document.createElement('option');no.value='';no.textContent='No slots left today — pick tomorrow';no.disabled=true;
+        arrivalI.appendChild(no);
+      }
       if(!firestore||!formDate)return;
       firestore.collection('tableReservations').where('date','==',formDate).where('tableId','==',table.id).get().then(function(snap){
         var slots=[];snap.forEach(function(d){var dat=d.data();if(dat.status!=='cancelled')slots.push(dat);});
@@ -4597,6 +4666,14 @@ function renderTableFloorPlan(){
     }
     _rebuildArrival(dateI.value);
     dateI.onchange=function(){_rebuildArrival(dateI.value);};
+    // 🔴 2026-05-26 — refresh every 60s so a slot that crosses "now"
+    // disappears for customers who left the page open across the cutover.
+    // Stored on bookPanel so hidePanel() + the success path clear it (no
+    // unbounded growth of timers across repeated open/close cycles).
+    try{ if(bookPanel._hodSlotInterval){ clearInterval(bookPanel._hodSlotInterval); } }catch(_){}
+    bookPanel._hodSlotInterval=setInterval(function(){
+      try{ _rebuildArrival(dateI.value); }catch(_){ try{ clearInterval(bookPanel._hodSlotInterval); bookPanel._hodSlotInterval=null; }catch(__){} }
+    },60000);
     var errD=document.createElement('div');errD.style.cssText='font-size:12px;color:#EF4444;margin-bottom:10px;display:none;';
 
     var confBtn=document.createElement('button');
@@ -4659,6 +4736,9 @@ function renderTableFloorPlan(){
       }).then(function(ref2){
         // Remove backdrop
         var bd=document.getElementById('tbl-backdrop');if(bd)bd.remove();
+        // 🔴 2026-05-26 — booking succeeded, kill the slot-refresh interval
+        // before we wipe the panel so it doesn't keep ticking against null inputs.
+        try{ if(bookPanel._hodSlotInterval){ clearInterval(bookPanel._hodSlotInterval); bookPanel._hodSlotInterval=null; } }catch(_){}
         // Show cinematic confirmation
         bookPanel.innerHTML='';
         var conf=document.createElement('div');
@@ -7921,17 +8001,42 @@ function renderHodFeedbackForm(container, total){
       // funnel mixed feedback to public Google reviews).
       var isHappy=allFourPlus;
       result.style.display='block';
+      // 🔴 2026-05-26 (Khushi) — every result now ends with two CTAs so the
+      // customer is never stranded on the thank-you screen:
+      //   1) BACK TO WALLET (?wallet=<ref>)  → reopens their wallet/bill
+      //   2) BACK TO EVENTS (/)              → discover the next night
+      // When happy, tapping "Rate us on Google" opens Google in a NEW TAB
+      // AND auto-redirects this tab to the wallet after a short delay so the
+      // customer doesn't lose their place. Fail-open: if no booking ref is
+      // present we just go to "/" so we never strand the customer on a
+      // half-rendered wallet page.
+      var walletHref=bookingRef?('/?wallet='+encodeURIComponent(bookingRef)):'/';
+      var ctaRowHtml=''
+        +'<div style="display:flex;gap:8px;margin-top:14px;justify-content:center;flex-wrap:wrap;">'
+        +  '<a href="'+walletHref+'" style="flex:1;min-width:130px;padding:11px 14px;border-radius:10px;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.4);color:#C9A84C;font-family:var(--fs);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;">📜 View Bill</a>'
+        +  '<a href="/" style="flex:1;min-width:130px;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#F5F1E8;font-family:var(--fs);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;">🏠 Back to Events</a>'
+        +'</div>';
       if(isHappy){
         result.innerHTML=''
           +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
           +'<div style="font-family:var(--fp);font-size:16px;font-weight:800;color:#C9A84C;margin-bottom:6px;">Glad you loved it!</div>'
           +'<div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:14px;">Would you take 30 seconds to share that on Google? It genuinely helps a small team like ours.</div>'
-          +'<a href="https://g.page/r/CczYuUNkvmDgEBM/review" target="_blank" rel="noopener" style="display:inline-block;padding:12px 22px;background:#fff;color:#1a73e8;border-radius:10px;font-family:var(--fs);font-size:13px;font-weight:900;letter-spacing:.4px;text-decoration:none;border:1px solid #dadce0;box-shadow:0 2px 6px rgba(0,0,0,.25);">⭐ Rate us on Google</a>';
+          +'<a id="hod-fb-google" href="https://g.page/r/CczYuUNkvmDgEBM/review" target="_blank" rel="noopener" style="display:inline-block;padding:12px 22px;background:#fff;color:#1a73e8;border-radius:10px;font-family:var(--fs);font-size:13px;font-weight:900;letter-spacing:.4px;text-decoration:none;border:1px solid #dadce0;box-shadow:0 2px 6px rgba(0,0,0,.25);">⭐ Rate us on Google</a>'
+          +ctaRowHtml;
+        // Schedule auto-redirect ~1.5s after the Google tab opens, so the
+        // customer comes back here to their wallet (not a blank thank-you).
+        var gBtn=result.querySelector('#hod-fb-google');
+        if(gBtn){
+          gBtn.addEventListener('click',function(){
+            try{ setTimeout(function(){ try{ window.location.href=walletHref; }catch(_){} },1500); }catch(_){}
+          });
+        }
       }else{
         result.innerHTML=''
           +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
           +'<div style="font-family:var(--fp);font-size:16px;font-weight:800;color:#C9A84C;margin-bottom:6px;">Thank you for the honest feedback.</div>'
-          +'<div style="font-size:12px;color:#aaa;line-height:1.5;">Our manager will personally review your note. We will do better next time.</div>';
+          +'<div style="font-size:12px;color:#aaa;line-height:1.5;">Our manager will personally review your note. We will do better next time.</div>'
+          +ctaRowHtml;
       }
       // Hide the form controls so the screen settles on the result.
       // 2026-05-13 (Khushi spec, round 5) — also hide the "How was your
