@@ -4398,6 +4398,14 @@ var _HOD_TABLES = {
 }
 
 function renderTableFloorPlan(){
+  // 🆕 2026-05-26 v3.41 — Khushi customer screenshot 11:41pm "RENDER ERROR: Can't find variable: db".
+  // Pre-existing scope bug (NOT introduced by v3.40). The function reads `db.events` as a fallback
+  // for `S._cachedEvents`, but `db` was never declared inside this function — only inside renderHome().
+  // When customers landed on a cold page (no warm cache: hard refresh, slow network, first visit), the
+  // `S._cachedEvents||db.events` OR fell through to `db.events` → ReferenceError → red render screen.
+  // Symptom only appeared randomly because warm-cache visits short-circuit the OR before touching db.
+  // Fix: declare `var db = getDB();` at function entry, matching every other render*() in this file.
+  var db=getDB();
   var wrap=document.createElement('div');
   wrap.style.cssText='padding:0 0 60px;';
 
@@ -4936,6 +4944,9 @@ doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bk
 }
 
 function _showTableModal(table, floorKey){
+  // 🆕 2026-05-26 v3.41 — same `db` scope fix as renderTableFloorPlan above.
+  // Modal also fell over with "Can't find variable: db" on cold cache.
+  var db=getDB();
   var evs=(S._cachedEvents||db.events||[]).filter(function(e){return e.published&&!isEventPast(e);}).sort(function(a,b){return a.date<b.date?-1:1;});
   var selEv=S._tableSelEv||(evs.length?evs[0]:null);
   if(!selEv){alert('No event selected');return;}
