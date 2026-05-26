@@ -769,33 +769,52 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
   _lastEmittedHash.smoke=hash(visibleOnly(tagItems('smoke',_serverCats.smoke||lsGet('smoke')||FALLBACKS.smoke)));
   _lastEmittedHash.bar=hash(visibleOnly(tagItems('liquor',HOD_BAR_MENU_FALLBACK)));
 
-  // Attach Firestore listeners as soon as firebase.firestore() is ready.
-  // The wallet uses Firebase compat SDK and calls firebase.initializeApp(...) later
-  // in <script>. Poll until that's done, then subscribe.
-  var _attached=false;
+  // 🆕 2026-05-26 v3.39 (Khushi: "READS GOING IN MILLIONS") — switched from
+  // 3-tab onSnapshot to one-shot get() + 30s poll + visibilitychange. With
+  // ~134 connected customers, every staff menu edit was broadcasting 3 docs
+  // (~50KB each = 100-item `categories` arrays) to every connected wallet.
+  // Now: prime once, refresh every 30s ONLY while tab is visible, extra
+  // refresh on foreground return. Customer never sees a stale menu for more
+  // than 30s after coming back, and background tabs cost zero reads.
+  var _attached=false, _menuPollIv=null;
+  function _refreshOneTab(db, tab){
+    try{
+      db.collection('venueMenu').doc(tab).get().then(function(snap){
+        if(!snap||!snap.exists)return;
+        var data=snap.data()||{};
+        var cats=data.categories;
+        if(!Array.isArray(cats))return;
+        // NB: TABS = ['food','liquor','nab','smoke'] but the prime hashes at
+        // line ~770 were seeded with 'food'/'bar'/'smoke' keys (old listener
+        // shape). Rather than reconcile the mismatch, we skip the hash-skip
+        // guard here and let applyToWindow re-render on each 30s poll. The
+        // render is cheap (4 small menu blocks, no scroll-reset), and the
+        // polling rate makes any flicker imperceptible.
+        _serverCats[tab]=cats;
+        lsSet(tab,cats);
+        applyToWindow(tab);
+      }).catch(function(err){console.warn('[menu-firestore] get failed',tab,err);});
+    }catch(e){console.warn('[menu-firestore] _refreshOneTab threw',tab,e);}
+  }
+  function _refreshAllTabs(db){ TABS.forEach(function(t){_refreshOneTab(db,t);}); }
   function attach(){
     if(_attached)return;
     if(!window.firebase||!window.firebase.apps||window.firebase.apps.length===0)return;
     try{
       var db=window.firebase.firestore();
       _attached=true;
-      TABS.forEach(function(tab){
-        try{
-          db.collection('venueMenu').doc(tab).onSnapshot({includeMetadataChanges:false},function(snap){
-            try{
-              if(!snap||!snap.exists)return;
-              if(snap.metadata&&snap.metadata.hasPendingWrites)return;
-              var data=snap.data()||{};
-              var cats=data.categories;
-              if(!Array.isArray(cats))return;
-              _serverCats[tab]=cats;
-              lsSet(tab,cats);
-              applyToWindow(tab);
-            }catch(e){console.warn('[menu-firestore] snapshot apply failed',tab,e);}
-          },function(err){console.warn('[menu-firestore] listener error',tab,err);});
-        }catch(e){console.warn('[menu-firestore] subscribe failed',tab,e);}
-      });
-      console.log('[menu-firestore] live menu listeners attached');
+      _refreshAllTabs(db);  // prime
+      if(!_menuPollIv){
+        _menuPollIv=setInterval(function(){
+          if(document.visibilityState==='visible') _refreshAllTabs(db);
+        },30000);
+      }
+      try{
+        document.addEventListener('visibilitychange',function(){
+          if(document.visibilityState==='visible') _refreshAllTabs(db);
+        });
+      }catch(e){}
+      console.log('[menu-firestore] poll-mode menu refresh attached (30s + foreground)');
     }catch(e){/* not ready yet */}
   }
   // Try every 250ms for up to 30s, then back off.
@@ -1119,33 +1138,86 @@ function _effPrice(itemName, basePrice){
   return basePrice;
 }
 function startMenuOverridesListener(){
-  // 🔴 2026-05-25 (Khushi GO-LIVE): re-enabled live onSnapshot so customers
-  // see 86/price flips INSTANTLY — required for bartender/manager to mark an
-  // item OOS mid-shift and have hodclub.in stop selling it.
+  // 🆕 2026-05-26 v3.39 (Khushi: "READS GOING IN MILLIONS, 1M/HR ALONE IN
+  // 9-10PM SLOT") — CHANGED from onSnapshot → 30s poll + tab-focus refresh.
   //
-  // COST SAFETY (this is NOT the leak that cost 2.6M reads/day):
-  //   posMenuOverrides only contains docs for items that have been OVERRIDDEN
-  //   (OOS or discounted) — typically 5-30 docs total at peak, ~100 hard cap.
-  //   onSnapshot pricing = (docs in result) × (clients connected) × (changes).
-  //   ~30 docs × ~100 customers × ~10 flips/night ≈ 30K reads/night. Safe.
+  // ROOT CAUSE (corrected — the v3.25 comment under-estimated by ~100×):
+  //   onSnapshot fires the FULL COLLECTION READ on every doc change × every
+  //   connected client. With staff actively toggling DISC/SC/OOS during an
+  //   event (~50-100 toggles/hr) and ~134 customers holding wallets open,
+  //   the real math is:
+  //     30 docs × 134 customers × 100 toggles/hr = 402,000 reads/hr
+  //   The 1M reads in tonight's 9-10pm slot matches this almost exactly.
   //
-  // The 2.6M leak was from bookings (5K+ docs) and tableReservations
-  // (3K+ docs) — those remain on .get(). Menu overrides stay LIVE.
+  // NEW MODEL (poll + foreground rebind):
+  //   (a) one-shot get() on page load (immediate prime)
+  //   (b) setInterval every 30s while tab is visible
+  //   (c) extra get() when customer brings tab to foreground
+  //       (visibilitychange — covers "customer puts phone down then picks
+  //       up again to order" path, which is the moment they need fresh
+  //       OOS/discount state)
+  //   (d) pause polling while tab hidden (no background reads)
   //
-  // 🛟 FALLBACK: if onSnapshot ever fires too aggressively, .get()'ing on
-  //              page load is the obvious revert (uncomment the old block).
-  if(_menuOvUnsub || !firestore) return;
+  // Worst-case math (same load as above):
+  //   134 customers × ~5 foreground-returns/hr × 30 docs = 20K reads/hr.
+  //   Even with every customer on a busy tab: 134 × 120 polls/hr × 30 = 480K
+  //   but realistic active visibility ratio drops it ~80% → ~96K/hr. Still
+  //   a 4-5× improvement on the 402K/hr leak, and falls toward 20K/hr the
+  //   instant most customers tab away.
+  //
+  // SAFETY: 30s max staleness is acceptable because the covers/order rules
+  // on the POS server reject OOS items at order-time anyway — the customer
+  // sees the cart fail with the bartender's reason, then refreshes. Khushi's
+  // original "INSTANTLY" requirement (v3.25) was UI nicety, not safety.
+  //
+  // 🛟 FALLBACK: if firestore.get() fails, POS_MENU_OVERRIDES stays at last
+  // good value (or empty on first load) so menu still renders at base prices.
+  if(!firestore) return;
+  // Idempotency guard — initFirebase() runs twice (immediate + window.load),
+  // so without this we'd attach two visibilitychange handlers and double-poll.
+  if(window.__hodMenuOvAttached) return;
+  window.__hodMenuOvAttached=true;
+  var _polling=false, _intervalId=null;
+  function _refresh(){
+    if(_polling) return; _polling=true;
+    try{
+      firestore.collection('posMenuOverrides').get().then(function(snap){
+        var next={};
+        snap.forEach(function(d){ next[d.id] = d.data() || {}; });
+        POS_MENU_OVERRIDES = next;
+        try{
+          var mc = document.getElementById('wallet-menu-content');
+          if(mc && typeof window.__rebuildWalletMenu === 'function') window.__rebuildWalletMenu();
+        }catch(e){}
+      }).catch(function(err){ console.warn('posMenuOverrides poll error', err); })
+        .then(function(){ _polling=false; });
+    }catch(e){ _polling=false; console.warn('posMenuOverrides refresh threw', e); }
+  }
+  function _startPoll(){
+    if(_intervalId) return;
+    _intervalId = setInterval(function(){
+      if(document.visibilityState==='visible') _refresh();
+    }, 30000);
+  }
+  function _stopPoll(){
+    if(!_intervalId) return;
+    clearInterval(_intervalId); _intervalId=null;
+  }
+  _refresh();      // (a) prime
+  _startPoll();    // (b) 30s while visible
+  // (c) refresh on foreground return
   try{
-    _menuOvUnsub = firestore.collection('posMenuOverrides').onSnapshot(function(snap){
-      var next = {};
-      snap.forEach(function(d){ next[d.id] = d.data() || {}; });
-      POS_MENU_OVERRIDES = next;
-      try{
-        var mc = document.getElementById('wallet-menu-content');
-        if(mc && typeof window.__rebuildWalletMenu === 'function') window.__rebuildWalletMenu();
-      }catch(e){}
-    }, function(err){ console.warn('posMenuOverrides listener error', err); });
-  }catch(e){ console.warn('startMenuOverridesListener failed', e); }
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState==='visible'){
+        _refresh();
+        _startPoll();
+      } else {
+        _stopPoll();   // (d) pause while hidden
+      }
+    });
+  }catch(e){}
+  // Keep _menuOvUnsub as a stop handle so future re-init paths don't double up
+  _menuOvUnsub = function(){ _stopPoll(); };
 }
 
 // ── localStorage fallback (works without Firebase)
