@@ -3551,6 +3551,36 @@ function saveBooking(paymentId){
     suspiciousReason:isSuspicious===true?suspiciousReason:''
   };
   saveBookingToFirebase(booking, null);
+  // 🆕 2026-05-27 v3.42 (Khushi) — TABLE BOOKING auto-create + pre-credit wallet.
+  // Before: customer paid ₹5,000 / ₹15,000 for a table on the booking widget,
+  // but the covers doc was never created — so when they opened the wallet QR,
+  // the captain saw ₹0 and had to manually activate. The "Fully redeemable on
+  // F&B" promise on the booking page was broken at the POS.
+  // Now: as soon as the HODTAB ref is minted, write a covers doc with
+  // coverBalance = coverActivated = tablePrice. Captain scans → sees the full
+  // pre-loaded balance → orders against it all night → single deduction at
+  // "DONE ORDERING" final settlement (no per-round debit, by design).
+  // 🛟 FALLBACK: best-effort .catch — wallet listener (~7534) still routes
+  // HODTAB to _startTableListener even if this write fails, so the customer
+  // can still see their booking confirmation; captain just falls back to
+  // manual activate like before. Zero regression for non-table flows.
+  if(firestore && booking.tableType && (booking.tableType==='table4' || booking.tableType==='vip')){
+    try{
+      firestore.collection('covers').doc(ref).set({
+        ref:ref, bookingId:ref,
+        name:booking.name, phone:booking.phone, email:booking.email||'',
+        coverBalance: tableTotal, coverActivated: tableTotal, coverUsed:0,
+        transactions: [{ type:'table_prepay', amount: tableTotal, paymentId: paymentId||'', at: new Date().toISOString() }],
+        eventTitle: ev.title||'', eventId: ev.id||'',
+        partySize: (booking.tableType==='vip' ? 6 : 4),
+        date: ev.date||'', arrivalTime: (ev.time||''),
+        floorLabel: 'GROUND FLOOR',
+        tableTier: booking.tableType,
+        isTableBooking:true, tablePrePaid:true,
+        createdAt: new Date().toISOString()
+      },{merge:true}).catch(function(err){ try{ console.warn('[v3.42] table covers pre-credit failed', err && err.message); }catch(_){} });
+    }catch(_e){ try{ console.warn('[v3.42] table covers write threw', _e); }catch(_){} }
+  }
   // 🔴 2026-05-21 (Khushi LIVE-BUG REVERT) — entry-only passes must NOT auto-
   // unlock the menu/wallet UI when the customer opens the wallet link before
   // door check-in. Removed the previous 2026-05-16 block that pre-minted a ₹0
@@ -4803,13 +4833,17 @@ function renderTableFloorPlan(){
       }).then(function(ref2){
         // Create covers doc so wallet link works
         if(firestore){
+          // 🆕 2026-05-27 v3.42 (Khushi) — floor-picker tables (TBL-XXX) also
+          // pre-credit wallet with tier price. Mirrors HODTAB flow at ~3570.
+          var _tp = (table.vip ? ((ev&&ev.vipPrice)||15000) : ((ev&&ev.table4Price)||5000));
           firestore.collection('covers').doc(ref2).set({
             ref:ref2,bookingId:ref2,name:name,phone:phone,email:email,
-            coverBalance:0,coverActivated:0,coverUsed:0,transactions:[],
+            coverBalance:_tp,coverActivated:_tp,coverUsed:0,
+            transactions:[{type:'table_prepay',amount:_tp,at:new Date().toISOString()}],
             eventTitle:ev?ev.title:'',
             tableId:table.id,floor:activeFloor,floorLabel:_HOD_TABLES[activeFloor].label,
             date:today,arrivalTime:arrival,partySize:ps,
-            isTableBooking:true,createdAt:new Date().toISOString()
+            isTableBooking:true,tablePrePaid:true,createdAt:new Date().toISOString()
           }).catch(function(){});
         }
         return ref2;
@@ -7075,6 +7109,19 @@ function renderWalletPage(bookingRef){
       callBtn.onclick=function(){
         var nowMs=Date.now();
         if(nowMs<_wcCooldownUntil){return;}
+        // 🆕 2026-05-27 v3.43 (Khushi) — ARRIVAL GATE.
+        // Customers were tapping Call Waiter from HOME before arriving,
+        // making captain tablets beep for no-shows. Block the call unless
+        // (a) table booking has actualArrivalTime set (captain/door marked
+        //     "Guest Arrived"), OR
+        // (b) cover booking has coverActivated > 0 (door scanned them in).
+        // Honest toast tells them why. Cooldown NOT consumed on this path
+        // so they can try again the instant they arrive.
+        var _hasArrived = !!(cv.actualArrivalTime) || ((cv.coverActivated||0) > 0);
+        if(!_hasArrived){
+          if(typeof showToast==='function') showToast('PLEASE CHECK IN AT THE DOOR FIRST — CAPTAIN ONLY AVAILABLE ONCE YOU ARRIVE','err',4500);
+          return;
+        }
         // 2026-05-13 (Khushi spec v3) — NEVER fall back to tel: dialler.
         // The number 9686444906 is the venue's main reception, not a
         // captain's phone — dialling it during service is worse than
