@@ -3564,7 +3564,18 @@ function saveBooking(paymentId){
   // HODTAB to _startTableListener even if this write fails, so the customer
   // can still see their booking confirmation; captain just falls back to
   // manual activate like before. Zero regression for non-table flows.
-  if(firestore && booking.tableType && (booking.tableType==='table4' || booking.tableType==='vip')){
+  // 🆕 2026-05-27 v3.45 (Khushi LIVE-NIGHT BUGFIX) — ONLY pre-credit the wallet
+  // when Razorpay actually paid (paymentId starts with "pay_"). v3.42 was
+  // pre-crediting ₹5,000/₹15,000 even for "pay at venue" (cash_pending_*)
+  // bookings — door staff saw COVER ACTIVATED ₹5,000 on guests who had NOT
+  // paid a rupee. Hard money-loss bug. Now: cash_pending bookings skip the
+  // covers pre-credit entirely; door collects cash on arrival, marks paid,
+  // and the existing CaptainMode "Activate Cover" flow mints the cover then
+  // (same as today's entryonly + walk-in path). tableReservations doc still
+  // gets written below (v3.44) regardless of pay status so the booking IS
+  // visible in DoorMode → TABLES tab — just without a pre-loaded wallet.
+  var _tablePaid = !!(paymentId && String(paymentId).indexOf('pay_') === 0);
+  if(firestore && _tablePaid && booking.tableType && (booking.tableType==='table4' || booking.tableType==='vip')){
     try{
       firestore.collection('covers').doc(ref).set({
         ref:ref, bookingId:ref,
@@ -3577,9 +3588,42 @@ function saveBooking(paymentId){
         floorLabel: 'GROUND FLOOR',
         tableTier: booking.tableType,
         isTableBooking:true, tablePrePaid:true,
+        paymentStatus:'paid',
         createdAt: new Date().toISOString()
       },{merge:true}).catch(function(err){ try{ console.warn('[v3.42] table covers pre-credit failed', err && err.message); }catch(_){} });
     }catch(_e){ try{ console.warn('[v3.42] table covers write threw', _e); }catch(_){} }
+  }
+  // 🆕 2026-05-27 v3.44 (Khushi LIVE-NIGHT) — TABLE BOOKING also writes a
+  // tableReservations doc so it appears in DoorMode → TABLES tab. Before
+  // v3.44, HODTAB Razorpay table bookings only wrote `bookings` + `covers`,
+  // so they were invisible in the door's TABLES list (which subscribes to
+  // tableReservations) and only findable via global search (badge=ticket).
+  // tableId left blank — door girl assigns the specific table on arrival
+  // via the existing Reassign flow. source:'inhouse' so it passes the
+  // non-corporate filter and shows under the IN-HOUSE chip.
+  // 🛟 FALLBACK: best-effort .catch — even if this fails, the booking still
+  // exists (bookings + covers) and is findable via the global search; door
+  // staff can manually-create a tableReservations doc via the existing
+  // walk-in flow. Zero regression for non-table bookings.
+  if(firestore && booking.tableType && (booking.tableType==='table4' || booking.tableType==='vip')){
+    try{
+      firestore.collection('tableReservations').doc(ref).set({
+        tableId:'', floor:'ground', floorLabel:'GROUND FLOOR',
+        date: ev.date||'',
+        customerName: booking.name, phone: (booking.phone||'').toString().replace(/\D/g,'').slice(-10),
+        email: booking.email||'',
+        partySize: (booking.tableType==='vip' ? 6 : 4),
+        arrivalTime: (ev.time||''),
+        status:'confirmed', bookedAt: new Date().toISOString(),
+        bookingRef: ref, isVip: (booking.tableType==='vip'),
+        eventId: ev.id||'', eventTitle: ev.title||'',
+        source:'inhouse', tableTier: booking.tableType,
+        hasLinkedCover: _tablePaid, linkedCoverRef: _tablePaid ? ref : '',
+        paymentStatus: _tablePaid ? 'paid' : 'pending',
+        amountDue: _tablePaid ? 0 : tableTotal,
+        tabRounds:[], tabTotal:0
+      },{merge:true}).catch(function(err){ try{ console.warn('[v3.44] tableReservations write failed', err && err.message); }catch(_){} });
+    }catch(_e){ try{ console.warn('[v3.44] tableReservations write threw', _e); }catch(_){} }
   }
   // 🔴 2026-05-21 (Khushi LIVE-BUG REVERT) — entry-only passes must NOT auto-
   // unlock the menu/wallet UI when the customer opens the wallet link before
