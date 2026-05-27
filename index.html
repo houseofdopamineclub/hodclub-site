@@ -7021,6 +7021,39 @@ function renderWalletPage(bookingRef){
         }
         sheet.innerHTML=bHtml;
 
+        // 🆕 2026-05-27 v3.70 (Khushi LIVE-NIGHT) — wallet-funded gate.
+        // If the customer's HODTAB cover (or any pre-credited wallet) already
+        // has enough balance to settle the whole bill, the Pay Online +
+        // Pay at Table buttons make no sense — captain will deduct from the
+        // wallet at SETTLE BILL (CaptainMode WalletScanModal). Hide both,
+        // show a clear "Captain will be with you shortly to settle the bill"
+        // card, and fire the bill_requested signal so captain still gets the
+        // alert (red BILL DUE chip + chime) the moment customer taps GET BILL.
+        // Bartender / cash flows untouched: only fires when cv.coverBalance >= tt.
+        var _walletBal=Number(cv.coverBalance||0);
+        if(_walletBal>=tt && tt>0){
+          // Fire bill_requested ONCE so captain knows to walk over with QR scanner.
+          if(firestore&&cv.ref){
+            firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
+              .then(function(snap){snap.forEach(function(d){d.ref.update({paymentStatus:'bill_requested',orderTotal:tt,tabTotal:tt});});}).catch(function(){});
+            firestore.collection('covers').doc(cv.ref).set({paymentStatus:'bill_requested',orderTotal:tt},{merge:true}).catch(function(){});
+          }
+          var infoBox=document.createElement('div');
+          infoBox.style.cssText='width:100%;padding:18px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(34,197,94,.06));border:1.5px solid rgba(34,197,94,.45);color:#F5F1E8;font-size:14px;font-weight:700;text-align:center;font-family:var(--fs);margin-bottom:12px;line-height:1.55;';
+          infoBox.innerHTML='<div style="font-size:24px;margin-bottom:6px;">🎫</div>'
+            +'<div style="font-size:12px;color:#22C55E;font-weight:900;letter-spacing:1.2px;margin-bottom:8px;">WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+'</div>'
+            +'<div style="font-size:15px;font-weight:900;color:#F5F1E8;">CAPTAIN WILL BE WITH YOU SHORTLY TO SETTLE THE BILL</div>'
+            +'<div style="font-size:11px;color:rgba(245,241,232,.7);font-weight:600;margin-top:8px;letter-spacing:.4px;">Bill amount \u20B9'+tt+' will be deducted from your wallet.</div>';
+          sheet.appendChild(infoBox);
+          var bkBtn0=document.createElement('button');
+          bkBtn0.style.cssText='width:100%;padding:12px;background:transparent;border:none;color:var(--muted);font-size:13px;cursor:pointer;font-family:var(--fs);';
+          bkBtn0.textContent='\u2190 Back to Menu';
+          bkBtn0.onclick=function(){overlay.remove();};
+          sheet.appendChild(bkBtn0);
+          overlay.appendChild(sheet);document.body.appendChild(overlay);
+          return;
+        }
+
         var poBtn=document.createElement('button');
         poBtn.style.cssText='width:100%;padding:16px;border-radius:14px;background:linear-gradient(135deg,#F2C744,#B8941F);border:none;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--fs);margin-bottom:10px;';
         poBtn.innerHTML='💳  Pay Online  —  ₹'+tt;
