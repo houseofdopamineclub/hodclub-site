@@ -6114,6 +6114,19 @@ function renderWalletPage(bookingRef){
         // (no table) don't see this at all.
         // Idempotent: `placeBtn._loc` flag set after picker selection
         // so the recursive call from "TABLE" branch skips the picker.
+        // 🆕 2026-05-27 v3.66 (Khushi LIVE-NIGHT) — TABLE BOOKINGS SKIP PICKER.
+        // HODTAB / TBL- / AGG- guests booked a TABLE — they're not at the bar,
+        // they're at their table waiting for captain. The "Where are you?" modal
+        // is only meaningful for hybrid table-AND-cover walk-ins; for true table
+        // bookings it's confusing + lets them pick AT BAR and miss captain
+        // service. Force `_loc='table'` so the picker is bypassed and the
+        // captain-ping branch runs straight away.
+        var _refIsTable = !!(bookingRef && (bookingRef.indexOf('HODTAB')===0 || bookingRef.indexOf('TBL-')===0 || bookingRef.indexOf('AGG-')===0));
+        if (_refIsTable && !placeBtn._loc) {
+          placeBtn._loc = 'table';
+          try { placeBtn.onclick(); } finally { placeBtn._loc = null; }
+          return;
+        }
         if (cv.isTableBooking && (cv.coverActivated||0) > 0 && !placeBtn._loc){
           var _lpOv=document.createElement('div');
           _lpOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn .25s ease;';
