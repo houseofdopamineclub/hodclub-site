@@ -3929,15 +3929,15 @@ function renderMyBookings(){
       lookupBtn.textContent='Find My Bookings →';lookupBtn.disabled=false;
       var myBks=(results[0]||[]).filter(function(b){return (b.phone||'').replace(/\D/g,'').endsWith(phone10);});
       var myTbls=(results[1]||[]).filter(function(t){return (t.phone||'').replace(/\D/g,'').endsWith(phone10);}).map(function(t){
-        return {ref:t.bookingRef||t.id,name:t.customerName||'',phone:t.phone||'',date:t.date||'',time:t.arrivalTime||'',
+        return {ref:t.bookingRef||t.id,name:t.customerName||'',phone:t.phone||'',email:t.email||'',date:t.date||'',time:t.arrivalTime||'',
           eventTitle:'🪑 '+(t.tableId||'')+' · '+(t.floorLabel||''),entryType:'table',total:0,checkedIn:!!t.actualArrivalTime,
-          bookedAt:t.bookedAt||t.createdAt||''};
+          paymentId:t.paymentId||'',bookedAt:t.bookedAt||t.createdAt||''};
       });
       var myGL=(results[2]||[]).filter(function(g){return (g.phone||'').replace(/\D/g,'').endsWith(phone10);}).map(function(g){
         var ev4=(S._cachedEvents||[]).find(function(e){return e.id===g.eventId;});
-        return {ref:g.ref||g.id,name:g.name||'',phone:g.phone||'',date:ev4?ev4.date:'',time:ev4?ev4.time:'',
+        return {ref:g.ref||g.id,name:g.name||'',phone:g.phone||'',email:g.email||'',date:ev4?ev4.date:'',time:ev4?ev4.time:'',
           eventTitle:'📋 Guest List — '+(ev4?ev4.title:'HOD Event'),entryType:g.type||'guest',total:0,checkedIn:g.checkedIn||false,
-          bookedAt:g.joinedAt||''};
+          paymentId:'',bookedAt:g.joinedAt||''};
       });
       var mine=myBks.concat(myTbls).concat(myGL);
       // 🔴 2026-05-21 (Khushi LIVE-BUG) — test phones had 360 historical bookings,
@@ -3972,23 +3972,70 @@ function renderMyBookings(){
       resultsDiv.appendChild(countDiv);
       mine.forEach(function(b){
         var card2=document.createElement('div');
-        card2.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;';
+        card2.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;';
         var isCI=b.checkedIn===true;
-        card2.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
-          +'<div style="font-family:monospace;font-size:11px;color:var(--gold);font-weight:700;">#'+sanitize(b.ref||'—')+'</div>'
-          +'<div style="font-size:10px;padding:3px 10px;border-radius:12px;background:'+(isCI?'rgba(0,200,100,.1)':'rgba(201,168,76,.1)')+';border:1px solid '+(isCI?'rgba(0,200,100,.3)':'rgba(201,168,76,.3)')+';color:'+(isCI?'#00C864':'var(--gold)')+';">'+(isCI?'✓ Checked In':'Confirmed')+'</div>'
+        // 🆕 2026-05-27 v3.83 (Khushi LIVE-NIGHT) — My Bookings card redesign:
+        // full guest info (name/phone/email) + bigger event title + readable
+        // ref + payment status badge + bigger fonts throughout. Scanner QR
+        // unchanged (v3.81 quiet-zone fix preserved).
+        var isPaid=!!(b.paymentId && String(b.paymentId).indexOf('pay_')===0);
+        var isCashPending=!!(b.paymentId && String(b.paymentId).indexOf('cash_')===0);
+        var payBadge=isPaid
+          ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:10px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.4);color:#22C55E;letter-spacing:.5px;">✓ PAID</span>'
+          : isCashPending
+            ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:10px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#F59E0B;letter-spacing:.5px;">⏳ PAY AT VENUE</span>'
+            : (b.total===0
+              ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:10px;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.4);color:var(--gold);letter-spacing:.5px;">FREE</span>'
+              : '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.65);letter-spacing:.5px;">PENDING</span>');
+        var statusBadge=isCI
+          ? '<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:10px;background:rgba(0,200,100,.12);border:1px solid rgba(0,200,100,.4);color:#00C864;letter-spacing:.5px;">✓ CHECKED IN</span>'
+          : '<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:10px;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.4);color:var(--gold);letter-spacing:.5px;">CONFIRMED</span>';
+        var amtText=(b.total===0?'FREE':'₹'+((b.total||0).toLocaleString('en-IN')));
+        card2.innerHTML=''
+          // Header: status + payment badges (right) — title row
+          +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">'
+          +'<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;">Booking</div>'
+          +'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+statusBadge+payBadge+'</div>'
           +'</div>'
-          +'<div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:6px;">'+sanitize(b.eventTitle||'—')+'</div>'
-          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:var(--muted);">'
-          +'<div>📅 '+sanitize(b.date||'')+'</div>'
-          +'<div>⏰ '+sanitize(b.time||'')+'</div>'
-          +'<div>🎟️ '+(b.entryType||'').toUpperCase()+'</div>'
-          +'<div style="color:var(--gold);font-weight:700;">'+( b.total===0?'FREE':'₹'+((b.total||0).toLocaleString('en-IN')))+'</div>'
+          // Event title — big + bold
+          +'<div style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:14px;line-height:1.25;">'+sanitize(b.eventTitle||'—')+'</div>'
+          // Guest info block (name/phone/email) — readable
+          +'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:14px;margin-bottom:12px;">'
+          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Guest</div>'
+          +'<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;">'+sanitize(b.name||'—')+'</div>'
+          +(b.phone?'<div style="font-size:13px;color:rgba(255,255,255,.75);margin-bottom:'+(b.email?'4px':'0')+';">📱 '+sanitize(b.phone)+'</div>':'')
+          +(b.email?'<div style="font-size:13px;color:rgba(255,255,255,.75);word-break:break-all;">✉️ '+sanitize(b.email)+'</div>':'')
           +'</div>'
-          // QR code per booking
-          +'<div style="text-align:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">'
-          +'<div id="qr-'+sanitize(b.ref||'x')+'" style="display:inline-block;padding:8px;background:#0C0C18;border-radius:8px;margin-bottom:5px;"></div>'
-          +'<div style="font-size:9px;color:var(--muted);">Show at entrance</div>'
+          // Booking facts grid: date, time, type, amount
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
+          +'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;">'
+          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Date</div>'
+          +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+sanitize(b.date||'—')+'</div>'
+          +'</div>'
+          +'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;">'
+          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Time</div>'
+          +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+sanitize(b.time||'—')+'</div>'
+          +'</div>'
+          +'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;">'
+          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Type</div>'
+          +'<div style="font-size:13px;font-weight:700;color:var(--text);">'+sanitize((b.entryType||'').toUpperCase()||'—')+'</div>'
+          +'</div>'
+          +'<div style="background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.25);border-radius:10px;padding:10px 12px;">'
+          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Amount</div>'
+          +'<div style="font-size:14px;font-weight:900;color:var(--gold);">'+amtText+'</div>'
+          +'</div>'
+          +'</div>'
+          // Ticket reference (own row, monospace, readable)
+          +'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;margin-bottom:14px;">'
+          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Ticket Reference</div>'
+          +'<div style="font-family:monospace;font-size:14px;font-weight:800;color:var(--gold);letter-spacing:1px;word-break:break-all;">'+sanitize(b.ref||'—')+'</div>'
+          +'</div>'
+          // QR — fat white quiet zone, scannable from 30cm+ (v3.81)
+          +'<div style="text-align:center;padding-top:6px;">'
+          +'<div style="display:inline-block;padding:28px;background:#FFFFFF;border-radius:14px;margin-bottom:10px;line-height:0;">'
+          +'<div id="qr-'+sanitize(b.ref||'x')+'" style="width:200px;height:200px;"></div>'
+          +'</div>'
+          +'<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;">Show at Entrance</div>'
           +'</div>';
         resultsDiv.appendChild(card2);
         // ── LOCAL QR (no external API)
@@ -4819,22 +4866,72 @@ function renderTableFloorPlan(){
     sheet.appendChild(handle);
 
     var isVip=table.vip;
-    var topRow=document.createElement('div');topRow.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;';
-    topRow.innerHTML='<div>'
-      +'<div style="font-size:22px;font-weight:900;color:var(--text);">'+table.id
-      +(isVip?'<span style="font-size:11px;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.4);color:var(--gold);padding:2px 8px;border-radius:6px;margin-left:10px;">★ VIP</span>':'')+'</div>'
-      +'<div style="font-size:12px;color:var(--muted);margin-top:4px;">'+_HOD_TABLES[activeFloor].label+' · '+table.seats+' seats · Tonight</div>'
-      +'</div>'
-      +'';
-    sheet.appendChild(topRow);
+    // 🆕 2026-05-27 v3.79 (Khushi LIVE-NIGHT) — booking sheet redesign:
+    // 1. Table ID centered + huge (gold, 56px), instantly readable across the
+    //    room so the customer knows exactly which table they're about to book.
+    // 2. Subtitle below the ID, no italics anywhere (Space Grotesk only).
+    // 3. CLOSE × pinned to top-right (absolute) so it doesn't compete with
+    //    the centered headline.
+    var closeRow=document.createElement('div');
+    closeRow.style.cssText='display:flex;justify-content:flex-end;margin:-8px -4px 4px;';
+    closeRow.innerHTML='<button type="button" id="hod-tbl-close" aria-label="Close" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:var(--text);font-size:20px;font-weight:900;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;font-family:var(--fs);">×</button>';
+    sheet.appendChild(closeRow);
+    var _closeBtn=closeRow.querySelector('#hod-tbl-close');
+    if(_closeBtn){_closeBtn.onclick=function(){S._selectedTable=null;var _bd=document.getElementById('tbl-backdrop');if(_bd)_bd.remove();hidePanel();renderFloor(bks);};}
+
+    var heroRow=document.createElement('div');
+    heroRow.style.cssText='text-align:center;margin-bottom:22px;font-family:var(--fs);';
+    heroRow.innerHTML=''
+      +'<div style="font-size:11px;letter-spacing:3px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Reserving Table</div>'
+      +'<div style="font-size:56px;line-height:1;font-weight:900;color:var(--gold);letter-spacing:2px;text-shadow:0 0 24px rgba(201,168,76,.35);">'+sanitize(table.id)+'</div>'
+      +(isVip?'<div style="display:inline-block;margin-top:10px;font-size:11px;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.4);color:var(--gold);padding:3px 10px;border-radius:6px;letter-spacing:1.5px;font-weight:800;">★ VIP TABLE</div>':'')
+      +'<div style="font-size:12px;color:var(--muted);margin-top:10px;letter-spacing:.5px;">'+sanitize(_HOD_TABLES[activeFloor].label)+' · '+table.seats+' seats</div>';
+    sheet.appendChild(heroRow);
 
     // Input fields
     var fcss='width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:var(--fs);outline:none;box-sizing:border-box;margin-bottom:10px;';
     var nameI=document.createElement('input');nameI.placeholder='Your Name *';nameI.style.cssText=fcss;
-    var phoneI=document.createElement('input');phoneI.placeholder='Phone Number *';phoneI.type='tel';phoneI.style.cssText=fcss;
-    var dateI=document.createElement('input');dateI.type='date';dateI.style.cssText=fcss;
-    var _td=new Date();dateI.value=_td.toISOString().split('T')[0];
-    dateI.min=_td.toISOString().split('T')[0];
+    // 🆕 v3.80 (Khushi LIVE-NIGHT) — international customers can pick their
+    // country code from a dropdown. +91 India default (vast majority of HOD's
+    // guests), with the common travel/expat codes listed (US/UK/UAE/SG/AU/
+    // Germany/France/Japan/China/Canada/Saudi/Qatar/Oman/Bahrain/Kuwait/
+    // Hong Kong/Malaysia/Thailand/Indonesia/Philippines/South Africa/Nigeria/
+    // Kenya/New Zealand/Switzerland/Netherlands/Italy/Spain/Russia/Brazil/Sri
+    // Lanka/Nepal/Bangladesh/Pakistan/Maldives). maxLength removed (10-digit
+    // cap only makes sense for India); we still strip non-digits.
+    var _hodCC=[['+91','IN'],['+1','US/CA'],['+44','UK'],['+971','UAE'],['+65','SG'],['+61','AU'],['+49','DE'],['+33','FR'],['+81','JP'],['+86','CN'],['+966','SA'],['+974','QA'],['+968','OM'],['+973','BH'],['+965','KW'],['+852','HK'],['+60','MY'],['+66','TH'],['+62','ID'],['+63','PH'],['+27','ZA'],['+234','NG'],['+254','KE'],['+64','NZ'],['+41','CH'],['+31','NL'],['+39','IT'],['+34','ES'],['+7','RU'],['+55','BR'],['+94','LK'],['+977','NP'],['+880','BD'],['+92','PK'],['+960','MV']];
+    var phoneWrap=document.createElement('div');
+    phoneWrap.style.cssText='display:flex;gap:8px;margin-bottom:10px;';
+    var ccI=document.createElement('select');
+    ccI.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 8px;color:var(--text);font-size:14px;font-family:var(--fs);font-weight:700;outline:none;box-sizing:border-box;flex:0 0 110px;cursor:pointer;';
+    _hodCC.forEach(function(c){var o=document.createElement('option');o.value=c[0];o.textContent=c[0]+' '+c[1];ccI.appendChild(o);});
+    ccI.value='+91';
+    var phoneI=document.createElement('input');phoneI.placeholder='Phone Number *';phoneI.type='tel';phoneI.inputMode='numeric';
+    phoneI.style.cssText=fcss+'margin-bottom:0;flex:1;';
+    phoneI.addEventListener('input',function(){this.value=this.value.replace(/\D/g,'').slice(0,15);});
+    phoneWrap.appendChild(ccI);phoneWrap.appendChild(phoneI);
+    // 🆕 2026-05-27 v3.87 (Khushi LIVE-NIGHT) — REVERTED v3.84/v3.85 custom
+    // picker per Khushi request. Back to the simple native <input type=date>
+    // with v3.82 LOCAL-date min + snap-back guard. Customer reverts to the
+    // pre-v3.84 UX they know works.
+    var dateI=document.createElement('input');dateI.type='date';
+    // 🆕 v3.89 — calendar glyph was invisible on dark theme (black-on-black).
+    // colorScheme:dark tells the browser to render the indicator on a dark
+    // background. The orange tint comes from a per-input <style> tag that
+    // recolors ::-webkit-calendar-picker-indicator (Chrome/Safari/Edge) so
+    // the date picker icon is the same vivid orange as the rest of the brand
+    // accent. dateI gets a unique class so the selector is scoped.
+    dateI.className='hod-date-input';
+    dateI.style.cssText=fcss+'color-scheme:dark;';
+    if(!document.getElementById('hod-date-css')){
+      var _ds=document.createElement('style');_ds.id='hod-date-css';
+      _ds.textContent='.hod-date-input::-webkit-calendar-picker-indicator{filter:invert(58%) sepia(95%) saturate(1850%) hue-rotate(360deg) brightness(100%) contrast(100%);opacity:1;cursor:pointer;font-size:20px;}.hod-date-input::-webkit-calendar-picker-indicator:hover{filter:invert(45%) sepia(95%) saturate(2200%) hue-rotate(360deg) brightness(105%);}';
+      document.head.appendChild(_ds);
+    }
+    var _td=new Date();
+    var _todayLocal=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
+    dateI.value=_todayLocal;dateI.min=_todayLocal;
+    dateI.addEventListener('change',function(){if(this.value && this.value<_todayLocal){this.value=_todayLocal;try{_rebuildArrival(this.value);}catch(_){}}});
     var sizeI=document.createElement('select');sizeI.style.cssText=fcss;
     for(var i=1;i<=table.seats;i++){var o=document.createElement('option');o.value=i;o.textContent=i+' Guest'+(i>1?'s':'');sizeI.appendChild(o);}
     sizeI.value=Math.min(2,table.seats);
@@ -4843,25 +4940,23 @@ function renderTableFloorPlan(){
     function _rebuildArrival(formDate){
       arrivalI.innerHTML='';
       var dao=document.createElement('option');dao.value='';dao.textContent='Estimated Arrival Time *';arrivalI.appendChild(dao);
-      // 🔴 2026-05-26 + 🆕 2026-05-27 v3.55 (Khushi 3:22am — booked 12 PM at
-      // 3 AM for a nightclub) — PAST-TIME GUARD now also respects EVENT START
-      // TIME. Floor for allowable slots = max(now+15min, event.time). So even
-      // if it's 3am and "12 PM today" is technically 9h future, a 12 PM slot
-      // gets blocked when the event starts at 9 PM. Fail-open on parse error.
+      // 🆕 2026-05-27 v3.78 (Khushi LIVE-NIGHT) — DROPPED event-start floor.
+      // Club opens at 12 PM and accepts walk-in tables from noon onward, so
+      // gating arrival slots by event.time (which was 8 PM) hid the entire
+      // afternoon. Floor is now ONLY "now+15min" when the chosen date is
+      // today — so a customer at 1 PM today still sees 1:30 PM, 2:00 PM, …
+      // but a customer at 11 PM no longer sees 12 PM. Future dates show the
+      // full 12 PM → 11:30 PM range with no filtering.
       var _now=new Date();
       var _todayIso=_now.toISOString().split('T')[0];
       var _isToday=(formDate===_todayIso);
       var _nowMin=_now.getHours()*60+_now.getMinutes()+15;
-      var _evStartMin=-1;
-      try{ if(ev && ev.time){ var _ems=_t2m(ev.time); if(_ems>=0) _evStartMin=_ems; } }catch(_){}
-      var _floorMin=Math.max(_nowMin, _evStartMin);
       _HOD_ALL_SLOTS.forEach(function(t){
-        try{ if(_isToday && _t2m(t)>=0 && _t2m(t)<_floorMin) return; }catch(_){}
+        try{ if(_isToday && _t2m(t)>=0 && _t2m(t)<_nowMin) return; }catch(_){}
         var ao=document.createElement('option');ao.value=t;ao.textContent=t;arrivalI.appendChild(ao);
       });
-      // Friendly hint if every slot for today is in the past / pre-event.
       if(_isToday && arrivalI.options.length<=1){
-        var no=document.createElement('option');no.value='';no.textContent=(_evStartMin>_nowMin?'Event starts later — pick tomorrow':'No slots left today — pick tomorrow');no.disabled=true;
+        var no=document.createElement('option');no.value='';no.textContent='No slots left today — pick tomorrow';no.disabled=true;
         arrivalI.appendChild(no);
       }
       if(!firestore||!formDate)return;
@@ -4892,7 +4987,7 @@ function renderTableFloorPlan(){
     confBtn.style.cssText='width:100%;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(201,168,76,.95),rgba(201,168,76,.65));border:none;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--fs);letter-spacing:.5px;';
     confBtn.textContent='Reserve '+table.id;
 
-    sheet.appendChild(nameI);sheet.appendChild(phoneI);sheet.appendChild(dateI);sheet.appendChild(sizeI);sheet.appendChild(emailI);sheet.appendChild(arrivalI);sheet.appendChild(errD);sheet.appendChild(confBtn);
+    sheet.appendChild(nameI);sheet.appendChild(phoneWrap);sheet.appendChild(dateI);sheet.appendChild(sizeI);sheet.appendChild(emailI);sheet.appendChild(arrivalI);sheet.appendChild(errD);sheet.appendChild(confBtn);
     bookPanel.appendChild(sheet);
     setTimeout(function(){nameI.focus();},300);
 
@@ -4905,14 +5000,24 @@ function renderTableFloorPlan(){
 
     confBtn.onclick=function(){
       var name=nameI.value.trim();
-      var phone=phoneI.value.trim().replace(/\D/g,'').slice(-10);
+      // 🆕 v3.80 — phone now carries country code (e.g. "+91 9611111261").
+      // India numbers still validated at 10 digits; international numbers
+      // accepted at ≥7 digits (E.164 lower bound) so we don't block legit
+      // overseas guests. Stored as "<cc> <digits>" so downstream WhatsApp /
+      // SMS sends can use it directly.
+      var cc=(ccI.value||'+91').trim();
+      var phoneDigits=phoneI.value.trim().replace(/\D/g,'');
+      var phone=cc+' '+phoneDigits;
       var ps=parseInt(sizeI.value);
       var email=emailI.value.trim();
       var arrival=arrivalI.value;
       var bookDate=dateI.value;
       if(!name){errD.textContent='Please enter your name.';errD.style.display='block';return;}
-      if(phone.length<10){errD.textContent='Please enter a valid 10-digit phone number.';errD.style.display='block';return;}
+      if(cc==='+91' && phoneDigits.length!==10){errD.textContent='Please enter a valid 10-digit Indian phone number.';errD.style.display='block';return;}
+      if(cc!=='+91' && phoneDigits.length<7){errD.textContent='Please enter a valid phone number for the selected country.';errD.style.display='block';return;}
       if(!bookDate){errD.textContent='Please select a date.';errD.style.display='block';return;}
+      // 🆕 v3.82 — final guard: reject past dates even if user typed past min.
+      if(bookDate<_todayLocal){errD.textContent='Please pick today or a future date.';errD.style.display='block';dateI.value=_todayLocal;try{_rebuildArrival(_todayLocal);}catch(_){}return;}
       if(!arrival){errD.textContent='Please select your arrival time.';errD.style.display='block';return;}
       confBtn.disabled=true;confBtn.textContent='Reserving…';
       if(!firestore){errD.textContent='Firebase not connected.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;return;}
@@ -7038,19 +7143,48 @@ function renderWalletPage(bookingRef){
               .then(function(snap){snap.forEach(function(d){d.ref.update({paymentStatus:'bill_requested',orderTotal:tt,tabTotal:tt});});}).catch(function(){});
             firestore.collection('covers').doc(cv.ref).set({paymentStatus:'bill_requested',orderTotal:tt},{merge:true}).catch(function(){});
           }
-          var infoBox=document.createElement('div');
-          infoBox.style.cssText='width:100%;padding:18px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(34,197,94,.06));border:1.5px solid rgba(34,197,94,.45);color:#F5F1E8;font-size:14px;font-weight:700;text-align:center;font-family:var(--fs);margin-bottom:12px;line-height:1.55;';
-          infoBox.innerHTML='<div style="font-size:24px;margin-bottom:6px;">🎫</div>'
-            +'<div style="font-size:12px;color:#22C55E;font-weight:900;letter-spacing:1.2px;margin-bottom:8px;">WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+'</div>'
-            +'<div style="font-size:15px;font-weight:900;color:#F5F1E8;">CAPTAIN WILL BE WITH YOU SHORTLY TO SETTLE THE BILL</div>'
-            +'<div style="font-size:11px;color:rgba(245,241,232,.7);font-weight:600;margin-top:8px;letter-spacing:.4px;">Bill amount \u20B9'+tt+' will be deducted from your wallet.</div>';
-          sheet.appendChild(infoBox);
-          var bkBtn0=document.createElement('button');
-          bkBtn0.style.cssText='width:100%;padding:12px;background:transparent;border:none;color:var(--muted);font-size:13px;cursor:pointer;font-family:var(--fs);';
-          bkBtn0.textContent='\u2190 Back to Menu';
-          bkBtn0.onclick=function(){overlay.remove();};
-          sheet.appendChild(bkBtn0);
-          overlay.appendChild(sheet);document.body.appendChild(overlay);
+          // 🆕 2026-05-27 v3.90 (Khushi LIVE-NIGHT) — GROUND-FLOOR TABLE
+          // BOOKINGS now get the SAME full settle flow as every other table
+          // booking: "CAPTAIN WILL BE WITH YOU SHORTLY" + feedback form +
+          // rate-us-on-Google + Thank-You with BACK TO EVENTS. Before, this
+          // wallet-funded gate dead-ended in an infoBox + "Back to Menu" so
+          // pre-credited HODTAB guests (ground-floor norm) never saw the
+          // feedback form. Captain already gets the alert because
+          // bill_requested was stamped above (lines 7141-7145) at modal show.
+          // We mirror the Pay-at-Table branch (line 7297+) so the UX is
+          // identical: stop the wallet listener, drop the checkout sheet,
+          // clear the inner shell, render showCaptainFeedback which shows
+          // the captain-on-way card + feedback stars + Google-rating flow.
+          // FAIL-OPEN: if showCaptainFeedback throws (renderer regression),
+          // we fall back to the legacy infoBox + Back-to-Menu so customer
+          // is never stranded on a blank screen.
+          if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
+          overlay.remove();
+          try{
+            inner.innerHTML='';
+            // Re-show the SETTLED banner so customer sees the wallet badge
+            // at the top before scrolling into the feedback form.
+            var _walletNote=document.createElement('div');
+            _walletNote.style.cssText='width:100%;padding:16px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(34,197,94,.06));border:1.5px solid rgba(34,197,94,.45);color:#F5F1E8;text-align:center;font-family:var(--fs);margin:18px 0 0;line-height:1.55;';
+            _walletNote.innerHTML='<div style="font-size:11px;color:#22C55E;font-weight:900;letter-spacing:1.2px;margin-bottom:6px;">\uD83C\uDFAB WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+' \u00B7 BILL \u20B9'+tt+'</div>'
+              +'<div style="font-size:12px;color:rgba(245,241,232,.75);font-weight:600;letter-spacing:.3px;">Captain will deduct the bill from your wallet on arrival.</div>';
+            inner.appendChild(_walletNote);
+            showCaptainFeedback(inner, tt, false);
+          }catch(_e){
+            // Fallback to legacy infoBox so we never strand the customer.
+            var infoBox=document.createElement('div');
+            infoBox.style.cssText='width:100%;padding:18px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(34,197,94,.06));border:1.5px solid rgba(34,197,94,.45);color:#F5F1E8;font-size:14px;font-weight:700;text-align:center;font-family:var(--fs);margin:18px 0;line-height:1.55;';
+            infoBox.innerHTML='<div style="font-size:24px;margin-bottom:6px;">\uD83C\uDFAB</div>'
+              +'<div style="font-size:12px;color:#22C55E;font-weight:900;letter-spacing:1.2px;margin-bottom:8px;">WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+'</div>'
+              +'<div style="font-size:15px;font-weight:900;color:#F5F1E8;">CAPTAIN WILL BE WITH YOU SHORTLY TO SETTLE THE BILL</div>'
+              +'<div style="font-size:11px;color:rgba(245,241,232,.7);font-weight:600;margin-top:8px;letter-spacing:.4px;">Bill amount \u20B9'+tt+' will be deducted from your wallet.</div>';
+            inner.appendChild(infoBox);
+            var _fbBack=document.createElement('a');
+            _fbBack.href='https://hodclub.in';
+            _fbBack.style.cssText='display:block;width:100%;padding:12px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#F5F1E8;font-family:var(--fs);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;margin-top:10px;';
+            _fbBack.textContent='\uD83C\uDFE0 Back to Events';
+            inner.appendChild(_fbBack);
+          }
           return;
         }
 
@@ -8433,13 +8567,15 @@ function renderHodFeedbackForm(container, total){
         // After Google tab opens → flip the card to the Thank-You state with
         // VIEW BILL + BACK TO EVENTS. We don't auto-redirect; customer
         // chooses where to go next.
-        var postRateHref=bookingRef?('/?wallet='+encodeURIComponent(bookingRef)+'&bill=1'):'/';
+        // 🆕 2026-05-27 v3.77 (Khushi LIVE-NIGHT) — dropped VIEW BILL CTA from
+        // the post-rating Thank-You card. Khushi: customer already paid + ate,
+        // re-opening the bill modal here just confuses them and feels like
+        // we're asking them to pay again. BACK TO EVENTS only — clean exit.
         var postRateHtml=''
           +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
           +'<div style="font-family:var(--fp);font-size:16px;font-weight:800;color:#C9A84C;margin-bottom:6px;">Thank you!</div>'
           +'<div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:14px;">Your rating means the world to us. See you at the next event.</div>'
           +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">'
-          +  '<a href="'+postRateHref+'" style="flex:1;min-width:130px;padding:11px 14px;border-radius:10px;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.4);color:#C9A84C;font-family:var(--fs);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;">📜 View Bill</a>'
           +  '<a href="https://hodclub.in" style="flex:1;min-width:130px;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#F5F1E8;font-family:var(--fs);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;">🏠 Back to Events</a>'
           +'</div>';
         var gBtn=result.querySelector('#hod-fb-google');
