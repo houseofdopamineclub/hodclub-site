@@ -2464,7 +2464,9 @@ function renderModal(){
   var desc=el('p','m-desc');desc.textContent=sanitize(ev.description||'');body.appendChild(desc);
   // 🔴 2026-05-26 (Khushi) — same T&C dropdown inside the booking modal so
   // a customer who skips the card and taps "BOOK NOW" still sees the rules.
-  body.appendChild(_buildHodTcBlock(ev.id+'-modal'));
+  // 🆕 2026-05-27 v3.56 (Khushi 3:49am paint arrow) — moved DOWN from here
+  // to sit RIGHT ABOVE the NUMBER OF TICKETS counter (line ~2895). See the
+  // matching _buildHodTcBlock call there. Removed from top of modal.
 
   // ── ONE PREMIUM SHARE BUTTON
   var evLink='https://hodclub.in?event='+encodeURIComponent(ev.id);
@@ -2889,6 +2891,16 @@ function renderStep1(ev){
      sit DIRECTLY under the STAG/COUPLE/LADIES chips. Was buried below
      name/email/phone → counter scrolled off-screen on mobile and customers
      missed that they could buy >1 ticket. Now: entry-type → qty → details. */
+  /* 🆕 2026-05-27 v3.56 (Khushi 3:49am paint arrow) — HOUSE RULES & T&C
+     dropdown lives RIGHT ABOVE the NUMBER OF TICKETS counter, so the
+     customer reviews club rules immediately before deciding qty + paying.
+     Was previously at the top of the modal (just under the description). */
+  try{
+    if(typeof _buildHodTcBlock==='function'){
+      var _tcUid=(ev&&ev.id?ev.id:'form')+'-form';
+      wrap.appendChild(_buildHodTcBlock(_tcUid));
+    }
+  }catch(_){}
   if(!_isGuestlist) wrap.appendChild(el('div','f-title',['NUMBER OF TICKETS']));
 
   // ── FIX 1: QTY — Pure DOM manipulation, zero re-render, zero scroll jump
@@ -4793,21 +4805,25 @@ function renderTableFloorPlan(){
     function _rebuildArrival(formDate){
       arrivalI.innerHTML='';
       var dao=document.createElement('option');dao.value='';dao.textContent='Estimated Arrival Time *';arrivalI.appendChild(dao);
-      // 🔴 2026-05-26 (Khushi) — PAST-TIME GUARD. When the selected date is
-      // TODAY, hide slots already in the past (with 15-min buffer so we
-      // don't accept a "6:00 PM" reservation typed at 6:14 PM). Fail-open:
-      // any parsing trouble → no filter applied, all slots shown.
+      // 🔴 2026-05-26 + 🆕 2026-05-27 v3.55 (Khushi 3:22am — booked 12 PM at
+      // 3 AM for a nightclub) — PAST-TIME GUARD now also respects EVENT START
+      // TIME. Floor for allowable slots = max(now+15min, event.time). So even
+      // if it's 3am and "12 PM today" is technically 9h future, a 12 PM slot
+      // gets blocked when the event starts at 9 PM. Fail-open on parse error.
       var _now=new Date();
       var _todayIso=_now.toISOString().split('T')[0];
       var _isToday=(formDate===_todayIso);
       var _nowMin=_now.getHours()*60+_now.getMinutes()+15;
+      var _evStartMin=-1;
+      try{ if(ev && ev.time){ var _ems=_t2m(ev.time); if(_ems>=0) _evStartMin=_ems; } }catch(_){}
+      var _floorMin=Math.max(_nowMin, _evStartMin);
       _HOD_ALL_SLOTS.forEach(function(t){
-        try{ if(_isToday && _t2m(t)>=0 && _t2m(t)<_nowMin) return; }catch(_){}
+        try{ if(_isToday && _t2m(t)>=0 && _t2m(t)<_floorMin) return; }catch(_){}
         var ao=document.createElement('option');ao.value=t;ao.textContent=t;arrivalI.appendChild(ao);
       });
-      // Friendly hint if every slot for today is in the past.
+      // Friendly hint if every slot for today is in the past / pre-event.
       if(_isToday && arrivalI.options.length<=1){
-        var no=document.createElement('option');no.value='';no.textContent='No slots left today — pick tomorrow';no.disabled=true;
+        var no=document.createElement('option');no.value='';no.textContent=(_evStartMin>_nowMin?'Event starts later — pick tomorrow':'No slots left today — pick tomorrow');no.disabled=true;
         arrivalI.appendChild(no);
       }
       if(!firestore||!formDate)return;
@@ -5063,8 +5079,14 @@ function _showTableModal(table, floorKey){
         var _todayIso=_now.toISOString().split('T')[0];
         var _isToday=(selEv&&selEv.date===_todayIso);
         var _nowMin=_now.getHours()*60+_now.getMinutes()+15;
+        /* 🆕 2026-05-27 v3.55 — also gate by EVENT START TIME. A nightclub
+           opening at 9 PM should not show 12 PM slots even when "12 PM today"
+           is technically future at 3 AM. */
+        var _evStartMin=-1;
+        try{ if(selEv && selEv.time && typeof _t2m==='function'){ var _ems=_t2m(selEv.time); if(_ems>=0) _evStartMin=_ems; } }catch(_){}
+        var _floorMin=Math.max(_nowMin, _evStartMin);
         var _visible=_slots.filter(function(t){
-          try{ if(_isToday && typeof _t2m==='function' && _t2m(t)>=0 && _t2m(t)<_nowMin) return false; }catch(_){}
+          try{ if(_isToday && typeof _t2m==='function' && _t2m(t)>=0 && _t2m(t)<_floorMin) return false; }catch(_){}
           return true;
         });
         if(_visible.length===0){
