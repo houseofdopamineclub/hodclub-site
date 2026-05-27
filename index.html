@@ -5433,10 +5433,23 @@ function renderWalletPage(bookingRef){
       };
     }
 
-    // Expiry check — date-based or expiresAt
+    // Expiry check — date-based or expiresAt.
+    // 🆕 2026-05-27 v3.65 (Khushi LIVE-NIGHT) — was using calendar UTC date
+    // (toISOString) but HOD runs OPERATIONAL NIGHTS noon→noon IST. At 6am IST
+    // calendar is already next-day but the event night is still running until
+    // noon → fresh entry-only bookings for "tonight" showed "Wallet Expired"
+    // because cv.date="2026-05-26" < todayUTC="2026-05-27". Now mirror POS
+    // getOperationalNightStr(): before noon IST → use yesterday's local date.
+    // Second guard: NEVER show expired for a wallet that's never been
+    // activated AND has no orders (entry-only pre-check-in case) — the screen
+    // should fall through to the door/check-in waiting state instead.
     var _cvDate2=cv.date||cv.eventDate||(cv.activatedAt?cv.activatedAt.split('T')[0]:'');
-    var _todayStr2=new Date().toISOString().split('T')[0];
-    var _isWalletExpired=(cv.expiresAt&&new Date(cv.expiresAt)<new Date())||(_cvDate2&&_cvDate2<_todayStr2);
+    var _opNow=new Date();
+    var _opAnchor=new Date(_opNow);
+    if(_opNow.getHours()<12){_opAnchor.setDate(_opAnchor.getDate()-1);}
+    var _todayStr2=_opAnchor.getFullYear()+'-'+String(_opAnchor.getMonth()+1).padStart(2,'0')+'-'+String(_opAnchor.getDate()).padStart(2,'0');
+    var _hasActivity=Number(cv.coverActivated||0)>0||Number(cv.coverBalance||0)>0||(Array.isArray(cv.tabRounds)&&cv.tabRounds.length>0)||cv.paymentStatus==='paid';
+    var _isWalletExpired=_hasActivity&&((cv.expiresAt&&new Date(cv.expiresAt)<new Date())||(_cvDate2&&_cvDate2<_todayStr2));
     if(_isWalletExpired){
       var expDiv=document.createElement('div');
       expDiv.style.cssText='text-align:center;padding:40px 20px;color:var(--muted);';
