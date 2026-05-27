@@ -6896,6 +6896,21 @@ function renderWalletPage(bookingRef){
       }
       renderRoundsHistory();
 
+      // 🆕 2026-05-27 v3.67 (Khushi LIVE-NIGHT) — auto-open the Bill Preview
+      // modal when the wallet is opened with `?bill=1` (used by the
+      // post-Google-rating "VIEW BILL" CTA on the feedback card). One-shot
+      // guarded so subsequent Firestore snapshot re-renders don't keep
+      // popping the modal back open.
+      try{
+        if(!window.__hodBillAutoOpened){
+          var _qs=new URLSearchParams(window.location.search||'');
+          if(_qs.get('bill')==='1'){
+            window.__hodBillAutoOpened=true;
+            setTimeout(function(){ try{ showBillOnlyModal(); }catch(_){} },300);
+          }
+        }
+      }catch(_){ }
+
       // 🆕 2026-05-20 (Khushi) — read-only Bill Preview modal for the
       // customer side. Mirrors captain CaptainMode.tsx BillPreviewModal:
       // HOD header, table/guest meta, ITEMS list, SUBTOTAL · SC · CGST ·
@@ -8371,18 +8386,34 @@ function renderHodFeedbackForm(container, total){
         +  '<a href="/" style="flex:1;min-width:130px;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#F5F1E8;font-family:var(--fs);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;">🏠 Back to Events</a>'
         +'</div>';
       if(isHappy){
+        // 🆕 2026-05-27 v3.67 (Khushi LIVE-NIGHT) — Pre-Google card shows ONLY
+        // the "Rate us on Google" button (no VIEW BILL / BACK TO EVENTS yet).
+        // After they tap it, the card flips to a Thank-You state and reveals
+        // VIEW BILL (opens existing bill-preview modal via ?bill=1 deep-link)
+        // and BACK TO EVENTS (hodclub.in). Stops customers escape-hatching to
+        // the wallet without rating.
         result.innerHTML=''
           +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
           +'<div style="font-family:var(--fp);font-size:16px;font-weight:800;color:#C9A84C;margin-bottom:6px;">Glad you loved it!</div>'
-          +'<div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:14px;">Would you take 30 seconds to share that on Google? It genuinely helps a small team like ours.</div>'
-          +'<a id="hod-fb-google" href="https://g.page/r/CczYuUNkvmDgEBM/review" target="_blank" rel="noopener" style="display:inline-block;padding:12px 22px;background:#fff;color:#1a73e8;border-radius:10px;font-family:var(--fs);font-size:13px;font-weight:900;letter-spacing:.4px;text-decoration:none;border:1px solid #dadce0;box-shadow:0 2px 6px rgba(0,0,0,.25);">⭐ Rate us on Google</a>'
-          +ctaRowHtml;
-        // Schedule auto-redirect ~1.5s after the Google tab opens, so the
-        // customer comes back here to their wallet (not a blank thank-you).
+          +'<div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:14px;">If you love HOD, take 30 seconds to rate us on Google.</div>'
+          +'<a id="hod-fb-google" href="https://g.page/r/CczYuUNkvmDgEBM/review" target="_blank" rel="noopener" style="display:inline-block;padding:12px 22px;background:#fff;color:#1a73e8;border-radius:10px;font-family:var(--fs);font-size:13px;font-weight:900;letter-spacing:.4px;text-decoration:none;border:1px solid #dadce0;box-shadow:0 2px 6px rgba(0,0,0,.25);">⭐ Rate us on Google</a>';
+        // After Google tab opens → flip the card to the Thank-You state with
+        // VIEW BILL + BACK TO EVENTS. We don't auto-redirect; customer
+        // chooses where to go next.
+        var postRateHref=bookingRef?('/?wallet='+encodeURIComponent(bookingRef)+'&bill=1'):'/';
+        var postRateHtml=''
+          +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
+          +'<div style="font-family:var(--fp);font-size:16px;font-weight:800;color:#C9A84C;margin-bottom:6px;">Thank you!</div>'
+          +'<div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:14px;">Your rating means the world to us. See you at the next event.</div>'
+          +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">'
+          +  '<a href="'+postRateHref+'" style="flex:1;min-width:130px;padding:11px 14px;border-radius:10px;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.4);color:#C9A84C;font-family:var(--fs);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;">📜 View Bill</a>'
+          +  '<a href="https://hodclub.in" style="flex:1;min-width:130px;padding:11px 14px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#F5F1E8;font-family:var(--fs);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;">🏠 Back to Events</a>'
+          +'</div>';
         var gBtn=result.querySelector('#hod-fb-google');
         if(gBtn){
           gBtn.addEventListener('click',function(){
-            try{ setTimeout(function(){ try{ window.location.href=walletHref; }catch(_){} },1500); }catch(_){}
+            // Flip the card after a short beat so the Google tab pops first.
+            try{ setTimeout(function(){ try{ result.innerHTML=postRateHtml; }catch(_){} },600); }catch(_){}
           });
         }
       }else{
