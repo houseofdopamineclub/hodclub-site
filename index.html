@@ -5040,17 +5040,27 @@ function renderTableFloorPlan(){
       }).then(function(ref2){
         // Create covers doc so wallet link works
         if(firestore){
-          // 🆕 2026-05-27 v3.42 (Khushi) — floor-picker tables (TBL-XXX) also
-          // pre-credit wallet with tier price. Mirrors HODTAB flow at ~3570.
-          var _tp = (table.vip ? ((ev&&ev.vipPrice)||15000) : ((ev&&ev.table4Price)||5000));
+          // 🆕 2026-05-27 v3.92 (Khushi LIVE-NIGHT) — REVERTED v3.42 auto
+          // pre-credit for floor-picker TBL-* bookings. Floor-picker is a
+          // FREE reservation (no online payment, no Razorpay) — pre-stamping
+          // coverActivated/coverBalance = ₹5000/₹15000 created a phantom
+          // wallet balance that magically appeared after door check-in
+          // (Khushi: "i clicked checking in.... and then wallet was
+          // automatically created with 5000 rs for a normal table"). HODTAB
+          // (event-prepaid Table-for-4 / VVIP-Table-for-6) flow at ~3570 is
+          // a SEPARATE path and DID involve money — it keeps its pre-credit.
+          // Here we create a ₹0 cover doc only so the wallet link resolves
+          // and the door modal can pre-fill guest details; the door girl is
+          // the only one who can put money into this wallet (manual ACTIVATE
+          // COVER step). Fail-open: cover-doc write is fire-and-forget.
           firestore.collection('covers').doc(ref2).set({
             ref:ref2,bookingId:ref2,name:name,phone:phone,email:email,
-            coverBalance:_tp,coverActivated:_tp,coverUsed:0,
-            transactions:[{type:'table_prepay',amount:_tp,at:new Date().toISOString()}],
+            coverBalance:0,coverActivated:0,coverUsed:0,
+            transactions:[],
             eventTitle:ev?ev.title:'',
             tableId:table.id,floor:activeFloor,floorLabel:_HOD_TABLES[activeFloor].label,
             date:today,arrivalTime:arrival,partySize:ps,
-            isTableBooking:true,tablePrePaid:true,createdAt:new Date().toISOString()
+            isTableBooking:true,tablePrePaid:false,createdAt:new Date().toISOString()
           }).catch(function(){});
         }
         return ref2;
