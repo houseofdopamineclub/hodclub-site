@@ -1192,17 +1192,41 @@ function startMenuOverridesListener(){
   if(window.__hodMenuOvAttached) return;
   window.__hodMenuOvAttached=true;
   var _polling=false, _intervalId=null;
+  // 🆕 2026-05-27 v3.103 (Khushi LIVE) — `_liveUnsub` holds the onSnapshot
+  // detach handle for the ACTIVE wallet-menu live listener. Attached only
+  // while `#wallet-menu-content` is mounted (bar-tab customer browsing menu);
+  // detached when they navigate away. While attached, the 30s poll is gated
+  // off (would duplicate reads). See `_syncLiveListener` below for lifecycle.
+  var _liveUnsub=null;
+  var _stopped=false;
+  function _menuMounted(){
+    try{ return !!document.getElementById('wallet-menu-content'); }
+    catch(e){ return false; }
+  }
+  function _applyOverrides(snap){
+    var next={};
+    snap.forEach(function(d){ next[d.id] = d.data() || {}; });
+    POS_MENU_OVERRIDES = next;
+    try{
+      var mc = document.getElementById('wallet-menu-content');
+      if(mc && typeof window.__rebuildWalletMenu === 'function') window.__rebuildWalletMenu();
+    }catch(e){}
+  }
   function _refresh(){
-    if(_polling) return; _polling=true;
+    if(_stopped) return;
+    if(_polling) return;
+    // While live onSnapshot is attached, it's already keeping POS_MENU_OVERRIDES
+    // fresh — a parallel get() would just duplicate reads.
+    if(_liveUnsub) return;
+    // 🆕 2026-05-27 v3.103 — also skip the poll when the wallet menu UI is NOT
+    // mounted. Customers on home / events / booking pages never see menu data,
+    // so spending reads on them is pure waste. This matches the v3.39 menu-
+    // firestore poll's `_menuUiVisible()` gate at line ~810 (same predicate).
+    if(!_menuMounted()) return;
+    _polling=true;
     try{
       firestore.collection('posMenuOverrides').get().then(function(snap){
-        var next={};
-        snap.forEach(function(d){ next[d.id] = d.data() || {}; });
-        POS_MENU_OVERRIDES = next;
-        try{
-          var mc = document.getElementById('wallet-menu-content');
-          if(mc && typeof window.__rebuildWalletMenu === 'function') window.__rebuildWalletMenu();
-        }catch(e){}
+        _applyOverrides(snap);
       }).catch(function(err){ console.warn('posMenuOverrides poll error', err); })
         .then(function(){ _polling=false; });
     }catch(e){ _polling=false; console.warn('posMenuOverrides refresh threw', e); }
@@ -1213,6 +1237,75 @@ function startMenuOverridesListener(){
       if(document.visibilityState==='visible') _refresh();
     }, 30000);
   }
+  // 🆕 2026-05-27 v3.103 (Khushi LIVE) — INSTANT menu sync while the customer
+  // is on the wallet menu page. Khushi LIVE: "menu on wallets are not synching,
+  // refresh is required". She toggled an OOS item in admin → expected instant
+  // disappearance on the wallet; got nothing until manual refresh.
+  //
+  // ROOT CAUSE — v3.39's pure-poll model has 30s max staleness AND skips
+  // entirely when tab is backgrounded. Two open tabs on the same desktop
+  // (admin + wallet) often BOTH stay visible per the browser's
+  // visibilityState API, so the visibilitychange foreground-rebind never
+  // fires either. Khushi sees stale menu indefinitely until she hits refresh.
+  //
+  // FIX — re-introduce onSnapshot, but scope its lifetime tightly:
+  //   • Attach ONLY when `#wallet-menu-content` is mounted (i.e. customer
+  //     is actively browsing the menu; bar-tab patrons only).
+  //   • Detach the moment that element is removed (navigation away).
+  //   • While attached, the 30s poll is gated off (_refresh no-ops).
+  //
+  // COST MATH — at peak (~30 wallets simultaneously on the menu page):
+  //   30 viewers × 30 docs initial-read = 900 reads (one-time on mount)
+  // + 30 viewers × ~10 OOS/disc toggles/hr × 1 delta-doc = 300 reads/hr
+  //   = ~1,200 reads/hr total — DRAMATICALLY cheaper than the 30s poll
+  //   it replaces (~108K reads/hr at the same viewer count) AND instant.
+  //
+  // 🛟 FAIL-OPEN — if onSnapshot errors (auth blip, network), POS_MENU_OVERRIDES
+  // keeps its last good value and the 30s poll resumes the next tick because
+  // _liveUnsub is reset to null in the error path. Customer worst-case sees
+  // stale-by-30s menu, not blank menu.
+  function _attachLive(){
+    if(_stopped) return;
+    if(_liveUnsub) return;
+    try{
+      _liveUnsub = firestore.collection('posMenuOverrides').onSnapshot(
+        function(snap){ _applyOverrides(snap); },
+        function(err){
+          console.warn('posMenuOverrides live listener error', err);
+          try{ if(_liveUnsub){ _liveUnsub(); } }catch(e){}
+          _liveUnsub = null;
+        }
+      );
+    }catch(e){
+      console.warn('posMenuOverrides live attach threw', e);
+      _liveUnsub = null;
+    }
+  }
+  function _detachLive(){
+    if(!_liveUnsub) return;
+    try{ _liveUnsub(); }catch(e){}
+    _liveUnsub = null;
+  }
+  function _syncLiveListener(){
+    if(_stopped){ _detachLive(); return; }
+    var mounted = _menuMounted();
+    var visible = document.visibilityState === 'visible';
+    if(mounted && visible){ _attachLive(); }
+    else { _detachLive(); }
+  }
+  // Poll the DOM every 2s — cheap (no Firestore reads), and 2s of menu-mount
+  // latency before the live listener attaches is invisible to the customer
+  // (they'll see updates from the initial _refresh prime anyway).
+  var _liveSyncIv = setInterval(_syncLiveListener, 2000);
+  // Also re-sync immediately on visibility change so tab-away detaches the
+  // listener instantly (don't pay reads for a backgrounded customer). Store
+  // the handler so `_menuOvUnsub` can remove it cleanly (otherwise a retained
+  // listener could fan back out and reattach after teardown).
+  var _liveVisHandler=null;
+  try{
+    _liveVisHandler = function(){ _syncLiveListener(); };
+    document.addEventListener('visibilitychange', _liveVisHandler);
+  }catch(e){}
   function _stopPoll(){
     if(!_intervalId) return;
     clearInterval(_intervalId); _intervalId=null;
@@ -1241,7 +1334,16 @@ function startMenuOverridesListener(){
     });
   }catch(e){}
   // Keep _menuOvUnsub as a stop handle so future re-init paths don't double up
-  _menuOvUnsub = function(){ _stopPoll(); };
+  _menuOvUnsub = function(){
+    _stopped=true;
+    _stopPoll();
+    _detachLive();
+    if(_liveSyncIv){ clearInterval(_liveSyncIv); _liveSyncIv=null; }
+    if(_liveVisHandler){
+      try{ document.removeEventListener('visibilitychange', _liveVisHandler); }catch(e){}
+      _liveVisHandler=null;
+    }
+  };
 }
 
 // ── localStorage fallback (works without Firebase)
@@ -5927,7 +6029,13 @@ function renderWalletPage(bookingRef){
     });
     inner.appendChild(tabBar2);
 
-    var menuContent=document.createElement('div');inner.appendChild(menuContent);
+    // 🆕 2026-05-27 v3.103 — id required by `startMenuOverridesListener`
+    // (line ~1192) so it can attach the scoped onSnapshot live-sync ONLY
+    // while a customer is actively browsing the wallet menu. Without this
+    // id, `_syncLiveListener` could never find the element and the live
+    // listener never attached — onSnapshot was effectively dead code.
+    // Same id is also used by the v3.39 menu-firestore poll gate (line ~807).
+    var menuContent=document.createElement('div');menuContent.id='wallet-menu-content';inner.appendChild(menuContent);
 
     function currentMenuData(){
       // 🔴 2026-05-13 (Khushi) — scoped to active tab (see oninput above).
