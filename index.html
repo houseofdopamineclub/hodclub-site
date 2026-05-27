@@ -1348,23 +1348,24 @@ function startEventsListener(){
     var d=new Date(Date.now()-7*24*60*60*1000);
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   })();
-  // 🆕 v3.62 — explicit {includeMetadataChanges:false} so the listener
-  // doesn't fire on local pending-write echoes / from-cache flags. Default
-  // is false in the JS SDK but being explicit prevents a future SDK
-  // upgrade from accidentally flipping us into the noisy mode.
-  var unsub=firestore.collection('events').where('date','>=',_cutoff).orderBy('date').onSnapshot({includeMetadataChanges:false},function(snap){
-    var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
-    // 🆕 2026-05-21 (Khushi flicker fix) — Firestore re-fires this listener
-    // on every metadata change + every doc write across the venue. Each fire
-    // used to trigger a full render() which replaces every DOM node — even
-    // with atomic replaceChildren, every .ev-card / shimmer-text element
-    // re-mounts and its CSS animation restarts from frame 0, producing a
-    // visible blink on the customer's phone. Now we diff cached vs incoming;
-    // if the JSON payload hasn't actually changed we skip the re-render. The
-    // listener itself stays attached so real updates (new event, stock change,
-    // admin edit) still propagate instantly. 🛟 FALLBACK: if the diff throws,
-    // we fall through to the old re-render-everything path so we can never
-    // miss a legitimate update.
+  // 🆕 2026-05-27 v3.95 (Khushi LIVE: "READS GOING IN MILLIONS, WANT 100-200K") —
+  // CONVERTED from onSnapshot → one-shot get() + 30s poll + visibilitychange.
+  // Same pattern as the v3.39 menu fix at line ~773. Each event doc write
+  // (stock decrement on every booking, admin edit, _autoResetStockIfNeeded
+  // writeback) was previously broadcast to EVERY connected customer phone
+  // as a Firestore read — and `sold` is incremented on EVERY booking, so
+  // 1000 bookings × 134 connected wallets = 134K reads/night JUST from
+  // event stock pushes. Plus 5000 page loads × 14 events on initial
+  // subscribe = 70K reads. Easily 200K-500K reads/day from this one
+  // listener. Polling drops that to ~14 events × 120 polls/hr × visible
+  // customers only (most are backgrounded most of the time).
+  //
+  // 🛟 FAIL-OPEN: get() error → keep S._cachedEvents intact, customer
+  // never sees a blank page (events still render from localStorage cache).
+  // S._eventsUnsub is now a function that clears the interval + removes
+  // the visibilitychange handler, so re-calling startEventsListener (or
+  // future cleanup callers) behaves identically to the old unsub.
+  var _process=function(evs){
     try{
       var _newJson=JSON.stringify(evs);
       if(S._cachedEventsJson===_newJson){
@@ -1375,33 +1376,47 @@ function startEventsListener(){
     }catch(_e){/* fall through to render */}
     S._cachedEvents=evs;
     // ── v3: 6AM nightly stock auto-reset for table inventory.
-    // Operational night rolls over at 6AM. If an event's lastStockResetDate !== today,
-    // restore gf4Stock & vvipStock to their _gf4Default / _vvipDefault snapshots.
-    // Skipped for past events (date < today) so we never resurrect stock for old gigs.
     try{ _autoResetStockIfNeeded(evs); }catch(e){console.warn('[HOD] stock reset:',e);}
     // Sync to localStorage
     var db=getDB();db.events=evs;try{saveDB(db);}catch(e){}
     // Re-render on home or admin events tab.
-    // CRITICAL: Also re-render if a modal is pending but the event isn't loaded yet
-    // (this happens when user lands via ?event=... ad link before Firestore sync).
     if(S.view==='home'){
       if(!S.modal){render();}
       else {
-        // Modal pending — check if its event is now available
         var modalEvExists=evs.some(function(e){return e.id===S.modal;});
         if(modalEvExists){render();}
       }
     }
     else if(S.view==='admin'&&S.adminTab==='events'){
       render();
-      // 🔴 2026-05-16 (Khushi request) — auto-clean past events from Firestore
-      // when admin opens Events tab. Once per session. See cleanupPastEventsFromFirestore.
       try{ cleanupPastEventsFromFirestore(); }catch(e){console.warn('[HOD] past cleanup:',e);}
     }
-  },function(err){
-    console.warn('Events listener error:',err);
-  });
-  S._eventsUnsub=unsub;
+  };
+  var _refresh=function(){
+    try{
+      firestore.collection('events').where('date','>=',_cutoff).orderBy('date').get()
+        .then(function(snap){
+          var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
+          _process(evs);
+        })
+        .catch(function(err){console.warn('[HOD] events poll failed:',err&&err.message);});
+    }catch(e){console.warn('[HOD] events _refresh threw:',e);}
+  };
+  // Prime immediately so first paint has data.
+  _refresh();
+  // 30s poll while tab is visible (no work when backgrounded — same
+  // visibilityState gate as the menu poll at line ~822).
+  var _iv=setInterval(function(){
+    if(document.visibilityState==='visible') _refresh();
+  },30000);
+  // Foreground refresh — customer who came back after backgrounding
+  // sees fresh stock counts within <1s.
+  var _vis=function(){ if(document.visibilityState==='visible') _refresh(); };
+  try{ document.addEventListener('visibilitychange',_vis); }catch(e){}
+  S._eventsUnsub=function(){
+    try{ clearInterval(_iv); }catch(e){}
+    try{ document.removeEventListener('visibilitychange',_vis); }catch(e){}
+  };
   S._eventsListenerStarted=true;
 }
 
