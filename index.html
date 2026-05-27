@@ -797,21 +797,35 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     }catch(e){console.warn('[menu-firestore] _refreshOneTab threw',tab,e);}
   }
   function _refreshAllTabs(db){ TABS.forEach(function(t){_refreshOneTab(db,t);}); }
+  // 🆕 v3.62 — gate menu polls behind UI visibility. Customers sitting on
+  // the home / event list / ticket booking page have no need for live menu
+  // data; the menu only renders inside `#wallet-menu-content`. Without
+  // this gate, every connected customer was costing 4 collections × 120
+  // polls/hr = 480 reads/hr each for data they never see. 134 customers
+  // × 480 = 64K reads/hr eliminated.
+  function _menuUiVisible(){
+    try{ return !!document.getElementById('wallet-menu-content'); }
+    catch(e){ return false; }
+  }
+  function _maybeRefreshAllTabs(db){
+    if(!_menuUiVisible()) return;
+    _refreshAllTabs(db);
+  }
   function attach(){
     if(_attached)return;
     if(!window.firebase||!window.firebase.apps||window.firebase.apps.length===0)return;
     try{
       var db=window.firebase.firestore();
       _attached=true;
-      _refreshAllTabs(db);  // prime
+      _maybeRefreshAllTabs(db);  // prime (only if menu UI mounted)
       if(!_menuPollIv){
         _menuPollIv=setInterval(function(){
-          if(document.visibilityState==='visible') _refreshAllTabs(db);
+          if(document.visibilityState==='visible') _maybeRefreshAllTabs(db);
         },30000);
       }
       try{
         document.addEventListener('visibilitychange',function(){
-          if(document.visibilityState==='visible') _refreshAllTabs(db);
+          if(document.visibilityState==='visible') _maybeRefreshAllTabs(db);
         });
       }catch(e){}
       console.log('[menu-firestore] poll-mode menu refresh attached (30s + foreground)');
@@ -1205,13 +1219,23 @@ function startMenuOverridesListener(){
   }
   _refresh();      // (a) prime
   _startPoll();    // (b) 30s while visible
-  // (c) refresh on foreground return
+  // (c) refresh on foreground return — 🆕 v3.62 — 2s debounce so rapid
+  // phone lock/unlock (or iOS Safari's spurious visibility flips) don't
+  // fan out to 134 customers × N flips/sec = burst reads. The first flip
+  // schedules a single refresh 2s later; subsequent flips inside that
+  // window reset the timer. _stopPoll still fires immediately on hide.
+  var _visTimer=null;
   try{
     document.addEventListener('visibilitychange', function(){
       if(document.visibilityState==='visible'){
-        _refresh();
-        _startPoll();
+        if(_visTimer){clearTimeout(_visTimer);}
+        _visTimer=setTimeout(function(){
+          _visTimer=null;
+          _refresh();
+          _startPoll();
+        }, 2000);
       } else {
+        if(_visTimer){clearTimeout(_visTimer);_visTimer=null;}
         _stopPoll();   // (d) pause while hidden
       }
     });
@@ -1324,7 +1348,11 @@ function startEventsListener(){
     var d=new Date(Date.now()-7*24*60*60*1000);
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   })();
-  var unsub=firestore.collection('events').where('date','>=',_cutoff).orderBy('date').onSnapshot(function(snap){
+  // 🆕 v3.62 — explicit {includeMetadataChanges:false} so the listener
+  // doesn't fire on local pending-write echoes / from-cache flags. Default
+  // is false in the JS SDK but being explicit prevents a future SDK
+  // upgrade from accidentally flipping us into the noisy mode.
+  var unsub=firestore.collection('events').where('date','>=',_cutoff).orderBy('date').onSnapshot({includeMetadataChanges:false},function(snap){
     var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
     // 🆕 2026-05-21 (Khushi flicker fix) — Firestore re-fires this listener
     // on every metadata change + every doc write across the venue. Each fire
@@ -4221,6 +4249,16 @@ function showSocialProofToast(booking,evTitle){
   showToast(fn+' just booked '+eLabel+' for '+sanitize(evTitle||'HOD'),'social',4200);
 }
 function startSocialProofListener(){
+  // 🆕 v3.62 — DEAD CODE GUARD. This function has no call site in the
+  // current build but a future refactor could re-wire it accidentally.
+  // Attaching the live listener inside would create a permanent
+  // bookings.onSnapshot per customer × 134 customers = guaranteed read
+  // leak. Hard-return at the top so even if wired in error, nothing
+  // attaches. If you NEED social-proof toasts again, port the logic to
+  // the same poll + visibilitychange pattern as posMenuOverrides above.
+  return;
+  // eslint-disable-next-line no-unreachable
+  // (original body preserved below for future port reference)
   if(!firestore)return;
   // Clean up existing listener to prevent duplicates
   if(S._socialUnsub){try{S._socialUnsub();}catch(e){}}
@@ -7567,9 +7605,20 @@ function renderWalletPage(bookingRef){
             // (covers/guestlist refs handled by other listeners). Fires
             // synchronously alongside the existing breadcrumb logic so we
             // don't add latency to the pre-arrival path.
+            // 🆕 v3.62 — debounce the releasedReservations get() by 300ms.
+            // Firestore returns transient empty snapshots while a write is
+            // applying; without the debounce a busy table fires get() 2-3
+            // times in quick succession per wallet load. The marker doc
+            // (if it exists) is by definition stable — 300ms latency is
+            // imperceptible vs. the pre-arrival paint that's already on
+            // screen. Cancel pending check on any future non-empty snap.
             if(!commitToThankYou && (bookingRef.indexOf('TBL-')===0||bookingRef.indexOf('AGG-')===0)){
               try{
-                firestore.collection('releasedReservations').doc(bookingRef).get().then(function(mDoc){
+                if(window.__hodRelChkTimer){clearTimeout(window.__hodRelChkTimer);}
+                window.__hodRelChkTimer=setTimeout(function(){
+                  window.__hodRelChkTimer=null;
+                  if(_seenLiveDocThisSession) return; // live doc arrived during the wait
+                  firestore.collection('releasedReservations').doc(bookingRef).get().then(function(mDoc){
                   if(!mDoc.exists) return;
                   // Marker found — render thank-you screen immediately,
                   // overriding any pre-arrival paint that may already be
@@ -7586,7 +7635,8 @@ function renderWalletPage(bookingRef){
                   +'</div>';
                   try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
                   try{ wireCallWaiterFallback(bookingRef); }catch(e){}
-                }).catch(function(){});
+                  }).catch(function(){});
+                }, 300);
               }catch(e){}
             }
             if(!commitToThankYou && hasVisited){
