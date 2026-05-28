@@ -39,15 +39,34 @@ input::placeholder{color:#666;}
 .gate-btn:active{transform:scale(.98);}
 .gate-btn:disabled{opacity:.4;}
 .gate-foot{margin-top:18px;text-align:center;font-size:11px;color:#666;letter-spacing:.5px;}
+/* Customer strip — name/phone/email/table shown FIRST (Khushi 28-May) */
+.cust-strip{background:linear-gradient(135deg,#B83227 0%,#7a1f17 60%,#1a0a08 100%);border-bottom:1.5px solid var(--gold);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;}
+.cust-strip .cs-tbl{font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);letter-spacing:2px;padding:4px 10px;border:1.5px solid var(--gold);border-radius:8px;background:rgba(0,0,0,.35);}
+.cust-strip .cs-fld{display:flex;flex-direction:column;line-height:1.15;min-width:0;}
+.cust-strip .cs-lbl{font-size:9px;font-weight:900;letter-spacing:1.4px;color:rgba(242,199,68,.78);text-transform:uppercase;}
+.cust-strip .cs-val{font-size:13px;font-weight:800;color:#fff;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
 /* Menu */
-.menu-wrap{padding:14px 14px 110px;}
+.menu-wrap{padding:14px 14px 220px;}
+/* Search — exact mirror of wallet .wv-search (index.html line 5518) */
+.menu-search{width:100%;padding:14px 16px;border-radius:12px;background:#0A0A0A;border:2px solid rgba(242,199,68,.45);color:var(--text);font-size:14px;font-weight:600;font-family:var(--fs);outline:none;box-sizing:border-box;letter-spacing:.3px;margin-bottom:12px;-webkit-appearance:none;}
+.menu-search:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(242,199,68,.12);}
+.menu-search::placeholder{color:rgba(245,241,232,.5);}
 .menu-tabs{display:flex;gap:8px;margin-bottom:14px;}
 .menu-tab{flex:1;padding:14px 6px;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;border:2px solid var(--red);background:transparent;color:var(--text);transition:all .15s;}
 .menu-tab.on{background:var(--gold);border-color:var(--gold);color:#0A0A0A;}
-.menu-subrow{display:flex;gap:6px;overflow-x:auto;padding:4px 0 12px;margin-bottom:8px;}
-.menu-subrow::-webkit-scrollbar{display:none;}
-.menu-subchip{flex-shrink:0;padding:8px 13px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border:1.5px solid rgba(242,199,68,.3);background:transparent;color:var(--text);}
-.menu-subchip.on{background:rgba(242,199,68,.15);border-color:var(--gold);color:var(--gold);}
+/* Subchip — exact mirror of wallet .wv-subchip (index.html line 5559) */
+.menu-subrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px;padding:0 4px;}
+.menu-subchip{padding:7px 12px;border-radius:6px;background:transparent;border:1px solid rgba(242,199,68,.45);color:rgba(245,241,232,.85);font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--fs);transition:all .12s;}
+.menu-subchip.on{border-color:var(--gold);color:var(--gold);background:rgba(242,199,68,.08);box-shadow:0 0 0 1px rgba(242,199,68,.4);}
+/* Order summary card — shows selected items with +/- ABOVE place button */
+.cart-card{background:#141414;border:1.5px solid rgba(242,199,68,.4);border-radius:14px;margin:18px 0 14px;padding:14px 16px;}
+.cart-card .cc-h{font-family:var(--fp);font-size:16px;font-weight:900;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}
+.cart-card .cc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px dashed rgba(242,199,68,.18);}
+.cart-card .cc-row:first-of-type{border-top:none;}
+.cart-card .cc-name{flex:1;font-size:12px;font-weight:800;color:var(--text);letter-spacing:.3px;text-transform:uppercase;}
+.cart-card .cc-px{font-size:11px;color:rgba(245,241,232,.6);font-weight:700;margin-top:2px;}
+.cart-card .cc-total{margin-top:12px;padding-top:12px;border-top:1.5px solid rgba(242,199,68,.3);display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--gold);letter-spacing:.5px;text-transform:uppercase;}
+.cart-card .cc-total b{font-family:var(--fp);font-size:18px;}
 .menu-section{font-family:var(--fp);font-size:18px;font-weight:900;color:var(--text);margin:10px 0 14px;letter-spacing:.5px;}
 .item-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 4px;border-bottom:1px dashed rgba(184,50,39,.22);}
 .item-name{font-size:13px;font-weight:800;color:var(--text);letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;}
@@ -329,36 +348,88 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
   }
 
   // ── MENU (read-only, FOOD/LIQUOR/NAB/SMOKE tabs matching wallet)
-  var activeTab = "food", activeSub = 0;
+  var activeTab = "food", activeSub = 0, menuQuery = "";
+
+  // ── Search filter (mirrors wallet _filterMenu line 5961-5978). Word-tokenised
+  // case-insensitive substring on item name + category. Returns same shape.
+  function _norm(s){ return String(s||"").toLowerCase(); }
+  function filterMenu(cats, q){
+    var words = _norm(q).split(/\s+/).filter(Boolean);
+    if (!words.length) return cats;
+    var out = [];
+    (cats||[]).forEach(function(c){
+      var hits = (c.items||[]).filter(function(it){
+        var hay = _norm(it.n) + " " + _norm(c.cat);
+        for (var i=0;i<words.length;i++) if (hay.indexOf(words[i]) < 0) return false;
+        return true;
+      });
+      if (hits.length) out.push({ cat:c.cat, items:hits });
+    });
+    return out;
+  }
+
   function renderMenu(){
     var c = document.getElementById("content");
     var TABS = [["food","Food"],["liquor","Liquor"],["nab","NAB"],["smoke","Smoke"]];
     var tabsHtml = TABS.map(function(t){
       return '<button class="menu-tab'+(t[0]===activeTab?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>';
     }).join("");
-    c.innerHTML = '<div class="menu-wrap"><div class="menu-tabs">'+tabsHtml+'</div><div id="menu-body"></div></div><div id="place-mount"></div>';
+    // 👤 Customer strip — TABLE + NAME + PHONE + EMAIL shown FIRST (Khushi spec).
+    var emailHtml = (customer.email||"").trim()
+      ? '<div class="cs-fld"><div class="cs-lbl">Email</div><div class="cs-val">'+esc(customer.email)+'</div></div>'
+      : '';
+    c.innerHTML = ''
+      + '<div class="cust-strip">'
+      +   '<div class="cs-tbl">'+esc(TID)+'</div>'
+      +   '<div class="cs-fld"><div class="cs-lbl">Guest</div><div class="cs-val">'+esc(customer.name)+'</div></div>'
+      +   '<div class="cs-fld"><div class="cs-lbl">Phone</div><div class="cs-val">'+esc(customer.phone)+'</div></div>'
+      +   emailHtml
+      + '</div>'
+      + '<div class="menu-wrap">'
+      +   '<input id="menu-search" class="menu-search" type="search" placeholder="🔍 Search menu — food, drinks, brands…" autocomplete="off"/>'
+      +   '<div class="menu-tabs">'+tabsHtml+'</div>'
+      +   '<div id="menu-body"></div>'
+      +   '<div id="cart-mount"></div>'
+      + '</div>'
+      + '<div id="place-mount"></div>';
     c.querySelectorAll(".menu-tab").forEach(function(b){
-      b.onclick = function(){ activeTab = b.getAttribute("data-tab"); activeSub = 0; renderMenu(); };
+      b.onclick = function(){ activeTab = b.getAttribute("data-tab"); activeSub = 0; menuQuery = ""; renderMenu(); };
     });
+    var srch = document.getElementById("menu-search");
+    srch.value = menuQuery;
+    srch.oninput = function(){ menuQuery = srch.value; renderMenuBody(); };
     renderMenuBody();
+    renderCartCard();
     renderPlaceBar();
   }
 
   function renderMenuBody(){
     var body = document.getElementById("menu-body");
+    if (!body) return;
     var cats = menuData[activeTab] || [];
-    // Drop OOS-only categories
+    // Drop OOS-only categories (override-driven + item.oos field).
     var visible = [];
     cats.forEach(function(c){
-      var items = (c.items||[]).filter(function(it){ var ov = ovFor(it.n); return !(ov && ov.outOfStock); });
+      var items = (c.items||[]).filter(function(it){
+        if (it && it.oos === true) return false;
+        var ov = ovFor(it.n); return !(ov && ov.outOfStock);
+      });
       if (items.length) visible.push({ cat: c.cat, items: items });
     });
-    if (!visible.length) { body.innerHTML = '<div class="empty-msg">No items in this section yet.<br/>Try another tab above.</div>'; return; }
-    if (activeSub >= visible.length) activeSub = 0;
-    var subHtml = visible.map(function(c,i){
+    // 🔍 Search applies AFTER OOS filter, scoped to active tab (matches wallet line 6005).
+    var filtered = menuQuery.trim() ? filterMenu(visible, menuQuery) : visible;
+    if (!filtered.length) {
+      var msg = menuQuery.trim()
+        ? 'No items match "'+esc(menuQuery)+'".<br/>Try a different word, or clear the search.'
+        : 'No items in this section yet.<br/>Try another tab above.';
+      body.innerHTML = '<div class="empty-msg">'+msg+'</div>';
+      return;
+    }
+    if (activeSub >= filtered.length) activeSub = 0;
+    var subHtml = filtered.map(function(c,i){
       return '<button class="menu-subchip'+(i===activeSub?' on':'')+'" data-sub="'+i+'">'+esc(c.cat)+'</button>';
     }).join("");
-    var section = visible[activeSub];
+    var section = filtered[activeSub];
     var rowsHtml = section.items.map(function(it){
       var key = section.cat+"|"+it.n;
       var qty = cart[key] ? cart[key].qty : 0;
@@ -395,12 +466,15 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     body.querySelectorAll(".menu-subchip").forEach(function(ch){
       ch.onclick = function(){ activeSub = parseInt(ch.getAttribute("data-sub"),10); renderMenuBody(); };
     });
-    // Wire +/-/Add buttons
+    // Wire +/-/Add buttons. Look up item across ALL visible (not filtered) cats,
+    // so qty updates work even when the user has typed a search (item still in
+    // same category, just filtered list).
     body.querySelectorAll("[data-act]").forEach(function(b){
       b.onclick = function(){
         var act = b.getAttribute("data-act"); var key = b.getAttribute("data-key");
         var parts = key.split("|"); var cat = parts[0]; var name = parts.slice(1).join("|");
-        var item = section.items.find(function(it){ return it.n === name; });
+        var srcCat = visible.find(function(vc){ return vc.cat === cat; });
+        var item = srcCat ? srcCat.items.find(function(it){ return it.n === name; }) : null;
         if (!item) return;
         if (act === "add" || act === "inc") {
           if (!cart[key]) cart[key] = { n: name, p: effPrice(name, item.p), cat: cat, qty: 0 };
@@ -408,15 +482,53 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
         } else if (act === "dec") {
           if (cart[key]) { cart[key].qty--; if (cart[key].qty <= 0) delete cart[key]; }
         }
-        renderMenuBody(); renderPlaceBar();
+        renderMenuBody(); renderCartCard(); renderPlaceBar();
       };
     });
   }
 
   function cartTotal(){ var t=0,c=0; Object.keys(cart).forEach(function(k){ t += (cart[k].p||0)*cart[k].qty; c += cart[k].qty; }); return {total:t, count:c}; }
 
+  // 🛒 Order summary card — selected items with +/-, ABOVE the place button
+  // (Khushi spec: "ONCE THEY SELECT THE ITEMS IT SHOWULD SHOW BELOW WITH + AND -").
+  function renderCartCard(){
+    var mount = document.getElementById("cart-mount");
+    if (!mount) return;
+    var t = cartTotal();
+    if (t.count === 0) { mount.innerHTML = ""; return; }
+    var rows = Object.keys(cart).map(function(k){
+      var it = cart[k];
+      return '<div class="cc-row">'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div class="cc-name">'+esc(it.n)+'</div>'
+        +   '<div class="cc-px">\u20b9'+it.p+' × '+it.qty+' = \u20b9'+(it.p*it.qty)+'</div>'
+        + '</div>'
+        + '<div class="qctl">'
+        +   '<button class="qbtn" data-cact="dec" data-ckey="'+esc(k)+'">−</button>'
+        +   '<span class="qspan">'+it.qty+'</span>'
+        +   '<button class="qbtn" data-cact="inc" data-ckey="'+esc(k)+'">+</button>'
+        + '</div>'
+        + '</div>';
+    }).join("");
+    mount.innerHTML = '<div class="cart-card">'
+      + '<div class="cc-h"><span>🛒 Your Order</span><span style="font-size:11px;color:rgba(245,241,232,.6);">'+t.count+' item'+(t.count===1?'':'s')+'</span></div>'
+      + rows
+      + '<div class="cc-total"><span>Total</span><b>\u20b9'+t.total+'</b></div>'
+      + '</div>';
+    mount.querySelectorAll("[data-cact]").forEach(function(b){
+      b.onclick = function(){
+        var act = b.getAttribute("data-cact"); var key = b.getAttribute("data-ckey");
+        if (!cart[key]) return;
+        if (act === "inc") cart[key].qty++;
+        else if (act === "dec") { cart[key].qty--; if (cart[key].qty <= 0) delete cart[key]; }
+        renderMenuBody(); renderCartCard(); renderPlaceBar();
+      };
+    });
+  }
+
   function renderPlaceBar(){
     var mount = document.getElementById("place-mount");
+    if (!mount) return;
     var t = cartTotal();
     if (t.count === 0) { mount.innerHTML = ""; return; }
     mount.innerHTML = '<div class="place-bar">'
@@ -438,7 +550,7 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
       if (btn) { btn.disabled = false; btn.style.opacity = ""; }
       if (ok) {
         cart = {};
-        renderMenuBody(); renderPlaceBar();
+        renderMenuBody(); renderCartCard(); renderPlaceBar();
         showOverlay({
           icon:"🛎", title:"Captain on the way!",
           msg:"Your order has been sent. <b>Captain will be with you shortly...</b><br/><br/>Please wait at <b>TABLE "+esc(TID)+"</b>.",
