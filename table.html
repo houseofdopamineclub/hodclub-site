@@ -137,8 +137,12 @@ input::placeholder{color:#666;}
   // built-in shortlist if Firestore is unreachable; place-order surfaces a
   // visible error overlay (never silent).
   // ═══════════════════════════════════════════════════════════════════════
+  // 🔴 v3.139.3 (Khushi 28-May) — API key copied VERBATIM from working wallet
+  // (index.html line 550). Previous key was invalid → anon sign-in failed →
+  // Rules v2 blocked posMenuOverrides reads → OOS sync silently dead. Browser
+  // console showed: "Firebase: Error (auth/api-key-not-valid...)".
   var FIREBASE_CFG = {
-    apiKey:            "AIzaSyB02hbmFjqUTuPFKvJq0pYJP6_X7HXJN98",
+    apiKey:            "AIzaSyB6YfM1DyVq0NTEWXpMdbCYuWwr9cWwbt0",
     authDomain:        "hod-tickets.firebaseapp.com",
     projectId:         "hod-tickets",
     storageBucket:     "hod-tickets.firebasestorage.app",
@@ -212,8 +216,14 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     fb = firebase;
     // App Check FIRST (before any Firestore call)
     try {
-      if (APPCHECK_SITE_KEY && firebase.appCheck) {
-        firebase.appCheck().activate(APPCHECK_SITE_KEY, true);
+      // 🔴 v3.139.3 — MUST wrap site key in ReCaptchaEnterpriseProvider (compat
+      // SDK won't accept bare string). Pattern copied verbatim from wallet
+      // (index.html line 1129).
+      if (APPCHECK_SITE_KEY && APPCHECK_SITE_KEY.length > 10 && firebase.appCheck) {
+        firebase.appCheck().activate(
+          new firebase.appCheck.ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY),
+          true
+        );
         console.log("✅ App Check active (reCAPTCHA Enterprise)");
       }
     } catch(e){ console.warn("App Check init skipped:", e.message); }
@@ -377,13 +387,18 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
       +      '<div class="gv-tag">House of Dopamine</div>'
       +      '<div class="gv-addr">📍 36, 4th B Cross, 5th Block,<br/>Koramangala, Bengaluru, Karnataka 560095</div>'
       +    '</div>'
-      + '  <div class="gate-tablebadge">📍 TABLE ' + esc(TID) + '</div>'
+      + '  <div class="gate-tablebadge-wrap" style="text-align:center;margin-bottom:22px;">'
+      +      '<div class="gate-tablebadge">TABLE ' + esc(TID) + '</div>'
+      +    '</div>'
       + '  <div class="gate-title">Welcome to HOD</div>'
-      + '  <div class="gate-sub">Quick details so our captain knows who to serve. We won\'t spam you — promise.</div>'
+      + '  <div class="gate-sub">Quick details so our captain knows who to serve.</div>'
       + '  <div class="gate-field"><label class="gate-label" for="g-name">Your Name *</label>'
       + '    <input id="g-name" class="gate-input" type="text" autocomplete="name" maxlength="60" placeholder="e.g. RAHUL"/></div>'
-      + '  <div class="gate-field"><label class="gate-label" for="g-phone">Phone *</label>'
-      + '    <input id="g-phone" class="gate-input" type="tel" autocomplete="tel" inputmode="numeric" maxlength="15" placeholder="10-digit mobile"/></div>'
+      + '  <div class="gate-field"><label class="gate-label" for="g-phone">Phone * <span style="color:#777;font-weight:600;font-size:11px;letter-spacing:.5px;">(include +country code)</span></label>'
+      + '    <div style="display:flex;gap:8px;">'
+      +      '<input id="g-phone-cc" class="gate-input" type="tel" inputmode="tel" maxlength="5" placeholder="+91" value="+91" style="flex:0 0 84px;text-align:center;font-weight:900;color:var(--gold);"/>'
+      +      '<input id="g-phone" class="gate-input" type="tel" autocomplete="tel" inputmode="numeric" maxlength="14" placeholder="mobile number" style="flex:1;"/>'
+      +    '</div></div>'
       + '  <div class="gate-field"><label class="gate-label" for="g-email">Email <span style="color:#555;font-weight:600;">(optional)</span></label>'
       + '    <input id="g-email" class="gate-input" type="email" autocomplete="email" maxlength="80" placeholder="optional"/></div>'
       + '  <button id="g-go" class="gate-btn">Start Ordering →</button>'
@@ -391,15 +406,23 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
       + '</div>';
     document.getElementById("g-go").onclick = function(){
       var nameEl = document.getElementById("g-name");
+      var ccEl = document.getElementById("g-phone-cc");
       var phoneEl = document.getElementById("g-phone");
       var emailEl = document.getElementById("g-email");
       var name = (nameEl.value||"").trim();
-      var phone = (phoneEl.value||"").trim().replace(/\D/g,"");
+      // Country code: strip everything except digits, then prefix "+". Default "+91".
+      var ccDigits = (ccEl.value||"").replace(/\D/g,"");
+      var cc = ccDigits ? "+"+ccDigits : "+91";
+      var phoneDigits = (phoneEl.value||"").replace(/\D/g,"");
       var email = (emailEl.value||"").trim();
       var bad = false;
       if (name.length < 2) { nameEl.classList.add("err"); bad = true; } else nameEl.classList.remove("err");
-      if (phone.length < 10) { phoneEl.classList.add("err"); bad = true; } else phoneEl.classList.remove("err");
+      // Accept 7–14 local digits (covers IN 10-digit, US 10-digit, UK 10-11, etc).
+      if (phoneDigits.length < 7) { phoneEl.classList.add("err"); bad = true; } else phoneEl.classList.remove("err");
+      if (!ccDigits) { ccEl.classList.add("err"); bad = true; } else ccEl.classList.remove("err");
       if (bad) return;
+      // Store as canonical international format: "+CC LOCAL" (single string in `phone`).
+      var phone = cc + " " + phoneDigits;
       customer = { name: name, phone: phone, email: email };
       try { sessionStorage.setItem("hod_tbl_cust_"+TID, JSON.stringify(customer)); } catch(e){}
       // Lazy-load menu now (saves reads if customer bounces on form).
@@ -598,9 +621,8 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     var t = cartTotal();
     if (t.count === 0) {
       mount.innerHTML = '<div class="place-bar">'
-        + '<button class="place-btn" id="place-go-empty" style="background:var(--gold);color:#0A0A0A;">'
+        + '<button class="place-btn" id="place-go-empty" style="background:var(--gold);color:#0A0A0A;justify-content:center;">'
         +   '<span>📋 Place Order</span>'
-        +   '<span class="place-amt">Tap when ready</span>'
         + '</button></div>';
       document.getElementById("place-go-empty").onclick = function(){
         showOverlay({
