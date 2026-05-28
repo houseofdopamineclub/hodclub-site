@@ -439,6 +439,8 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
+<!-- 🆕 2026-05-28 v3.137 — L1 App Check (reCAPTCHA Enterprise). Compat CDN. -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js" crossorigin="anonymous"></script>
 <!-- PWA Meta Tags -->
 <meta name="theme-color" content="#C9A84C"/>
 <meta name="mobile-web-app-capable" content="yes"/>
@@ -552,6 +554,14 @@ var FIREBASE_CONFIG = {
   messagingSenderId: "86190418978",
   appId:             "1:86190418978:web:8b1eafc784c4986fd3ee7b"
 };
+
+// 🆕 2026-05-28 v3.137 — L1 App Check (reCAPTCHA Enterprise) site key.
+// PASTE the reCAPTCHA Enterprise site key from Google Cloud Console here
+// (Security → reCAPTCHA Enterprise → your key → COPY ID). Leave as empty
+// string until you have it — App Check init silently skips when blank, so
+// nothing breaks.
+// 🛟 SAFE TO DEPLOY EMPTY: same effect as not having App Check at all.
+var APPCHECK_SITE_KEY = "";
 
 // ══════════════════════════════════════════════════
 // ⚡ RAZORPAY KEY — PASTE YOUR KEY HERE
@@ -1108,6 +1118,23 @@ function initFirebase(){
     if(typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('PASTE')){
       if(!firebase.apps || firebase.apps.length===0){
         firebase.initializeApp(FIREBASE_CONFIG);
+        // 🆕 2026-05-28 v3.137 — L1 App Check (reCAPTCHA Enterprise).
+        // Must run AFTER initializeApp but BEFORE firestore()/auth() are
+        // touched, so the very first request carries an App Check token.
+        // 🛟 FAIL-OPEN: if key blank, compat SDK missing, or activate()
+        // throws — we swallow and continue. Customer site STILL WORKS,
+        // just without the App Check header (= today's state).
+        try{
+          if(APPCHECK_SITE_KEY && APPCHECK_SITE_KEY.length > 10 && firebase.appCheck){
+            firebase.appCheck().activate(
+              new firebase.appCheck.ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY),
+              true  // isTokenAutoRefreshEnabled
+            );
+            console.log('✅ App Check active (reCAPTCHA Enterprise)');
+          } else {
+            console.log('ℹ️ App Check skipped — APPCHECK_SITE_KEY blank');
+          }
+        }catch(e){ console.warn('App Check init failed (continuing without):', e); }
       }
       firestore = firebase.firestore();
       firebase.auth().onAuthStateChanged(function(user){
