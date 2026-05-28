@@ -47,7 +47,7 @@ input::placeholder{color:#666;}
 .gate-foot{margin-top:18px;text-align:center;font-size:12px;color:#777;letter-spacing:.5px;line-height:1.5;}
 /* Customer strip — top-LEFT vertical list (Khushi 28-May v3.139.1: "make sure its like list on top left") */
 .cust-strip{background:linear-gradient(135deg,#B83227 0%,#7a1f17 60%,#1a0a08 100%);border-bottom:1.5px solid var(--gold);padding:12px 14px;display:flex;align-items:flex-start;gap:12px;}
-.cust-strip .cs-tbl{font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);letter-spacing:2px;padding:6px 11px;border:1.5px solid var(--gold);border-radius:8px;background:rgba(0,0,0,.35);flex-shrink:0;line-height:1;align-self:flex-start;}
+.cust-strip .cs-tbl{font-family:var(--fs);font-size:16px;font-weight:900;color:var(--gold);letter-spacing:1.5px;padding:7px 12px;border:1.5px solid var(--gold);border-radius:8px;background:rgba(0,0,0,.35);flex-shrink:0;line-height:1;align-self:flex-start;}
 .cust-strip .cs-list{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1;}
 .cust-strip .cs-fld{display:flex;align-items:baseline;gap:8px;line-height:1.15;min-width:0;}
 .cust-strip .cs-lbl{font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(242,199,68,.85);text-transform:uppercase;flex-shrink:0;min-width:48px;}
@@ -59,7 +59,7 @@ input::placeholder{color:#666;}
 .menu-search:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(242,199,68,.12);}
 .menu-search::placeholder{color:rgba(245,241,232,.5);}
 .menu-tabs{display:flex;gap:8px;margin-bottom:14px;}
-.menu-tab{flex:1;padding:14px 6px;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;border:2px solid var(--red);background:transparent;color:var(--text);transition:all .15s;}
+.menu-tab{flex:1;padding:14px 6px;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;border:2px solid var(--gold);background:transparent;color:var(--text);transition:all .15s;}
 .menu-tab.on{background:var(--gold);border-color:var(--gold);color:#0A0A0A;}
 /* Subchip — exact mirror of wallet .wv-subchip (index.html line 5559) */
 .menu-subrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px;padding:0 4px;}
@@ -264,39 +264,76 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
   }
 
   // ═══ LIVE POS-MENU-OVERRIDES LISTENER ═══
-  // Mirrors wallet pattern: onSnapshot for INSTANT OOS/discount sync (overrides
-  // docs are tiny, toggle frequently). Detached when tab hidden to keep reads
-  // bounded — read cost ≈ 1 read per override doc per change × visible phones.
-  var _ovrUnsub = null;
-  function attachOverridesListener(){
+  // 🔴 v3.139.2 (Khushi 28-May) — HARDENED after Khushi reported OOS sync still
+  // failing even after refresh. Three changes vs v3.139:
+  //   (a) Wait for anonymous auth BEFORE attaching onSnapshot (rules require
+  //       request.auth != null → without auth, snapshot silently no-ops).
+  //   (b) Immediate get() prime so OOS is right on first paint (onSnapshot has
+  //       a small delivery delay that made the bug feel like "even refresh doesn't").
+  //   (c) Belt-and-suspenders 30s poll while tab visible (covers the case where
+  //       onSnapshot hangs due to network NAT/proxy quirks).
+  // Expose `window.__hodTblDbg` so Khushi can paste `__hodTblDbg()` in console
+  // to see {overrideCount, lastSync, sample} for diagnosis.
+  var _ovrUnsub = null, _ovrPollId = null, _ovrLastSync = null;
+  function _applyOverrideSnap(s){
+    var next = {};
+    s.forEach(function(d){ next[String(d.id)] = d.data()||{}; });
+    menuOverrides = next;
+    _ovrLastSync = new Date().toISOString();
+    console.log("[overrides] applied", Object.keys(next).length, "docs at", _ovrLastSync);
+    if (document.getElementById("menu-body")) renderMenuBody();
+  }
+  function _primeOverrides(){
+    if (!db) return;
+    db.collection("posMenuOverrides").get().then(function(s){
+      _applyOverrideSnap(s);
+    }).catch(function(err){
+      console.warn("[overrides] prime get() failed:", err.code||"", err.message);
+    });
+  }
+  function _attachLive(){
     if (!db || _ovrUnsub) return;
     try {
-      _ovrUnsub = db.collection("posMenuOverrides").onSnapshot(function(s){
-        try {
-          // 🔴 2026-05-28 (Khushi LIVE) — KEY BY SLUG, not uppercase name.
-          // POS writes doc IDs via menuOverrideKey() (firestore.ts line 514):
-          //   "Old Monk 90ml" → "old-monk-90ml" (lowercase, alnum-only, hyphenated).
-          // Prior code keyed by `name.toUpperCase()` so the lookup NEVER matched
-          // → OOS toggles from the admin menu editor were invisible on the table-QR
-          // page. Match the wallet/captain/bar convention by using the raw doc.id
-          // as the key, and slugify the lookup-side name to match.
-          menuOverrides = {};
-          s.forEach(function(d){ menuOverrides[String(d.id)] = d.data()||{}; });
-          if (document.getElementById("menu-body")) renderMenuBody();
-        } catch(e){ console.warn("[overrides] apply failed", e.message); }
-      }, function(err){ console.warn("[overrides] listener error", err.message); });
-    } catch(e){ console.warn("[overrides] attach threw", e.message); }
+      _ovrUnsub = db.collection("posMenuOverrides").onSnapshot(
+        function(s){ try { _applyOverrideSnap(s); } catch(e){ console.warn("[overrides] apply threw", e.message); } },
+        function(err){ console.warn("[overrides] live listener error:", err.code||"", err.message); _ovrUnsub = null; }
+      );
+    } catch(e){ console.warn("[overrides] attach threw", e.message); _ovrUnsub = null; }
+  }
+  function attachOverridesListener(){
+    if (!db) return;
+    // Wait for anon auth before attaching — rules v2+ may require auth != null
+    // on posMenuOverrides reads, and onSnapshot fires zero updates if denied.
+    var ready = function(){
+      _primeOverrides();
+      _attachLive();
+      if (!_ovrPollId) {
+        _ovrPollId = setInterval(function(){
+          if (document.visibilityState === "visible" && !_ovrUnsub) _primeOverrides();
+        }, 30000);
+      }
+    };
+    try {
+      if (firebase.auth().currentUser) ready();
+      else firebase.auth().onAuthStateChanged(function(u){ if (u) ready(); });
+    } catch(e){ ready(); }
   }
   function detachOverridesListener(){
     if (_ovrUnsub) { try { _ovrUnsub(); } catch(e){} _ovrUnsub = null; }
+    if (_ovrPollId) { try { clearInterval(_ovrPollId); } catch(e){} _ovrPollId = null; }
   }
   try {
     document.addEventListener("visibilitychange", function(){
       if (document.visibilityState === "hidden") detachOverridesListener();
-      else if (customer && db) attachOverridesListener();
+      else if (customer && db) { attachOverridesListener(); _primeOverrides(); }
     });
     window.addEventListener("pagehide", detachOverridesListener);
   } catch(e){}
+  // Diagnostic helper — paste `__hodTblDbg()` in browser console.
+  window.__hodTblDbg = function(){
+    var k = Object.keys(menuOverrides);
+    return { count: k.length, lastSync: _ovrLastSync, sample: k.slice(0,5).map(function(x){return x+" → "+JSON.stringify(menuOverrides[x]);}), live: !!_ovrUnsub, polling: !!_ovrPollId };
+  };
 
   // 🔴 Slug matches POS menuOverrideKey() (firestore.ts line 514) — must stay in sync.
   function _slug(name){ return String(name||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,""); }
@@ -338,7 +375,7 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
       + '  <div class="gate-venue">'
       +      '<div class="gv-brand">HOD</div>'
       +      '<div class="gv-tag">House of Dopamine</div>'
-      +      '<div class="gv-addr">📍 #15, 1st Floor, 80 Feet Road,<br/>Koramangala 4th Block, Bengaluru — 560034</div>'
+      +      '<div class="gv-addr">📍 36, 4th B Cross, 5th Block,<br/>Koramangala, Bengaluru, Karnataka 560095</div>'
       +    '</div>'
       + '  <div class="gate-tablebadge">📍 TABLE ' + esc(TID) + '</div>'
       + '  <div class="gate-title">Welcome to HOD</div>'
@@ -551,19 +588,27 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     });
   }
 
-  // 🆕 v3.139.1 (Khushi 28-May) — ALWAYS render the place bar, even at 0 items,
-  // so the customer always SEES that ordering is one tap away. When empty,
-  // button is disabled + dashed gold outline + "Add items to enable" hint.
+  // 🆕 v3.139.2 (Khushi 28-May) — ALWAYS render the place bar, NEVER disabled.
+  // When cart is empty, tap shows a friendly "Add items first" popup so the
+  // customer isn't confused why nothing happened. Once items added, button
+  // turns full gold + shows count + total.
   function renderPlaceBar(){
     var mount = document.getElementById("place-mount");
     if (!mount) return;
     var t = cartTotal();
     if (t.count === 0) {
       mount.innerHTML = '<div class="place-bar">'
-        + '<button class="place-btn empty" disabled>'
+        + '<button class="place-btn" id="place-go-empty" style="background:var(--gold);color:#0A0A0A;">'
         +   '<span>📋 Place Order</span>'
-        +   '<span class="place-hint">Add items to enable →</span>'
+        +   '<span class="place-amt">Tap when ready</span>'
         + '</button></div>';
+      document.getElementById("place-go-empty").onclick = function(){
+        showOverlay({
+          icon:"🛒", title:"Add items first",
+          msg:"Please <b>add items to your order</b> by tapping the red <b>ADD +</b> buttons on the menu.<br/><br/>Once you've picked what you'd like, tap PLACE ORDER again.",
+          btn:"OK, got it"
+        });
+      };
       return;
     }
     mount.innerHTML = '<div class="place-bar">'
