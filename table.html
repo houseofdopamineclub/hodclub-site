@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="robots" content="noindex,nofollow,noarchive,nosnippet"/>
+<title>HOD · Table Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Space+Grotesk:wght@400;500;700;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --black:#0A0A0A;--card:#141414;--surface:#1F1F1F;
+  --gold:#F2C744;--red:#B83227;--red-deep:#7a1f17;
+  --text:#F5F1E8;--muted:#9A9A9A;
+  --fp:'Playfair Display',serif;--fs:'Space Grotesk',sans-serif;
+}
+html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:0;}
+button{font-family:var(--fs);cursor:pointer;border:none;outline:none;}
+input{font-family:var(--fs);outline:none;}
+input::placeholder{color:#666;}
+/* Header */
+.hd{background:#000;border-bottom:2px solid var(--red);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.hd-brand{font-family:var(--fp);font-size:22px;font-weight:900;color:var(--gold);letter-spacing:3px;}
+.hd-table{font-size:11px;font-weight:900;color:var(--text);letter-spacing:1.5px;background:rgba(242,199,68,.12);padding:5px 10px;border-radius:6px;border:1px solid rgba(242,199,68,.3);}
+.hd-call{background:var(--red);color:var(--gold);padding:8px 14px;border-radius:999px;font-size:11px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;}
+/* Form gate */
+.gate-wrap{padding:30px 22px 90px;max-width:440px;margin:0 auto;}
+.gate-title{font-family:var(--fp);font-size:26px;font-weight:900;color:var(--gold);margin-bottom:6px;letter-spacing:.5px;}
+.gate-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.5;}
+.gate-tablebadge{display:inline-block;padding:8px 14px;background:rgba(184,50,39,.18);border:1.5px solid var(--red);border-radius:8px;color:var(--gold);font-size:13px;font-weight:900;letter-spacing:2px;margin-bottom:24px;}
+.gate-field{margin-bottom:16px;}
+.gate-label{display:block;font-size:11px;font-weight:900;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:7px;}
+.gate-input{width:100%;padding:14px 16px;background:#0A0A0A;border:2px solid rgba(242,199,68,.3);border-radius:10px;color:var(--text);font-size:15px;font-weight:600;transition:border-color .15s;}
+.gate-input:focus{border-color:var(--gold);}
+.gate-input.err{border-color:var(--red);}
+.gate-btn{width:100%;margin-top:8px;padding:18px;background:var(--gold);color:#0A0A0A;border-radius:12px;font-size:15px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;box-shadow:0 6px 22px rgba(242,199,68,.3);}
+.gate-btn:active{transform:scale(.98);}
+.gate-btn:disabled{opacity:.4;}
+.gate-foot{margin-top:18px;text-align:center;font-size:11px;color:#666;letter-spacing:.5px;}
+/* Menu */
+.menu-wrap{padding:14px 14px 110px;}
+.menu-tabs{display:flex;gap:8px;margin-bottom:14px;}
+.menu-tab{flex:1;padding:14px 6px;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;border:2px solid var(--red);background:transparent;color:var(--text);transition:all .15s;}
+.menu-tab.on{background:var(--gold);border-color:var(--gold);color:#0A0A0A;}
+.menu-subrow{display:flex;gap:6px;overflow-x:auto;padding:4px 0 12px;margin-bottom:8px;}
+.menu-subrow::-webkit-scrollbar{display:none;}
+.menu-subchip{flex-shrink:0;padding:8px 13px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border:1.5px solid rgba(242,199,68,.3);background:transparent;color:var(--text);}
+.menu-subchip.on{background:rgba(242,199,68,.15);border-color:var(--gold);color:var(--gold);}
+.menu-section{font-family:var(--fp);font-size:18px;font-weight:900;color:var(--text);margin:10px 0 14px;letter-spacing:.5px;}
+.item-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 4px;border-bottom:1px dashed rgba(184,50,39,.22);}
+.item-name{font-size:13px;font-weight:800;color:var(--text);letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;}
+.item-price{font-size:15px;font-weight:900;color:var(--gold);margin-top:6px;letter-spacing:.3px;}
+.veg-dot{width:11px;height:11px;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;margin-right:8px;flex-shrink:0;}
+.veg-dot::after{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;display:block;}
+.add-btn{padding:9px 22px;background:var(--red);color:var(--gold);border-radius:10px;font-size:13px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;border:1px solid var(--red);box-shadow:0 2px 10px rgba(184,50,39,.35);}
+.add-btn:active{transform:scale(.96);}
+.qctl{display:flex;align-items:center;gap:10px;}
+.qbtn{width:32px;height:32px;border-radius:8px;background:#1F1F1F;border:1.5px solid var(--red);color:var(--gold);font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;}
+.qspan{font-size:15px;font-weight:900;color:var(--gold);min-width:22px;text-align:center;}
+/* Place order sticky */
+.place-bar{position:fixed;left:0;right:0;bottom:0;z-index:200;padding:14px;background:linear-gradient(180deg,transparent,#000 30%);}
+.place-btn{width:100%;padding:18px;background:var(--gold);color:#0A0A0A;border-radius:14px;font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;box-shadow:0 6px 22px rgba(242,199,68,.32);display:flex;align-items:center;justify-content:space-between;padding-left:22px;padding-right:22px;}
+.place-btn:disabled{opacity:.4;}
+.place-amt{font-family:var(--fp);font-size:20px;}
+.empty-msg{text-align:center;padding:60px 16px;color:var(--muted);font-size:13px;}
+/* Overlay popups */
+.ovr{position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:24px;animation:fade .18s ease;}
+@keyframes fade{from{opacity:0;}to{opacity:1;}}
+.ovr-card{background:var(--card);border:2px solid var(--gold);border-radius:18px;padding:28px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(242,199,68,.25);}
+.ovr-icon{font-size:48px;margin-bottom:12px;}
+.ovr-title{font-family:var(--fp);font-size:22px;font-weight:900;color:var(--gold);margin-bottom:10px;letter-spacing:.5px;}
+.ovr-msg{font-size:14px;color:var(--text);line-height:1.55;margin-bottom:22px;}
+.ovr-btn{width:100%;padding:16px;background:var(--gold);color:#0A0A0A;border-radius:12px;font-size:14px;font-weight:900;letter-spacing:1.3px;text-transform:uppercase;}
+.ovr-btn-sec{background:transparent;color:var(--gold);border:1.5px solid var(--gold);margin-top:10px;}
+.err-overlay .ovr-card{border-color:var(--red);}
+.err-overlay .ovr-title{color:var(--red);}
+/* Invalid table */
+.invalid{padding:60px 24px;text-align:center;}
+.invalid h1{font-family:var(--fp);font-size:28px;color:var(--red);margin-bottom:14px;}
+.invalid p{color:var(--muted);font-size:14px;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div id="root">
+  <div class="hd">
+    <div class="hd-brand">HOD</div>
+    <div id="hd-table-pill" style="display:none;"></div>
+    <button id="hd-call" class="hd-call" style="display:none;" onclick="window.HOD_TABLE.callWaiter()">🛎 Call Waiter</button>
+  </div>
+  <div id="content"></div>
+</div>
+
+<!-- Firebase compat SDKs (matches live index.html versions) -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js"></script>
+
+<script>
+(function(){
+  // ═══════════════════════════════════════════════════════════════════════
+  // HOD TABLE-QR MODE — v3.138 (2026-05-28)
+  // Walk-in ordering: customer scans table QR → fills name/phone → browses
+  // read-only menu → PLACE ORDER → captain gets a banner + chime.
+  // 🛟 FAIL-OPEN: every Firebase call is try/catch. Menu falls back to a
+  // built-in shortlist if Firestore is unreachable; place-order surfaces a
+  // visible error overlay (never silent).
+  // ═══════════════════════════════════════════════════════════════════════
+  var FIREBASE_CFG = {
+    apiKey:            "AIzaSyB02hbmFjqUTuPFKvJq0pYJP6_X7HXJN98",
+    authDomain:        "hod-tickets.firebaseapp.com",
+    projectId:         "hod-tickets",
+    storageBucket:     "hod-tickets.firebasestorage.app",
+    messagingSenderId: "86190418978",
+    appId:             "1:86190418978:web:8b1eafc784c4986fd3ee7b"
+  };
+  var APPCHECK_SITE_KEY = "6LcuvQAtAAAAAIENZPGxFVcVFQBLr-7CJj17NWMy"; // matches index.html v3.137
+  var TABLE_CALL_COL = "tableCallRequests";
+
+  // ── Allowed table IDs (mirrors artifacts/pos-system/src/lib/tables-config.ts).
+  // Keep in lockstep if Khushi adds/removes tables.
+  var VALID_TABLES = {
+    // Ground
+    "C1":1,"C2":1,"C3":1,"C4":1,"CVIP1":1,"CVIP2":1,
+    // Dining
+    "FD1":1,"FD2":1,"FD3":1,"FD4":1,"FD5":1,"FD6":1,"FD7":1,"FD8":1,"FD9":1,
+    "FD10":1,"FD11":1,"FD12":1,"FD13":1,"FD14":1,"FD15":1,"FD16":1,"FD17":1,"FD18":1,
+    // Smoking
+    "SMK1":1,"SMK2":1,"SMK3":1,"SMK4":1,"SMK5":1,"SMK6":1,"SMK7":1,"SMK8":1,
+    // Rooftop
+    "T1":1,"T2":1,"T3":1,"T4":1,"T5":1,"T6":1,"T7":1,"T8":1,"T9":1,"T10":1,"T11":1,
+    "TVIP1":1,"TVIP2":1,"TVIP3":1,"TVIP4":1,"TVIP5":1
+  };
+
+  // ── URL: ?id=FD5 (also accept ?table=FD5 for safety).
+  var qp = new URLSearchParams(location.search || "");
+  var TID = String(qp.get("id") || qp.get("table") || "").toUpperCase().trim();
+
+  // ── Operational night = 12pm IST cutoff. Matches utils-pos.getOperationalNightStr.
+  function operationalNightStr(){
+    var n = new Date();
+    // Convert to IST then back-shift 12 hours so 12pm-midnight stays "today",
+    // midnight-noon counts as previous night.
+    var ist = new Date(n.getTime() + (5.5 - n.getTimezoneOffset()/-60) * 3600 * 1000);
+    var t = new Date(ist.getTime() - 12 * 3600 * 1000);
+    var y = t.getUTCFullYear(); var m = String(t.getUTCMonth()+1).padStart(2,"0"); var d = String(t.getUTCDate()).padStart(2,"0");
+    return y+"-"+m+"-"+d;
+  }
+
+  // ── Sanitize HTML to block XSS in customer-entered names/emails.
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+    return c==="&"?"&amp;":c==="<"?"&lt;":c===">"?"&gt;":c==='"'?"&quot;":"&#39;";
+  }); }
+
+  // ── State
+  var menuOverrides = {};  // {itemName -> {outOfStock, discountPct, ...}}
+  var menuData = {};       // {food:[{cat,items:[{n,p,v,t}]}], liquor:..., nab:..., smoke:...}
+  var cart = {};           // {key -> {n, qty, p, cat}}
+  var customer = null;     // {name, phone, email}
+
+  // ═══ FIREBASE INIT (fail-open) ═══
+  var fb = null, db = null;
+  try {
+    firebase.initializeApp(FIREBASE_CFG);
+    fb = firebase;
+    // App Check FIRST (before any Firestore call)
+    try {
+      if (APPCHECK_SITE_KEY && firebase.appCheck) {
+        firebase.appCheck().activate(APPCHECK_SITE_KEY, true);
+        console.log("✅ App Check active (reCAPTCHA Enterprise)");
+      }
+    } catch(e){ console.warn("App Check init skipped:", e.message); }
+    db = firebase.firestore();
+    // Anonymous auth so writes are auth>=null OK if rules require it
+    firebase.auth().signInAnonymously().catch(function(e){
+      console.warn("[auth] anonymous sign-in failed (non-fatal)", e.message);
+    });
+  } catch(e){
+    console.warn("[firebase] init failed", e.message);
+  }
+
+  // ═══ MENU LOADER (one-shot get from venueMenu collection) ═══
+  function loadMenu(then){
+    if (!db) { console.warn("[menu] no db — using empty menu"); return then({}); }
+    var TABS = ["food","liquor","nab","smoke"];
+    var out = {}; var done = 0;
+    TABS.forEach(function(tab){
+      db.collection("venueMenu").doc(tab).get().then(function(snap){
+        try {
+          var data = snap && snap.exists ? (snap.data()||{}) : {};
+          out[tab] = Array.isArray(data.categories) ? data.categories : [];
+        } catch(e){ out[tab] = []; }
+        if (++done === TABS.length) {
+          db.collection("posMenuOverrides").get().then(function(s){
+            try {
+              s.forEach(function(d){
+                var o = d.data()||{};
+                menuOverrides[String(d.id).toUpperCase()] = o;
+              });
+            } catch(e){}
+            then(out);
+          }).catch(function(){ then(out); });
+        }
+      }).catch(function(err){
+        console.warn("[menu] tab failed", tab, err.message);
+        out[tab] = [];
+        if (++done === TABS.length) then(out);
+      });
+    });
+  }
+
+  function ovFor(name){ return menuOverrides[String(name||"").toUpperCase()] || null; }
+  function effPrice(name, p){
+    var ov = ovFor(name);
+    if (ov && typeof ov.discountPct === "number" && ov.discountPct > 0) {
+      return Math.round(p * (100 - ov.discountPct) / 100);
+    }
+    return p;
+  }
+
+  // ═══ RENDER ═══
+  function render(){
+    var inv = !TID || !VALID_TABLES[TID];
+    if (inv) return renderInvalid();
+    document.getElementById("hd-table-pill").style.display = "block";
+    document.getElementById("hd-table-pill").className = "hd-table";
+    document.getElementById("hd-table-pill").textContent = "TABLE " + TID;
+    if (!customer) return renderGate();
+    document.getElementById("hd-call").style.display = "block";
+    renderMenu();
+  }
+
+  function renderInvalid(){
+    var c = document.getElementById("content");
+    c.innerHTML = '<div class="invalid">'
+      + '<h1>INVALID TABLE</h1>'
+      + '<p>The QR code you scanned is not recognized.<br/>Please call a staff member and show them this screen.</p>'
+      + '<p style="margin-top:18px;font-size:11px;color:#555;">Scanned ID: ' + esc(TID || "(none)") + '</p>'
+      + '</div>';
+  }
+
+  // ── Form: NAME, PHONE, EMAIL(optional) → START ORDERING
+  function renderGate(){
+    var c = document.getElementById("content");
+    c.innerHTML = ''
+      + '<div class="gate-wrap">'
+      + '  <div class="gate-tablebadge">📍 TABLE ' + esc(TID) + '</div>'
+      + '  <div class="gate-title">Welcome to HOD</div>'
+      + '  <div class="gate-sub">Quick details so our captain knows who to serve. We won\'t spam you — promise.</div>'
+      + '  <div class="gate-field"><label class="gate-label" for="g-name">Your Name *</label>'
+      + '    <input id="g-name" class="gate-input" type="text" autocomplete="name" maxlength="60" placeholder="e.g. RAHUL"/></div>'
+      + '  <div class="gate-field"><label class="gate-label" for="g-phone">Phone *</label>'
+      + '    <input id="g-phone" class="gate-input" type="tel" autocomplete="tel" inputmode="numeric" maxlength="15" placeholder="10-digit mobile"/></div>'
+      + '  <div class="gate-field"><label class="gate-label" for="g-email">Email <span style="color:#555;font-weight:600;">(optional)</span></label>'
+      + '    <input id="g-email" class="gate-input" type="email" autocomplete="email" maxlength="80" placeholder="optional"/></div>'
+      + '  <button id="g-go" class="gate-btn">Start Ordering →</button>'
+      + '  <div class="gate-foot">By continuing you agree to share these details with HOD staff for this visit only.</div>'
+      + '</div>';
+    document.getElementById("g-go").onclick = function(){
+      var nameEl = document.getElementById("g-name");
+      var phoneEl = document.getElementById("g-phone");
+      var emailEl = document.getElementById("g-email");
+      var name = (nameEl.value||"").trim();
+      var phone = (phoneEl.value||"").trim().replace(/\D/g,"");
+      var email = (emailEl.value||"").trim();
+      var bad = false;
+      if (name.length < 2) { nameEl.classList.add("err"); bad = true; } else nameEl.classList.remove("err");
+      if (phone.length < 10) { phoneEl.classList.add("err"); bad = true; } else phoneEl.classList.remove("err");
+      if (bad) return;
+      customer = { name: name, phone: phone, email: email };
+      try { sessionStorage.setItem("hod_tbl_cust_"+TID, JSON.stringify(customer)); } catch(e){}
+      // Lazy-load menu now (saves reads if customer bounces on form).
+      loadMenu(function(m){ menuData = m; render(); });
+    };
+  }
+
+  // ── MENU (read-only, FOOD/LIQUOR/NAB/SMOKE tabs matching wallet)
+  var activeTab = "food", activeSub = 0;
+  function renderMenu(){
+    var c = document.getElementById("content");
+    var TABS = [["food","Food"],["liquor","Liquor"],["nab","NAB"],["smoke","Smoke"]];
+    var tabsHtml = TABS.map(function(t){
+      return '<button class="menu-tab'+(t[0]===activeTab?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>';
+    }).join("");
+    c.innerHTML = '<div class="menu-wrap"><div class="menu-tabs">'+tabsHtml+'</div><div id="menu-body"></div></div><div id="place-mount"></div>';
+    c.querySelectorAll(".menu-tab").forEach(function(b){
+      b.onclick = function(){ activeTab = b.getAttribute("data-tab"); activeSub = 0; renderMenu(); };
+    });
+    renderMenuBody();
+    renderPlaceBar();
+  }
+
+  function renderMenuBody(){
+    var body = document.getElementById("menu-body");
+    var cats = menuData[activeTab] || [];
+    // Drop OOS-only categories
+    var visible = [];
+    cats.forEach(function(c){
+      var items = (c.items||[]).filter(function(it){ var ov = ovFor(it.n); return !(ov && ov.outOfStock); });
+      if (items.length) visible.push({ cat: c.cat, items: items });
+    });
+    if (!visible.length) { body.innerHTML = '<div class="empty-msg">No items in this section yet.<br/>Try another tab above.</div>'; return; }
+    if (activeSub >= visible.length) activeSub = 0;
+    var subHtml = visible.map(function(c,i){
+      return '<button class="menu-subchip'+(i===activeSub?' on':'')+'" data-sub="'+i+'">'+esc(c.cat)+'</button>';
+    }).join("");
+    var section = visible[activeSub];
+    var rowsHtml = section.items.map(function(it){
+      var key = section.cat+"|"+it.n;
+      var qty = cart[key] ? cart[key].qty : 0;
+      var price = effPrice(it.n, it.p);
+      var hasDisc = price !== it.p;
+      var priceHtml = hasDisc
+        ? '<span style="text-decoration:line-through;color:rgba(255,255,255,.35);margin-right:6px;">\u20b9'+it.p+'</span><span class="item-price" style="display:inline;">\u20b9'+price+'</span>'
+        : '<span class="item-price" style="display:inline;">\u20b9'+it.p+'</span>';
+      var veg = "";
+      if (typeof it.v !== "undefined") {
+        var col = it.v === true ? "#00C864" : "#EF4444";
+        veg = '<span class="veg-dot" style="color:'+col+';"></span>';
+      }
+      var ctrl;
+      if (qty === 0) {
+        ctrl = '<button class="add-btn" data-act="add" data-key="'+esc(key)+'">Add +</button>';
+      } else {
+        ctrl = '<div class="qctl">'
+          + '<button class="qbtn" data-act="dec" data-key="'+esc(key)+'">−</button>'
+          + '<span class="qspan">'+qty+'</span>'
+          + '<button class="qbtn" data-act="inc" data-key="'+esc(key)+'">+</button>'
+          + '</div>';
+      }
+      return '<div class="item-row" data-name="'+esc(it.n)+'">'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div class="item-name">'+veg+'<span>'+esc(it.n)+'</span></div>'
+        + '<div style="margin-top:6px;font-weight:800;">'+priceHtml+'</div>'
+        + '</div>'+ctrl+'</div>';
+    }).join("");
+    body.innerHTML = '<div class="menu-subrow">'+subHtml+'</div>'
+      + '<div class="menu-section">'+esc(section.cat)+'</div>'
+      + rowsHtml;
+    // Wire sub chips
+    body.querySelectorAll(".menu-subchip").forEach(function(ch){
+      ch.onclick = function(){ activeSub = parseInt(ch.getAttribute("data-sub"),10); renderMenuBody(); };
+    });
+    // Wire +/-/Add buttons
+    body.querySelectorAll("[data-act]").forEach(function(b){
+      b.onclick = function(){
+        var act = b.getAttribute("data-act"); var key = b.getAttribute("data-key");
+        var parts = key.split("|"); var cat = parts[0]; var name = parts.slice(1).join("|");
+        var item = section.items.find(function(it){ return it.n === name; });
+        if (!item) return;
+        if (act === "add" || act === "inc") {
+          if (!cart[key]) cart[key] = { n: name, p: effPrice(name, item.p), cat: cat, qty: 0 };
+          cart[key].qty++;
+        } else if (act === "dec") {
+          if (cart[key]) { cart[key].qty--; if (cart[key].qty <= 0) delete cart[key]; }
+        }
+        renderMenuBody(); renderPlaceBar();
+      };
+    });
+  }
+
+  function cartTotal(){ var t=0,c=0; Object.keys(cart).forEach(function(k){ t += (cart[k].p||0)*cart[k].qty; c += cart[k].qty; }); return {total:t, count:c}; }
+
+  function renderPlaceBar(){
+    var mount = document.getElementById("place-mount");
+    var t = cartTotal();
+    if (t.count === 0) { mount.innerHTML = ""; return; }
+    mount.innerHTML = '<div class="place-bar">'
+      + '<button class="place-btn" id="place-go">'
+      + '<span>📋 Place Order · '+t.count+' item'+(t.count===1?'':'s')+'</span>'
+      + '<span class="place-amt">\u20b9'+t.total+'</span>'
+      + '</button></div>';
+    document.getElementById("place-go").onclick = onPlaceOrder;
+  }
+
+  // ═══ PLACE ORDER ═══
+  function onPlaceOrder(){
+    var btn = document.getElementById("place-go");
+    if (btn) { btn.disabled = true; btn.style.opacity = ".6"; }
+    var items = Object.keys(cart).map(function(k){
+      return { name: cart[k].n, qty: cart[k].qty, price: cart[k].p, category: cart[k].cat };
+    });
+    writeRequest("place_order", items).then(function(ok){
+      if (btn) { btn.disabled = false; btn.style.opacity = ""; }
+      if (ok) {
+        cart = {};
+        renderMenuBody(); renderPlaceBar();
+        showOverlay({
+          icon:"🛎", title:"Captain on the way!",
+          msg:"Your order has been sent. <b>Captain will be with you shortly...</b><br/><br/>Please wait at <b>TABLE "+esc(TID)+"</b>.",
+          btn:"OK"
+        });
+      } else {
+        showOverlay({
+          icon:"⚠️", title:"Couldn't reach captain",
+          msg:"Network slow or App Check blocked us.<br/>Please <b>wave to a staff member</b> or tap the CALL WAITER button at the top.",
+          btn:"OK", err:true
+        });
+      }
+    });
+  }
+
+  // ═══ CALL WAITER ═══
+  function callWaiter(){
+    if (!customer) { alert("Please fill in your details first."); return; }
+    writeRequest("call_waiter", []).then(function(ok){
+      showOverlay({
+        icon: ok ? "🛎" : "⚠️",
+        title: ok ? "Waiter on the way!" : "Couldn't send",
+        msg: ok
+          ? "We've alerted our staff. Someone will be at <b>TABLE "+esc(TID)+"</b> in a moment."
+          : "Try again, or wave to a staff member.",
+        btn:"OK", err: !ok
+      });
+    });
+  }
+  window.HOD_TABLE = { callWaiter: callWaiter };
+
+  // ═══ FIRESTORE WRITER ═══
+  function writeRequest(type, items){
+    return new Promise(function(resolve){
+      if (!db) return resolve(false);
+      var payload = {
+        tableId: TID,
+        type: type,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        customerEmail: customer.email || "",
+        items: (items||[]).slice(0,40).map(function(it){
+          return {
+            name: String(it.name||"").slice(0,80),
+            qty: Math.max(1, Math.min(99, Number(it.qty)||1)),
+            price: typeof it.price === "number" ? it.price : null,
+            category: it.category || ""
+          };
+        }).filter(function(it){ return it.price !== null || true; }).map(function(it){
+          // Strip null price for Firestore (no `null` numbers — drop key instead).
+          var o = { name: it.name, qty: it.qty, category: it.category };
+          if (typeof it.price === "number") o.price = it.price;
+          return o;
+        }),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        operationalNight: operationalNightStr(),
+        acknowledgedBy: null,
+        acknowledgedAt: null
+      };
+      db.collection(TABLE_CALL_COL).add(payload)
+        .then(function(){ resolve(true); })
+        .catch(function(err){ console.warn("[writeRequest] failed", err); resolve(false); });
+    });
+  }
+
+  // ═══ OVERLAY POPUP ═══
+  function showOverlay(opts){
+    var ovr = document.createElement("div");
+    ovr.className = "ovr" + (opts.err ? " err-overlay" : "");
+    ovr.innerHTML = '<div class="ovr-card">'
+      + '<div class="ovr-icon">'+esc(opts.icon||"")+'</div>'
+      + '<div class="ovr-title">'+esc(opts.title||"")+'</div>'
+      + '<div class="ovr-msg">'+(opts.msg||"")+'</div>'
+      + '<button class="ovr-btn">'+esc(opts.btn||"OK")+'</button>'
+      + '</div>';
+    document.body.appendChild(ovr);
+    ovr.querySelector(".ovr-btn").onclick = function(){ ovr.remove(); };
+    ovr.onclick = function(e){ if (e.target === ovr) ovr.remove(); };
+  }
+
+  // ═══ RESTORE CUSTOMER FROM SESSION (so reload doesn't re-ask) ═══
+  try {
+    var saved = sessionStorage.getItem("hod_tbl_cust_"+TID);
+    if (saved) {
+      customer = JSON.parse(saved);
+      loadMenu(function(m){ menuData = m; render(); });
+    } else {
+      render();
+    }
+  } catch(e){ render(); }
+
+})();
+</script>
+</body>
+</html>
