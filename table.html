@@ -26,25 +26,32 @@ input::placeholder{color:#666;}
 .hd-table{font-size:11px;font-weight:900;color:var(--text);letter-spacing:1.5px;background:rgba(242,199,68,.12);padding:5px 10px;border-radius:6px;border:1px solid rgba(242,199,68,.3);}
 .hd-call{background:var(--red);color:var(--gold);padding:8px 14px;border-radius:999px;font-size:11px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;}
 /* Form gate */
-.gate-wrap{padding:30px 22px 90px;max-width:440px;margin:0 auto;}
-.gate-title{font-family:var(--fp);font-size:26px;font-weight:900;color:var(--gold);margin-bottom:6px;letter-spacing:.5px;}
-.gate-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.5;}
-.gate-tablebadge{display:inline-block;padding:8px 14px;background:rgba(184,50,39,.18);border:1.5px solid var(--red);border-radius:8px;color:var(--gold);font-size:13px;font-weight:900;letter-spacing:2px;margin-bottom:24px;}
-.gate-field{margin-bottom:16px;}
-.gate-label{display:block;font-size:11px;font-weight:900;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:7px;}
-.gate-input{width:100%;padding:14px 16px;background:#0A0A0A;border:2px solid rgba(242,199,68,.3);border-radius:10px;color:var(--text);font-size:15px;font-weight:600;transition:border-color .15s;}
+.gate-wrap{padding:22px 20px 90px;max-width:460px;margin:0 auto;}
+/* Venue address card — red/yellow split, sits ABOVE the welcome (Khushi 28-May v3.139.1) */
+.gate-venue{background:linear-gradient(135deg,#B83227 0%,#7a1f17 70%,#1a0a08 100%);border:2px solid var(--gold);border-radius:14px;padding:16px 18px;margin-bottom:22px;text-align:center;box-shadow:0 6px 24px rgba(184,50,39,.32);}
+.gate-venue .gv-brand{font-family:var(--fp);font-size:30px;font-weight:900;color:var(--gold);letter-spacing:6px;line-height:1;}
+.gate-venue .gv-tag{font-size:11px;font-weight:900;color:#FFE9A8;letter-spacing:2.2px;text-transform:uppercase;margin-top:4px;}
+.gate-venue .gv-addr{font-size:12px;font-weight:600;color:#fff;letter-spacing:.5px;line-height:1.5;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(242,199,68,.45);}
+.gate-title{font-family:var(--fp);font-size:32px;font-weight:900;color:var(--gold);margin-bottom:8px;letter-spacing:.5px;line-height:1.15;}
+.gate-sub{font-size:15px;color:#D8D2C2;margin-bottom:26px;line-height:1.55;font-weight:500;}
+.gate-tablebadge{display:inline-block;padding:10px 18px;background:rgba(184,50,39,.22);border:2px solid var(--red);border-radius:10px;color:var(--gold);font-size:16px;font-weight:900;letter-spacing:2.5px;margin-bottom:22px;}
+.gate-field{margin-bottom:18px;}
+.gate-label{display:block;font-size:13px;font-weight:900;color:var(--gold);letter-spacing:1.6px;text-transform:uppercase;margin-bottom:9px;}
+.gate-input{width:100%;padding:17px 18px;background:#0A0A0A;border:2px solid rgba(242,199,68,.35);border-radius:12px;color:var(--text);font-size:18px;font-weight:600;transition:border-color .15s;}
+.gate-input::placeholder{font-size:15px;color:#666;}
 .gate-input:focus{border-color:var(--gold);}
 .gate-input.err{border-color:var(--red);}
-.gate-btn{width:100%;margin-top:8px;padding:18px;background:var(--gold);color:#0A0A0A;border-radius:12px;font-size:15px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;box-shadow:0 6px 22px rgba(242,199,68,.3);}
+.gate-btn{width:100%;margin-top:10px;padding:20px;background:var(--gold);color:#0A0A0A;border-radius:14px;font-size:17px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;box-shadow:0 6px 22px rgba(242,199,68,.35);}
 .gate-btn:active{transform:scale(.98);}
 .gate-btn:disabled{opacity:.4;}
-.gate-foot{margin-top:18px;text-align:center;font-size:11px;color:#666;letter-spacing:.5px;}
-/* Customer strip — name/phone/email/table shown FIRST (Khushi 28-May) */
-.cust-strip{background:linear-gradient(135deg,#B83227 0%,#7a1f17 60%,#1a0a08 100%);border-bottom:1.5px solid var(--gold);padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;}
-.cust-strip .cs-tbl{font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);letter-spacing:2px;padding:4px 10px;border:1.5px solid var(--gold);border-radius:8px;background:rgba(0,0,0,.35);}
-.cust-strip .cs-fld{display:flex;flex-direction:column;line-height:1.15;min-width:0;}
-.cust-strip .cs-lbl{font-size:9px;font-weight:900;letter-spacing:1.4px;color:rgba(242,199,68,.78);text-transform:uppercase;}
-.cust-strip .cs-val{font-size:13px;font-weight:800;color:#fff;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;}
+.gate-foot{margin-top:18px;text-align:center;font-size:12px;color:#777;letter-spacing:.5px;line-height:1.5;}
+/* Customer strip — top-LEFT vertical list (Khushi 28-May v3.139.1: "make sure its like list on top left") */
+.cust-strip{background:linear-gradient(135deg,#B83227 0%,#7a1f17 60%,#1a0a08 100%);border-bottom:1.5px solid var(--gold);padding:12px 14px;display:flex;align-items:flex-start;gap:12px;}
+.cust-strip .cs-tbl{font-family:var(--fp);font-size:18px;font-weight:900;color:var(--gold);letter-spacing:2px;padding:6px 11px;border:1.5px solid var(--gold);border-radius:8px;background:rgba(0,0,0,.35);flex-shrink:0;line-height:1;align-self:flex-start;}
+.cust-strip .cs-list{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1;}
+.cust-strip .cs-fld{display:flex;align-items:baseline;gap:8px;line-height:1.15;min-width:0;}
+.cust-strip .cs-lbl{font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(242,199,68,.85);text-transform:uppercase;flex-shrink:0;min-width:48px;}
+.cust-strip .cs-val{font-size:13px;font-weight:800;color:#fff;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 /* Menu */
 .menu-wrap{padding:14px 14px 220px;}
 /* Search — exact mirror of wallet .wv-search (index.html line 5518) */
@@ -66,7 +73,7 @@ input::placeholder{color:#666;}
 .cart-card .cc-name{flex:1;font-size:12px;font-weight:800;color:var(--text);letter-spacing:.3px;text-transform:uppercase;}
 .cart-card .cc-px{font-size:11px;color:rgba(245,241,232,.6);font-weight:700;margin-top:2px;}
 .cart-card .cc-total{margin-top:12px;padding-top:12px;border-top:1.5px solid rgba(242,199,68,.3);display:flex;justify-content:space-between;font-size:14px;font-weight:900;color:var(--gold);letter-spacing:.5px;text-transform:uppercase;}
-.cart-card .cc-total b{font-family:var(--fp);font-size:18px;}
+.cart-card .cc-total b{font-family:var(--fs);font-size:18px;font-weight:900;}
 .menu-section{font-family:var(--fp);font-size:18px;font-weight:900;color:var(--text);margin:10px 0 14px;letter-spacing:.5px;}
 .item-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 4px;border-bottom:1px dashed rgba(184,50,39,.22);}
 .item-name{font-size:13px;font-weight:800;color:var(--text);letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;}
@@ -82,7 +89,9 @@ input::placeholder{color:#666;}
 .place-bar{position:fixed;left:0;right:0;bottom:0;z-index:200;padding:14px;background:linear-gradient(180deg,transparent,#000 30%);}
 .place-btn{width:100%;padding:18px;background:var(--gold);color:#0A0A0A;border-radius:14px;font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;box-shadow:0 6px 22px rgba(242,199,68,.32);display:flex;align-items:center;justify-content:space-between;padding-left:22px;padding-right:22px;}
 .place-btn:disabled{opacity:.4;}
-.place-amt{font-family:var(--fp);font-size:20px;}
+.place-amt{font-family:var(--fs);font-size:18px;font-weight:900;letter-spacing:.5px;}
+.place-btn.empty{background:rgba(242,199,68,.18);color:rgba(242,199,68,.7);box-shadow:none;border:2px dashed rgba(242,199,68,.4);}
+.place-hint{font-size:11px;font-weight:700;letter-spacing:.5px;color:rgba(242,199,68,.85);text-transform:none;}
 .empty-msg{text-align:center;padding:60px 16px;color:var(--muted);font-size:13px;}
 /* Overlay popups */
 .ovr{position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:24px;animation:fade .18s ease;}
@@ -264,8 +273,15 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     try {
       _ovrUnsub = db.collection("posMenuOverrides").onSnapshot(function(s){
         try {
+          // 🔴 2026-05-28 (Khushi LIVE) — KEY BY SLUG, not uppercase name.
+          // POS writes doc IDs via menuOverrideKey() (firestore.ts line 514):
+          //   "Old Monk 90ml" → "old-monk-90ml" (lowercase, alnum-only, hyphenated).
+          // Prior code keyed by `name.toUpperCase()` so the lookup NEVER matched
+          // → OOS toggles from the admin menu editor were invisible on the table-QR
+          // page. Match the wallet/captain/bar convention by using the raw doc.id
+          // as the key, and slugify the lookup-side name to match.
           menuOverrides = {};
-          s.forEach(function(d){ menuOverrides[String(d.id).toUpperCase()] = d.data()||{}; });
+          s.forEach(function(d){ menuOverrides[String(d.id)] = d.data()||{}; });
           if (document.getElementById("menu-body")) renderMenuBody();
         } catch(e){ console.warn("[overrides] apply failed", e.message); }
       }, function(err){ console.warn("[overrides] listener error", err.message); });
@@ -282,7 +298,9 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     window.addEventListener("pagehide", detachOverridesListener);
   } catch(e){}
 
-  function ovFor(name){ return menuOverrides[String(name||"").toUpperCase()] || null; }
+  // 🔴 Slug matches POS menuOverrideKey() (firestore.ts line 514) — must stay in sync.
+  function _slug(name){ return String(name||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,""); }
+  function ovFor(name){ return menuOverrides[_slug(name)] || null; }
   function effPrice(name, p){
     var ov = ovFor(name);
     if (ov && typeof ov.discountPct === "number" && ov.discountPct > 0) {
@@ -317,6 +335,11 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     var c = document.getElementById("content");
     c.innerHTML = ''
       + '<div class="gate-wrap">'
+      + '  <div class="gate-venue">'
+      +      '<div class="gv-brand">HOD</div>'
+      +      '<div class="gv-tag">House of Dopamine</div>'
+      +      '<div class="gv-addr">📍 #15, 1st Floor, 80 Feet Road,<br/>Koramangala 4th Block, Bengaluru — 560034</div>'
+      +    '</div>'
       + '  <div class="gate-tablebadge">📍 TABLE ' + esc(TID) + '</div>'
       + '  <div class="gate-title">Welcome to HOD</div>'
       + '  <div class="gate-sub">Quick details so our captain knows who to serve. We won\'t spam you — promise.</div>'
@@ -381,9 +404,11 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     c.innerHTML = ''
       + '<div class="cust-strip">'
       +   '<div class="cs-tbl">'+esc(TID)+'</div>'
-      +   '<div class="cs-fld"><div class="cs-lbl">Guest</div><div class="cs-val">'+esc(customer.name)+'</div></div>'
-      +   '<div class="cs-fld"><div class="cs-lbl">Phone</div><div class="cs-val">'+esc(customer.phone)+'</div></div>'
-      +   emailHtml
+      +   '<div class="cs-list">'
+      +     '<div class="cs-fld"><div class="cs-lbl">Guest</div><div class="cs-val">'+esc(customer.name)+'</div></div>'
+      +     '<div class="cs-fld"><div class="cs-lbl">Phone</div><div class="cs-val">'+esc(customer.phone)+'</div></div>'
+      +     emailHtml
+      +   '</div>'
       + '</div>'
       + '<div class="menu-wrap">'
       +   '<input id="menu-search" class="menu-search" type="search" placeholder="🔍 Search menu — food, drinks, brands…" autocomplete="off"/>'
@@ -526,11 +551,21 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     });
   }
 
+  // 🆕 v3.139.1 (Khushi 28-May) — ALWAYS render the place bar, even at 0 items,
+  // so the customer always SEES that ordering is one tap away. When empty,
+  // button is disabled + dashed gold outline + "Add items to enable" hint.
   function renderPlaceBar(){
     var mount = document.getElementById("place-mount");
     if (!mount) return;
     var t = cartTotal();
-    if (t.count === 0) { mount.innerHTML = ""; return; }
+    if (t.count === 0) {
+      mount.innerHTML = '<div class="place-bar">'
+        + '<button class="place-btn empty" disabled>'
+        +   '<span>📋 Place Order</span>'
+        +   '<span class="place-hint">Add items to enable →</span>'
+        + '</button></div>';
+      return;
+    }
     mount.innerHTML = '<div class="place-bar">'
       + '<button class="place-btn" id="place-go">'
       + '<span>📋 Place Order · '+t.count+' item'+(t.count===1?'':'s')+'</span>'
