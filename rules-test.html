@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>HOD — Firestore Rules v2 Smoke Test</title>
+<style>
+  body { background:#030305; color:#fff; font-family:'Space Grotesk',system-ui,sans-serif; margin:0; padding:24px; }
+  h1 { font-family:'Playfair Display',serif; color:#C9A84C; margin:0 0 6px; font-size:28px; letter-spacing:-.3px; }
+  .sub { color:#bbb; font-size:13px; margin-bottom:18px; }
+  .runbtn { background:#C9A84C; color:#030305; border:none; padding:14px 28px; border-radius:10px; font-size:15px; font-weight:900; letter-spacing:.5px; cursor:pointer; }
+  .runbtn:disabled { opacity:.5; cursor:wait; }
+  table { width:100%; margin-top:20px; border-collapse:collapse; }
+  th, td { padding:12px; border-bottom:1px solid #222; text-align:left; font-size:14px; }
+  th { color:#C9A84C; font-size:11px; letter-spacing:.7px; text-transform:uppercase; }
+  .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:900; letter-spacing:.5px; }
+  .b-pending { background:#222; color:#888; }
+  .b-pass { background:#16A34A; color:#fff; }
+  .b-fail { background:#DC2626; color:#fff; }
+  .desc { color:#fff; font-weight:700; }
+  .expect { color:#888; font-size:12px; margin-top:3px; }
+  .err { color:#F87171; font-size:11px; margin-top:4px; font-family:monospace; word-break:break-all; }
+  .summary { margin-top:20px; padding:14px; border-radius:10px; font-weight:900; text-align:center; font-size:16px; letter-spacing:.5px; }
+  .sum-pass { background:#16A34A; color:#fff; }
+  .sum-fail { background:#DC2626; color:#fff; }
+  .sum-mixed { background:#F59E0B; color:#030305; }
+</style>
+</head>
+<body>
+  <h1>🔒 HOD Firestore Rules v2 — Smoke Test</h1>
+  <div class="sub">Verifies the 7 hardening rules from <code>HOD-FIRESTORE-RULES-v2-2026-05-27.txt</code>. Runs against PROD (hod-tickets). One throwaway doc may be created — safe to leave.</div>
+
+  <button id="runBtn" class="runbtn">▶ RUN ALL 7 TESTS</button>
+
+  <table id="tbl">
+    <thead><tr><th style="width:60px">#</th><th>Test</th><th style="width:120px">Status</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="summary"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+    import { getAuth, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+    import { getFirestore, doc, setDoc, deleteDoc, getDoc, getDocs, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB6YfM1DyVq0NTEWXpMdbCYuWwr9cWwbt0",
+      authDomain: "hod-tickets.firebaseapp.com",
+      projectId: "hod-tickets",
+      storageBucket: "hod-tickets.firebasestorage.app",
+      messagingSenderId: "86190418978",
+      appId: "1:86190418978:web:8b1eafc784c4986fd3ee7b",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Test definitions. expect = "deny" means rule must reject; "allow" means rule must permit.
+    const tests = [
+      { id:1, mode:"unauth", expect:"deny",  desc:"UNAUTH: delete posKOTs/anything → should be BLOCKED",
+        run: async () => { await deleteDoc(doc(db,"posKOTs","__smoke_anything__")); } },
+      { id:2, mode:"unauth", expect:"deny",  desc:"UNAUTH: write verified_phones → should be BLOCKED",
+        run: async () => { await setDoc(doc(db,"verified_phones","__smoke__"), { x:1 }); } },
+      { id:3, mode:"unauth", expect:"deny",  desc:"UNAUTH: write otps → should be BLOCKED",
+        run: async () => { await setDoc(doc(db,"otps","__smoke__"), { x:1 }); } },
+      { id:4, mode:"unauth", expect:"deny",  desc:"UNAUTH: delete bookings/anything → should be BLOCKED",
+        run: async () => { await deleteDoc(doc(db,"bookings","__smoke_anything__")); } },
+      { id:5, mode:"unauth", expect:"deny",  desc:"UNAUTH: read staff collection → should be BLOCKED (auth required)",
+        run: async () => { await getDocs(collection(db,"staff")); } },
+      { id:6, mode:"auth",   expect:"allow", desc:"AUTH (anon, as POS): create posKOT → should SUCCEED",
+        run: async () => {
+          const ref = await addDoc(collection(db,"posKOTs"), { __smoke_test__:true, createdAt: serverTimestamp(), note:"rules-v2 smoke" });
+          return `created posKOTs/${ref.id} (safe to leave)`;
+        } },
+      { id:7, mode:"auth",   expect:"allow", desc:"AUTH (anon, as POS): read staff collection → should SUCCEED",
+        run: async () => { const s = await getDocs(collection(db,"staff")); return `read ok, ${s.size} docs`; } },
+    ];
+
+    const tbody = document.querySelector("#tbl tbody");
+    const rows = {};
+    tests.forEach(t => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${t.id}</td>
+        <td><div class="desc">${t.desc}</div><div class="expect">Expect: <b style="color:${t.expect==="deny"?"#F87171":"#86EFAC"}">${t.expect.toUpperCase()}</b> · Mode: ${t.mode.toUpperCase()}</div><div class="err" id="err-${t.id}"></div></td>
+        <td><span class="badge b-pending" id="b-${t.id}">PENDING</span></td>`;
+      tbody.appendChild(tr);
+      rows[t.id] = tr;
+    });
+
+    function setBadge(id, kind, label) {
+      const b = document.getElementById(`b-${id}`);
+      b.className = `badge b-${kind}`;
+      b.textContent = label;
+    }
+    function setErr(id, msg) {
+      document.getElementById(`err-${id}`).textContent = msg || "";
+    }
+
+    document.getElementById("runBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("runBtn");
+      btn.disabled = true; btn.textContent = "⏳ RUNNING…";
+      document.getElementById("summary").innerHTML = "";
+
+      let pass=0, fail=0;
+
+      for (const t of tests) {
+        setBadge(t.id, "pending", "RUNNING…");
+        setErr(t.id, "");
+        // Switch auth mode
+        try {
+          if (t.mode === "unauth" && auth.currentUser) { await signOut(auth); }
+          if (t.mode === "auth"   && !auth.currentUser) { await signInAnonymously(auth); }
+        } catch (e) {
+          setBadge(t.id, "fail", "AUTH ERR"); setErr(t.id, String(e?.message || e)); fail++; continue;
+        }
+
+        try {
+          const note = await t.run();
+          // Operation succeeded
+          if (t.expect === "allow") { setBadge(t.id, "pass", "PASS"); setErr(t.id, note || "allowed as expected"); pass++; }
+          else                       { setBadge(t.id, "fail", "FAIL"); setErr(t.id, "Expected DENY but operation SUCCEEDED — rule is too permissive."); fail++; }
+        } catch (e) {
+          const msg = String(e?.code || e?.message || e);
+          const denied = msg.includes("permission-denied") || msg.includes("PERMISSION_DENIED") || msg.includes("Missing or insufficient permissions");
+          if (t.expect === "deny" && denied) { setBadge(t.id, "pass", "PASS"); setErr(t.id, "blocked by rules ✓"); pass++; }
+          else if (t.expect === "allow")      { setBadge(t.id, "fail", "FAIL"); setErr(t.id, msg); fail++; }
+          else                                 { setBadge(t.id, "fail", "FAIL"); setErr(t.id, "unexpected error: " + msg); fail++; }
+        }
+      }
+
+      btn.disabled = false; btn.textContent = "▶ RUN ALL 7 TESTS";
+      const sum = document.getElementById("summary");
+      if (fail === 0) { sum.className = "summary sum-pass"; sum.textContent = `✓ ALL ${pass}/7 PASSED — RULES v2 LIVE & SAFE`; }
+      else if (pass === 0) { sum.className = "summary sum-fail"; sum.textContent = `✗ ALL ${fail}/7 FAILED — RULES NOT PUBLISHED OR WRONG PROJECT`; }
+      else { sum.className = "summary sum-mixed"; sum.textContent = `⚠ ${pass} PASS · ${fail} FAIL — check failing rows above`; }
+    });
+  </script>
+</body>
+</html>
