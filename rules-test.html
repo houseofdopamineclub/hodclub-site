@@ -59,18 +59,18 @@
     // Test definitions. expect = "deny" means rule must reject; "allow" means rule must permit.
     const tests = [
       { id:1, mode:"unauth", expect:"deny",  desc:"UNAUTH: delete posKOTs/anything → should be BLOCKED",
-        run: async () => { await deleteDoc(doc(db,"posKOTs","__smoke_anything__")); } },
+        run: async () => { await deleteDoc(doc(db,"posKOTs","smoke-target-doc")); } },
       { id:2, mode:"unauth", expect:"deny",  desc:"UNAUTH: write verified_phones → should be BLOCKED",
-        run: async () => { await setDoc(doc(db,"verified_phones","__smoke__"), { x:1 }); } },
+        run: async () => { await setDoc(doc(db,"verified_phones","smoke-target-doc"), { x:1 }); } },
       { id:3, mode:"unauth", expect:"deny",  desc:"UNAUTH: write otps → should be BLOCKED",
-        run: async () => { await setDoc(doc(db,"otps","__smoke__"), { x:1 }); } },
+        run: async () => { await setDoc(doc(db,"otps","smoke-target-doc"), { x:1 }); } },
       { id:4, mode:"unauth", expect:"deny",  desc:"UNAUTH: delete bookings/anything → should be BLOCKED",
-        run: async () => { await deleteDoc(doc(db,"bookings","__smoke_anything__")); } },
+        run: async () => { await deleteDoc(doc(db,"bookings","smoke-target-doc")); } },
       { id:5, mode:"unauth", expect:"deny",  desc:"UNAUTH: read staff collection → should be BLOCKED (auth required)",
         run: async () => { await getDocs(collection(db,"staff")); } },
       { id:6, mode:"auth",   expect:"allow", desc:"AUTH (anon, as POS): create posKOT → should SUCCEED",
         run: async () => {
-          const ref = await addDoc(collection(db,"posKOTs"), { __smoke_test__:true, createdAt: serverTimestamp(), note:"rules-v2 smoke" });
+          const ref = await addDoc(collection(db,"posKOTs"), { smokeTest:true, createdAt: serverTimestamp(), note:"rules-v2 smoke" });
           return `created posKOTs/${ref.id} (safe to leave)`;
         } },
       { id:7, mode:"auth",   expect:"allow", desc:"AUTH (anon, as POS): read staff collection → should SUCCEED",
