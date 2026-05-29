@@ -432,8 +432,33 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
      errored or timed out. ZeptoMail (cloud-fn sendBookingEmail) is now
      the ONLY transport. No fallback — if ZeptoMail fails the email is
      not sent (and we surface the error in the console for debugging). -->
-<!-- Razorpay SDK -->
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<!-- 🆕 2026-05-29 — Razorpay checkout.js is now LAZY-LOADED on first Book/Pay tap.
+     Previously this was an eager <script src> in <head>, which made Razorpay
+     pre-download ~6MB of Magic Checkout UI (the v2-entry-*.modern.js storm seen
+     in DevTools) on EVERY page view before anyone clicked anything. Now the SDK
+     is injected only when a customer actually starts a payment, via ensureRazorpay().
+     The ~1s load happens during the existing "Opening…" spinner — invisible to guests.
+     🛟 FAIL-OPEN: if the CDN load fails, ensureRazorpay(cb) calls cb(false) and every
+     pay button re-enables + shows a retry alert. Zero charge, no silent dead button. -->
+<script>(function(){
+  var _rzpLoadPromise=null;
+  window.ensureRazorpay=function(cb){
+    if(typeof window.Razorpay!=='undefined'){ if(cb)cb(true); return; }
+    if(!_rzpLoadPromise){
+      _rzpLoadPromise=new Promise(function(resolve){
+        try{
+          var s=document.createElement('script');
+          s.src='https://checkout.razorpay.com/v1/checkout.js';
+          s.async=true;
+          s.onload=function(){ if(typeof window.Razorpay!=='undefined'){ resolve(true); } else { _rzpLoadPromise=null; resolve(false); } };
+          s.onerror=function(){ _rzpLoadPromise=null; resolve(false); };
+          document.head.appendChild(s);
+        }catch(e){ _rzpLoadPromise=null; resolve(false); }
+      });
+    }
+    _rzpLoadPromise.then(function(ok){ if(cb)cb(ok); });
+  };
+})();</script>
 <!-- Firebase SDK v9 compat -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
@@ -676,8 +701,11 @@ function hodPayAndCredit(opts){
       },
       modal: { ondismiss: function(){ opts.onClose && opts.onClose(); } }
     };
-    try { new Razorpay(rzOpts).open(); }
-    catch(e){ opts.onError && opts.onError('Could not open payment: '+(e.message||e)); }
+    ensureRazorpay(function(_rzReady){
+      if(!_rzReady){ opts.onError && opts.onError('Could not load payment system. Check your connection and try again.'); return; }
+      try { new Razorpay(rzOpts).open(); }
+      catch(e){ opts.onError && opts.onError('Could not open payment: '+(e.message||e)); }
+    });
   }).catch(function(e){
     opts.onError && opts.onError('Could not start payment: '+(e.message||e));
   });
@@ -3288,7 +3316,7 @@ function renderStep1(ev){
         }
 
         var desc2=ev.title+(d.tableType&&d.tableType!==''?' · Table booking':' · '+(d.entryType||'Stag')+' Entry')+(d.promoCode?' ('+d.promoCode+')':'');
-        if(RAZORPAY_KEY&&!RAZORPAY_KEY.includes('PASTE')&&typeof Razorpay!=='undefined'){
+        if(RAZORPAY_KEY&&!RAZORPAY_KEY.includes('PASTE')){
           var options={
             key:RAZORPAY_KEY,amount:total*100,currency:'INR',
             name:'HOD — House of Dopamine',description:desc2,
@@ -3323,18 +3351,26 @@ function renderStep1(ev){
             }}
           };
           directPayBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:16px;height:16px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span> Opening…';
-          try{
-            var rzpInstance=new Razorpay(options);
-            rzpInstance.on('payment.failed',function(){
+          ensureRazorpay(function(_rzReady){
+            if(!_rzReady){
               directPayBtn.disabled=false;cashBtn.disabled=false;
               directPayBtn.innerHTML='<span style="font-size:15px;">💳</span> Pay ₹'+total.toLocaleString('en-IN')+' Online';
-            });
-            rzpInstance.open();
-          }catch(e){
-            directPayBtn.disabled=false;cashBtn.disabled=false;
-            directPayBtn.innerHTML='<span style="font-size:15px;">💳</span> Pay ₹'+total.toLocaleString('en-IN')+' Online';
-            alert('Payment could not open. Please check your connection and try again.');
-          }
+              alert('Payment could not open. Please check your connection and try again.');
+              return;
+            }
+            try{
+              var rzpInstance=new Razorpay(options);
+              rzpInstance.on('payment.failed',function(){
+                directPayBtn.disabled=false;cashBtn.disabled=false;
+                directPayBtn.innerHTML='<span style="font-size:15px;">💳</span> Pay ₹'+total.toLocaleString('en-IN')+' Online';
+              });
+              rzpInstance.open();
+            }catch(e){
+              directPayBtn.disabled=false;cashBtn.disabled=false;
+              directPayBtn.innerHTML='<span style="font-size:15px;">💳</span> Pay ₹'+total.toLocaleString('en-IN')+' Online';
+              alert('Payment could not open. Please check your connection and try again.');
+            }
+          });
         } else {
           // Demo fallback
           directPayBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:16px;height:16px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span>';
@@ -3508,12 +3544,19 @@ function renderStep2(ev){
       };
       payBtn.disabled=true;
       payBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:17px;height:17px;animation:spin .6s linear infinite;display:inline-block"></span> Opening payment…';
-      try{new Razorpay(options).open();}
-      catch(e){
-        console.error('Razorpay error:',e);
-        payBtn.disabled=false;payBtn.innerHTML='💳 Pay '+dispAmt+' via Razorpay';
-        alert('Payment could not open. Please try again or contact HOD.');
-      }
+      ensureRazorpay(function(_rzReady){
+        if(!_rzReady){
+          payBtn.disabled=false;payBtn.innerHTML='💳 Pay '+dispAmt+' via Razorpay';
+          alert('Payment could not open. Please try again or contact HOD.');
+          return;
+        }
+        try{new Razorpay(options).open();}
+        catch(e){
+          console.error('Razorpay error:',e);
+          payBtn.disabled=false;payBtn.innerHTML='💳 Pay '+dispAmt+' via Razorpay';
+          alert('Payment could not open. Please try again or contact HOD.');
+        }
+      });
     } else {
       // ── DEMO MODE — only when Razorpay SDK is truly not loaded
       if(typeof Razorpay !== 'undefined'){
@@ -7428,6 +7471,9 @@ function renderWalletPage(bookingRef){
               }).catch(function(){});
             } catch(_){}
           }
+          ensureRazorpay(function(_rzReady){
+          if(!_rzReady){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); return; }
+          try{
           var rz=new Razorpay({
             key:RAZORPAY_KEY,amount:tt*100,currency:'INR',
             name:'HOD — House of Dopamine',
@@ -7477,6 +7523,8 @@ function renderWalletPage(bookingRef){
             });
           }
           rz.open();
+          }catch(_e){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); }
+          });
         };
         sheet.appendChild(poBtn);
 
@@ -7805,6 +7853,9 @@ function renderWalletPage(bookingRef){
     payBtn.onclick=function(){
       if(payBtn.disabled)return;
       payBtn.disabled=true;payBtn.textContent='Opening payment...';
+      ensureRazorpay(function(_rzReady){
+      if(!_rzReady){ payBtn.disabled=false;payBtn.textContent='Pay Online — Rs '+tabRunningTotal; alert('Could not open payment. Check your connection and try again.'); return; }
+      try{
       var _rz=new Razorpay({
         key:RAZORPAY_KEY,amount:tabRunningTotal*100,currency:'INR',
         name:'HOD — House of Dopamine',description:'Bill — '+(cv.tableId||cv.ref||''),
@@ -7814,6 +7865,8 @@ function renderWalletPage(bookingRef){
         modal:{ondismiss:function(){payBtn.disabled=false;payBtn.textContent='Pay Online — Rs '+tabRunningTotal;}}
       });
       _rz.open();
+      }catch(_e){ payBtn.disabled=false;payBtn.textContent='Pay Online — Rs '+tabRunningTotal; alert('Could not open payment. Check your connection and try again.'); }
+      });
     };
     sheet.appendChild(payBtn);
     var cashBtn=document.createElement('button');
