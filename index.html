@@ -542,6 +542,7 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
     <span class="ticker-item">DJ Nights Every Day</span><span class="ticker-dot">✦</span>
   </div>
 </div>
+<!-- 🆕 2026-05-30 v3.145 — RCB announcement banner REMOVED from home page (Khushi). The same copy now lives inside the Table Cover Charge overlay (_rcbShowPay) instead. -->
 <div id="root"></div>
 </div>
 
@@ -1081,7 +1082,7 @@ function sendBookingEmail(booking, eventTitle, eventDate, eventTime, eventVenue,
       female:'Ladies Entry (FREE)',
       group:'Group Entry — '+(booking.qty||1)+' People × ₹'+perHead+' · Cover Redeemable',
       entryonly:'Door Entry (₹'+entryOnlyPr+') · NOT Redeemable on F&B',
-      guestlist_couple:'Guest List · Couple (FREE before 9PM)',
+      guestlist_couple:'Guest List · Couple (FREE before '+((ev&&ev.date==='2026-05-31')?'8PM':'9PM')+')',
       table4:'Table for 4 (₹'+t4Pr.toLocaleString('en-IN')+') · Cover Redeemable',
       vip:'VVIP Table for 6 (₹'+vipPr.toLocaleString('en-IN')+') · Cover Redeemable'
     };
@@ -2748,7 +2749,7 @@ function renderStep1(ev){
     // === Tab: ENTRY ONLY (door, NOT redeemable) ===
     {id:'entryonly',        tab:'entry',     group:'entry', label:'DOOR ENTRY',     sub:'NOT redeemable on F&B',             price:ev.entryOnlyPrice||599,    col:'#9CA3AF'},
     // === Tab: GUEST LIST (free till 9pm) ===
-    {id:'guestlist_couple', tab:'guestlist', group:'entry', label:'COUPLE',         sub:'FREE before 9PM',                   price:0,                          col:'#E8C97A'},
+    {id:'guestlist_couple', tab:'guestlist', group:'entry', label:'COUPLE',         sub:(ev&&ev.date==='2026-05-31')?'FREE before 8PM':'FREE before 9PM',                   price:0,                          col:'#E8C97A'},
     {id:'guestlist_female', tab:'guestlist', group:'entry', label:'LADIES',         sub:'Always FREE',                       price:0,                          col:'#E8C97A'},
     // === Tab: SKIP QUEUE / COVERS (existing 4 entry pills + 2 tables) ===
     {id:'stag',             tab:'cover',     group:'entry', label:'STAG',           sub:'1 Person · Cover Redeemable',       price:ev.stagPrice||999,          col:'#C9A84C'},
@@ -2780,7 +2781,12 @@ function renderStep1(ev){
   var _now=new Date();
   var _todayStr=(typeof today==='function')?today():_now.toISOString().split('T')[0];
   var _isEventToday=(ev.date===_todayStr);
-  var _afterNine = _isEventToday && _now.getHours()>=21;
+  // 🆕 2026-05-30 v3.144 — RCB final (31 May 2026): guest list closes at 8PM,
+  // not 9PM. Every other event keeps the 9PM cutoff. The hour gate AND every
+  // label derive from this single source so text + enforcement never drift.
+  var _glCutoffHour  = (ev&&ev.date==='2026-05-31') ? 20 : 21;
+  var _glCutoffLabel = (ev&&ev.date==='2026-05-31') ? '8PM' : '9PM';
+  var _afterNine = _isEventToday && _now.getHours()>=_glCutoffHour;
   if(S.bdata.bookMode==='guestlist' && _afterNine){
     S.bdata.bookMode='cover';
     S.bdata.selectedOption='stag';S.bdata.entryType='stag';S.bdata.entryPrice=ev.stagPrice||999;
@@ -2896,7 +2902,7 @@ function renderStep1(ev){
 
   // ── v6: 4-tab switcher (Guest List · Entry Only · Buy Covers · Group) — PREMIUM HOD
   var TAB_DEFS=[
-    {id:'guestlist', label:'GUEST LIST', sub:_afterNine?'CLOSED · 9PM':'FREE TILL 9PM'},
+    {id:'guestlist', label:'GUEST LIST', sub:_afterNine?'CLOSED · '+_glCutoffLabel:'FREE TILL '+_glCutoffLabel},
     {id:'entry',     label:'ENTRY ONLY', sub:'ENTRY AFTER 11:30PM'},
     {id:'cover',     label:'BUY COVERS', sub:'REDEEMABLE F&B'},
     {id:'group',     label:'VIP TABLES / GROUP', sub:'FULLY REDEEMABLE'}
@@ -2923,7 +2929,7 @@ function renderStep1(ev){
     }
     btn.onclick=function(){
       if(isDisabled){
-        showToast('⏰ Guest list closes at 9PM. Pick a cover instead.','err',3500);
+        showToast('⏰ Guest list closes at '+_glCutoffLabel+'. Pick a cover instead.','err',3500);
         return;
       }
       if(S.bdata.bookMode===t.id) return;
@@ -2961,7 +2967,7 @@ function renderStep1(ev){
       '<span>⚠️</span><span style="font-size:12px;font-weight:600;">Door entry only · NOT redeemable on food &amp; drinks</span></div>';
   } else if(S.bdata.bookMode==='guestlist'){
     headerMsg='<div style="font-size:13px;color:rgba(0,200,100,.9);display:flex;align-items:center;gap:6px;">'+
-      '<span>✅</span><span style="font-size:12px;font-weight:600;">Guest list is FREE before 9PM. After 9PM, cover charges apply.</span></div>';
+      '<span>✅</span><span style="font-size:12px;font-weight:600;">Guest list is FREE before '+_glCutoffLabel+'. After '+_glCutoffLabel+', cover charges apply.</span></div>';
   } else if(S.bdata.bookMode==='group'){
     headerMsg='<div style="font-size:13px;color:rgba(201,168,76,.95);display:flex;align-items:center;gap:6px;">'+
       '<span>👥</span><span style="font-size:12px;font-weight:600;">Group entry · ₹'+(ev.groupPerHeadPrice||500)+' per head · 100% redeemable on F&amp;B</span></div>';
@@ -5174,7 +5180,33 @@ function renderTableFloorPlan(){
     confBtn.style.cssText='width:100%;padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(201,168,76,.95),rgba(201,168,76,.65));border:none;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--fs);letter-spacing:.5px;';
     confBtn.textContent='Reserve '+table.id;
 
-    sheet.appendChild(nameI);sheet.appendChild(phoneWrap);sheet.appendChild(dateI);sheet.appendChild(sizeI);sheet.appendChild(emailI);sheet.appendChild(arrivalI);sheet.appendChild(errD);sheet.appendChild(confBtn);
+    /* 🆕 2026-05-30 v3.142 — DATE QUICK-PICK CHIPS. Native <input type=date>
+       segment-typing is finicky (typing "31" no-ops unless the day segment is
+       focused), so guests one-tap the next 7 days incl. the 31 May RCB final. */
+    var dateChips=document.createElement('div');
+    dateChips.style.cssText='display:flex;gap:8px;overflow-x:auto;margin:-4px 0 14px;padding-bottom:4px;-webkit-overflow-scrolling:touch;';
+    var _wdS=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+    var _moS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function _styleDateChips(activeIso){
+      Array.prototype.slice.call(dateChips.children).forEach(function(c){
+        var on=(c.getAttribute('data-iso')===activeIso);
+        c.style.borderColor=on?'rgba(201,168,76,.95)':'rgba(255,255,255,.12)';
+        c.style.background=on?'rgba(201,168,76,.18)':'rgba(255,255,255,.04)';
+        c.style.color=on?'#C9A84C':'rgba(245,240,232,.82)';
+      });
+    }
+    for(var _ci=0;_ci<7;_ci++){(function(off){
+      var dd=new Date();dd.setHours(0,0,0,0);dd.setDate(dd.getDate()+off);
+      var iso=dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-'+String(dd.getDate()).padStart(2,'0');
+      var chip=document.createElement('button');chip.type='button';chip.setAttribute('data-iso',iso);
+      chip.style.cssText='flex:0 0 auto;padding:7px 11px;border-radius:11px;border:1.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:rgba(245,240,232,.82);font-family:inherit;cursor:pointer;white-space:nowrap;line-height:1.2;text-align:center;';
+      chip.innerHTML='<div style="font-size:10px;letter-spacing:.5px;opacity:.7;">'+(off===0?'TODAY':_wdS[dd.getDay()])+'</div><div style="font-size:14px;font-weight:900;">'+dd.getDate()+' '+_moS[dd.getMonth()]+'</div>';
+      chip.onclick=function(){dateI.value=iso;_styleDateChips(iso);try{_rebuildArrival(iso);}catch(_){}};
+      dateChips.appendChild(chip);
+    })(_ci);}
+    try{_styleDateChips(dateI.value);}catch(_){}
+    dateI.addEventListener('change',function(){try{_styleDateChips(this.value);}catch(_){}});
+    sheet.appendChild(nameI);sheet.appendChild(phoneWrap);sheet.appendChild(dateI);sheet.appendChild(dateChips);sheet.appendChild(sizeI);sheet.appendChild(emailI);sheet.appendChild(arrivalI);sheet.appendChild(errD);sheet.appendChild(confBtn);
     bookPanel.appendChild(sheet);
     setTimeout(function(){nameI.focus();},300);
 
@@ -5206,6 +5238,32 @@ function renderTableFloorPlan(){
       // 🆕 v3.82 — final guard: reject past dates even if user typed past min.
       if(bookDate<_todayLocal){errD.textContent='Please pick today or a future date.';errD.style.display='block';dateI.value=_todayLocal;try{_rebuildArrival(_todayLocal);}catch(_){}return;}
       if(!arrival){errD.textContent='Please select your arrival time.';errD.style.display='block';return;}
+      // 🆕 2026-05-30 v3.141 (Khushi) — RCB FINAL 31-MAY TABLE COVER. Dining +
+      // Rooftop tables booked for 9 PM or later on 31 May 2026 cost ₹2,500 per
+      // head (100% redeemable on F&B), with online + pay-at-venue options —
+      // exactly like covers. Ground floor (dance) + every other date + every
+      // pre-9PM slot stay UNCHANGED (free reservation). Fail-open: any error in
+      // the gate silently falls back to the free flow.
+      var _rcbCoverAmt=0;
+      try{
+        if(bookDate==='2026-05-31' && (activeFloor==='dining'||activeFloor==='rooftop'||activeFloor==='dance') && (typeof _t2m==='function') && _t2m(arrival)>=1260){
+          _rcbCoverAmt=2500*ps;
+        }
+      }catch(_rcbE){ _rcbCoverAmt=0; }
+      var _rcbV={name:name,phone:phone,ps:ps,email:email,arrival:arrival,bookDate:bookDate};
+      if(_rcbCoverAmt>0){ _rcbShowPay(_rcbCoverAmt,_rcbV); return; }
+      _finalizeReserve(null,0,_rcbV);
+    };
+
+    // 🆕 v3.141 — writes the tableReservations doc + covers doc + confirmation.
+    // _payId: null = free reservation; "pay_*" = Razorpay paid online (pre-
+    // credits a redeemable cover); "cash_pending_*" = reserve-now-pay-at-venue
+    // (₹0 cover, door collects cash on arrival, mirrors the v3.45 no-phantom
+    // rule). _coverAmt = ₹2,500 × party size when charged, else 0.
+    function _finalizeReserve(_payId,_coverAmt,V){
+      var name=V.name,phone=V.phone,ps=V.ps,email=V.email,arrival=V.arrival,bookDate=V.bookDate;
+      var _paidOnline=!!(_payId && String(_payId).indexOf('pay_')===0);
+      var _isCash=!!(_payId && String(_payId).indexOf('cash_pending_')===0);
       confBtn.disabled=true;confBtn.textContent='Reserving…';
       if(!firestore){errD.textContent='Firebase not connected.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;return;}
       var today=bookDate;
@@ -5220,7 +5278,7 @@ function renderTableFloorPlan(){
           var ref=firestore.collection('tableReservations').doc(slotKey);
           return tx.get(ref).then(function(doc){
             if(doc.exists&&doc.data().status==='booked')throw new Error('Just got booked! Choose another time.');
-            tx.set(ref,{tableId:table.id,floor:activeFloor,floorLabel:_HOD_TABLES[activeFloor].label,seats:table.seats,date:today,customerName:name,phone:phone,email:email||'',partySize:ps,arrivalTime:arrival,status:'booked',bookedAt:new Date().toISOString(),bookingRef:bRef,isVip:!!table.vip,eventId:ev?ev.id:'',eventTitle:ev?ev.title:'',source:'inhouse'});
+            tx.set(ref,{tableId:table.id,floor:activeFloor,floorLabel:_HOD_TABLES[activeFloor].label,seats:table.seats,date:today,customerName:name,phone:phone,email:email||'',partySize:ps,arrivalTime:arrival,status:'booked',bookedAt:new Date().toISOString(),bookingRef:bRef,isVip:!!table.vip,eventId:ev?ev.id:'',eventTitle:ev?ev.title:'',source:'inhouse',coverCharge:_coverAmt||0,paymentStatus:_paidOnline?'paid':(_isCash?'pending':'na'),paymentId:_payId||'',amountDue:_paidOnline?0:(_coverAmt||0),hasLinkedCover:_paidOnline,linkedCoverRef:_paidOnline?bRef:''});
             return bRef;
           });
         });
@@ -5242,12 +5300,13 @@ function renderTableFloorPlan(){
           // COVER step). Fail-open: cover-doc write is fire-and-forget.
           firestore.collection('covers').doc(ref2).set({
             ref:ref2,bookingId:ref2,name:name,phone:phone,email:email,
-            coverBalance:0,coverActivated:0,coverUsed:0,
-            transactions:[],
+            coverBalance:_paidOnline?_coverAmt:0,coverActivated:_paidOnline?_coverAmt:0,coverUsed:0,
+            transactions:_paidOnline?[{type:'table_prepay',amount:_coverAmt,paymentId:_payId||'',at:new Date().toISOString()}]:[],
             eventTitle:ev?ev.title:'',
             tableId:table.id,floor:activeFloor,floorLabel:_HOD_TABLES[activeFloor].label,
             date:today,arrivalTime:arrival,partySize:ps,
-            isTableBooking:true,tablePrePaid:false,createdAt:new Date().toISOString()
+            coverCharge:_coverAmt||0,paymentStatus:_paidOnline?'paid':(_isCash?'pending':'na'),paymentId:_payId||'',
+            isTableBooking:true,tablePrePaid:_paidOnline,createdAt:new Date().toISOString()
           }).catch(function(){});
         }
         return ref2;
@@ -5273,9 +5332,12 @@ function renderTableFloorPlan(){
           +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:10px;margin-bottom:10px;">'
           +'<span style="color:var(--muted);font-size:12px;">Date &amp; Arrival</span>'
           +'<span style="font-weight:800;font-size:13px;">'+bookDate+' · '+arrival+'</span></div>'
-          +'<div style="display:flex;justify-content:space-between;">'
+          +'<div style="display:flex;justify-content:space-between;'+(_coverAmt>0?'border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:10px;margin-bottom:10px;':'')+'">'
           +'<span style="color:var(--muted);font-size:12px;">Guests</span>'
           +'<span style="font-weight:800;font-size:13px;">'+ps+' Guest'+(ps>1?'s':'')+'</span></div>'
+          +(_coverAmt>0?('<div style="display:flex;justify-content:space-between;">'
+             +'<span style="color:var(--muted);font-size:12px;">'+(_paidOnline?'Paid (redeemable on F&amp;B)':'Pay at Venue')+'</span>'
+             +'<span style="font-weight:800;font-size:13px;color:'+(_paidOnline?'#00C864':'#F59E0B')+';">₹'+_coverAmt.toLocaleString('en-IN')+(_paidOnline?' ✓':'')+'</span></div>'):'')
           +'</div>'
           +'<div style="background:rgba(201,168,76,.1);border:1.5px solid rgba(201,168,76,.3);border-radius:14px;padding:20px;margin-bottom:20px;">'
           +'<div style="font-size:11px;color:rgba(201,168,76,.6);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Your Reference</div>'
@@ -5300,7 +5362,7 @@ function renderTableFloorPlan(){
             event_venue:'HOD '+_HOD_TABLES[activeFloor].label+' — Koramangala, 7th Block',
             entry_type:'Table · '+table.id+' · '+_HOD_TABLES[activeFloor].label,
             qty:ps+' guest'+(ps>1?'s':''),
-            total:'Pay at venue',phone:phone,
+            total:(_coverAmt>0?(_paidOnline?('Paid ₹'+_coverAmt.toLocaleString('en-IN')+' (redeemable)'):('Pay ₹'+_coverAmt.toLocaleString('en-IN')+' at venue')):'Pay at venue'),phone:phone,
             club_name:'HOD — House of Dopamine',
             club_phone:'+91 96864 44906',
             club_address:'Koramangala 7th Block, Bengaluru',
@@ -5320,8 +5382,71 @@ function renderTableFloorPlan(){
         } catch (_tblWaErr) { console.warn('[HOD] table WA send failed', _tblWaErr); }
 doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bks);};
         conf.appendChild(doneBtn);bookPanel.appendChild(conf);
-      }).catch(function(e){errD.textContent=e.message||'Booking failed. Try again.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;});
-    };
+      }).catch(function(e){
+        if(_paidOnline){
+          // 🛟 Money was taken but the reservation write failed — NEVER show a
+          // scary "failed" message to a guest who just paid. Show the payment
+          // id + tell them to screenshot and show it at the door. Fail-open.
+          try{ var _bd0=document.getElementById('tbl-backdrop'); if(_bd0)_bd0.remove(); }catch(_){}
+          try{ if(bookPanel._hodSlotInterval){ clearInterval(bookPanel._hodSlotInterval); bookPanel._hodSlotInterval=null; } }catch(_){}
+          bookPanel.innerHTML='<div style="background:linear-gradient(135deg,rgba(12,8,22,.98),rgba(18,8,30,.98));border:1px solid rgba(201,168,76,.25);border-radius:24px 24px 0 0;padding:32px 28px 48px;text-align:center;box-shadow:0 -20px 60px rgba(0,0,0,.9);">'
+            +'<div style="font-size:48px;margin-bottom:10px;">✅</div>'
+            +'<div style="font-family:var(--fp);font-size:22px;font-weight:900;color:var(--gold);margin-bottom:10px;">Payment Received</div>'
+            +'<div style="color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:16px;">Your ₹'+(_coverAmt||0).toLocaleString('en-IN')+' is confirmed. Please screenshot this and show it at the entrance — our team will seat you.</div>'
+            +'<div style="font-family:monospace;font-size:18px;font-weight:900;color:var(--gold);letter-spacing:2px;word-break:break-all;">'+sanitize(_payId||'')+'</div></div>';
+          return;
+        }
+        errD.textContent=e.message||'Booking failed. Try again.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;
+      });
+    }
+
+    // 🆕 v3.141 — RCB table-cover payment chooser. Mirrors the covers two-button
+    // UX (Pay Online via Razorpay + Reserve Now, Pay at Venue). On success it
+    // calls _finalizeReserve with the right paymentId. Fail-open everywhere.
+    function _rcbShowPay(amount,V){
+      var ov=document.createElement('div');ov.id='rcb-pay-ov';
+      ov.style.cssText='position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;';
+      var card=document.createElement('div');
+      card.style.cssText='background:linear-gradient(135deg,rgba(12,8,22,.99),rgba(18,8,30,.99));border:1px solid rgba(201,168,76,.3);border-radius:24px 24px 0 0;padding:26px 22px 34px;width:100%;max-width:540px;box-shadow:0 -20px 60px rgba(0,0,0,.9);';
+      card.innerHTML='<div style="font-size:10px;font-weight:800;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">🏏 RCB FINAL · 31 MAY</div>'
+        +'<div style="font-family:var(--fp);font-size:22px;font-weight:900;color:var(--text);margin-bottom:14px;">Table Cover Charge</div>'
+        +'<div style="background:linear-gradient(135deg,#1c0608,#2c0a0c);border:1px solid rgba(201,168,76,.4);border-radius:13px;padding:12px 14px;margin-bottom:16px;"><div style="font-size:13px;font-weight:900;color:#ff4d4d;line-height:1.3;">🔴 RCB IS IN THE FINAL — HOD IS GOING ALL OUT!</div><div style="font-size:11.5px;font-weight:600;color:#F2EBD3;margin-top:6px;line-height:1.45;"><span style="color:#C9A84C;font-weight:900;">⚠️ COVER CHARGES APPLY.</span> Due to massive demand, cover charges are being collected for all table bookings across all floors and are 100% redeemable.</div></div>'
+        +'<div style="background:rgba(255,255,255,.04);border:1px solid rgba(201,168,76,.2);border-radius:14px;padding:14px 16px;margin-bottom:18px;">'
+        +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Table</span><span style="font-weight:800;font-size:13px;color:var(--gold);">'+sanitize(table.id)+' · '+sanitize(_HOD_TABLES[activeFloor].label)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Date &amp; Arrival</span><span style="font-weight:800;font-size:13px;">'+sanitize(V.bookDate)+' · '+sanitize(V.arrival)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Cover</span><span style="font-weight:800;font-size:13px;">'+V.ps+' × ₹2,500</span></div>'
+        +'<div style="display:flex;justify-content:space-between;"><span style="color:var(--gold);font-size:13px;font-weight:800;">Total</span><span style="font-weight:900;font-size:16px;color:var(--gold);">₹'+amount.toLocaleString('en-IN')+'</span></div>'
+        +'<div style="font-size:10px;color:var(--muted);margin-top:8px;">100% redeemable on food &amp; drinks</div></div>';
+      var payBtn=document.createElement('button');
+      payBtn.style.cssText='width:100%;padding:15px;border-radius:13px;background:linear-gradient(135deg,rgba(201,168,76,.95),rgba(201,168,76,.65));border:none;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--fs);margin-bottom:10px;';
+      payBtn.innerHTML='💳 Pay ₹'+amount.toLocaleString('en-IN')+' Online';
+      var cashBtn=document.createElement('button');
+      cashBtn.style.cssText='width:100%;padding:14px;border-radius:13px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:rgba(245,240,232,.85);font-size:14px;font-weight:700;cursor:pointer;font-family:var(--fs);margin-bottom:10px;';
+      cashBtn.innerHTML='🏠 Reserve Now, Pay at Venue';
+      var backBtn=document.createElement('button');
+      backBtn.style.cssText='width:100%;padding:11px;border-radius:11px;border:none;background:none;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--fs);';
+      backBtn.textContent='← Back';
+      backBtn.onclick=function(){ov.remove();};
+      payBtn.onclick=function(){
+        payBtn.disabled=true;cashBtn.disabled=true;
+        payBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:16px;height:16px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span> Opening payment…';
+        var _reset=function(){payBtn.disabled=false;cashBtn.disabled=false;payBtn.innerHTML='💳 Pay ₹'+amount.toLocaleString('en-IN')+' Online';};
+        var options={key:RAZORPAY_KEY,amount:amount*100,currency:'INR',name:'HOD — House of Dopamine',description:'RCB Final Table Cover · '+table.id+' · '+_HOD_TABLES[activeFloor].label,image:'https://hodclub.in/logo.png',
+          notes:{kind:'rcb_table_cover',tableId:String(table.id),floor:String(activeFloor),date:String(V.bookDate),arrivalTime:String(V.arrival),partySize:String(V.ps),name:String(V.name||'').slice(0,100),phone:String(V.phone||'').slice(0,20),email:String(V.email||'').slice(0,200),expectedTotal:String(amount)},
+          handler:function(resp){ ov.remove(); _finalizeReserve(resp.razorpay_payment_id,amount,V); },
+          prefill:{name:V.name,email:V.email,contact:V.phone},theme:{color:'#C9A84C'},
+          modal:{ondismiss:_reset}};
+        if(RAZORPAY_KEY && RAZORPAY_KEY.indexOf('PASTE')<0){
+          ensureRazorpay(function(ok){
+            if(!ok){_reset();alert('Payment could not open. Please check your connection and try again.');return;}
+            try{ new Razorpay(options).open(); }catch(_e){ _reset(); alert('Payment could not open. Please try again.'); }
+          });
+        } else { _reset(); alert('Online payment not available right now — please use Reserve Now, Pay at Venue.'); }
+      };
+      cashBtn.onclick=function(){ ov.remove(); _finalizeReserve('cash_pending_'+Date.now().toString(36),amount,V); };
+      card.appendChild(payBtn);card.appendChild(cashBtn);card.appendChild(backBtn);
+      ov.appendChild(card);document.body.appendChild(ov);
+    }
   }
 
   // Load bookings for selected date and render (re-subscribes when date changes via dfIn.onchange)
