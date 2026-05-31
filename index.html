@@ -1532,6 +1532,7 @@ function startEventsListener(){
       }
       S._cachedEventsJson=_newJson;
     }catch(_e){/* fall through to render */}
+    var _prevEvs=S._cachedEvents;
     S._cachedEvents=evs;
     // ── v3: 6AM nightly stock auto-reset for table inventory.
     try{ _autoResetStockIfNeeded(evs); }catch(e){console.warn('[HOD] stock reset:',e);}
@@ -1539,10 +1540,20 @@ function startEventsListener(){
     var db=getDB();db.events=evs;try{saveDB(db);}catch(e){}
     // Re-render on home or admin events tab.
     if(S.view==='home'){
-      if(!S.modal){render();}
-      else {
-        var modalEvExists=evs.some(function(e){return e.id===S.modal;});
-        if(modalEvExists){render();}
+      if(!S.modal){
+        // 🆕 Background poll re-render — PRESERVE the customer's scroll position
+        // so a live stock/sold update never yanks them back to the top.
+        var _sy=(typeof window!=='undefined')?(window.scrollY||window.pageYOffset||0):0;
+        render();
+        try{ window.scrollTo(0,_sy); }catch(_e){}
+      } else {
+        // 🆕 Modal OPEN: only re-render if the modal's event JUST became
+        // available (deep-link ?event=… pending → loaded). Once it's already
+        // present, SKIP — rebuilding the open modal resets its scroll (the
+        // "pushed back to top" bug).
+        var _hadBefore=(_prevEvs||[]).some(function(e){return e&&e.id===S.modal;});
+        var _hasNow=evs.some(function(e){return e&&e.id===S.modal;});
+        if(!_hadBefore && _hasNow){ render(); }
       }
     }
     else if(S.view==='admin'&&S.adminTab==='events'){
@@ -1584,11 +1595,15 @@ function loadEventsFromFirebase(callback){
   if(!firestore){callback(getDB().events);return;}
   // If cached from listener — return immediately
   if(S._cachedEvents&&S._cachedEvents.length){callback(S._cachedEvents);return;}
-  // Otherwise one-time get
-  firestore.collection('events').orderBy('date').get()
+  // Otherwise one-time get — SAME date-filtered query as startEventsListener so
+  // the cached set matches the listener's, and seed S._cachedEventsJson so the
+  // listener's immediate prime de-dupes (kills the triple-render on load).
+  var _cutoff=(function(){var d=new Date(Date.now()-7*24*60*60*1000);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  firestore.collection('events').where('date','>=',_cutoff).orderBy('date').get()
     .then(function(snap){
       var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
       S._cachedEvents=evs;
+      try{S._cachedEventsJson=JSON.stringify(evs);}catch(_e){}
       var db=getDB();db.events=evs;try{saveDB(db);}catch(e){}
       callback(evs);
     })
@@ -2459,13 +2474,13 @@ function buildEvCard(ev,idx){
       set({modal:ev.id,step:1,bdata:{name:'',email:'',phone:'',qty:1,bookMode:'guestlist',entryType:'guestlist_couple',entryPrice:0}});
     };
 
-    // CTA 2: Book Covers Online
+    // CTA 2: Book a Table → jump straight to the floor-plan page
     var bkBtn=document.createElement('button');
     bkBtn.style.cssText='flex:1;padding:12px 8px;border-radius:10px;background:linear-gradient(135deg,rgba(201,168,76,.95),rgba(160,120,48,.8));border:none;color:#000;font-size:11px;font-weight:900;cursor:pointer;font-family:var(--fs);letter-spacing:.3px;transition:all .2s;';
-    bkBtn.textContent='🎟️ BUY COVERS';
+    bkBtn.textContent='🪑 BOOK A TABLE';
     bkBtn.onclick=function(e){
       e.stopPropagation();
-      set({modal:ev.id,step:1,bdata:{name:'',email:'',phone:'',qty:1,bookMode:'cover',entryType:'stag',entryPrice:ev.stagPrice||999}});
+      set({modal:null,_homeTab:'tables'});
     };
     ctaRow.appendChild(glBtn);ctaRow.appendChild(bkBtn);
     footer.appendChild(ctaRow);
@@ -2903,9 +2918,9 @@ function renderStep1(ev){
   // ── v6: 4-tab switcher (Guest List · Entry Only · Buy Covers · Group) — PREMIUM HOD
   var TAB_DEFS=[
     {id:'guestlist', label:'GUEST LIST', sub:_afterNine?'CLOSED · '+_glCutoffLabel:'FREE TILL '+_glCutoffLabel},
-    {id:'entry',     label:'ENTRY ONLY', sub:'ENTRY AFTER 11:30PM'},
     {id:'cover',     label:'BUY COVERS', sub:'REDEEMABLE F&B'},
-    {id:'group',     label:'VIP TABLES / GROUP', sub:'FULLY REDEEMABLE'}
+    {id:'entry',     label:'ENTRY ONLY', sub:'ENTRY AFTER 11:30PM'},
+    {id:'booktable', label:'BOOK A TABLE', sub:'GROUND · DINING · ROOFTOP'}
   ];
   var tabBar=document.createElement('div');
   tabBar.setAttribute('data-tab-bar','1');
@@ -2928,6 +2943,7 @@ function renderStep1(ev){
       btn.onmouseout=function(){btn.style.background='rgba(201,168,76,.04)';};
     }
     btn.onclick=function(){
+      if(t.id==='booktable'){ set({modal:null,_homeTab:'tables'}); return; }
       if(isDisabled){
         showToast('⏰ Guest list closes at '+_glCutoffLabel+'. Pick a cover instead.','err',3500);
         return;
@@ -4589,17 +4605,22 @@ function renderWaitlistWidget(ev){
 // ════════════════════════════════════════════════════════════
 // 📊 PREMIUM ANALYTICS DASHBOARD v4 — Full 5D/3D
 // ════════════════════════════════════════════════════════════
+// 🆕 2026-05-31 v3.148 — per-floor WEEKEND table cover pricing, admin-set via POS → appSettings/tablePricing. Defaults ₹2500/head, enabled. Customer site READS only (public-read rule already live); it never writes.
+var _HOD_TBL_PRICING={ground:2500,dining:2500,rooftop:2500,enabled:true};
+function _hodLoadTablePricing(){try{if(typeof firestore==='undefined'||!firestore)return;firestore.collection('appSettings').doc('tablePricing').get().then(function(s){try{if(s&&s.exists){var d=s.data()||{};if(typeof d.ground==='number')_HOD_TBL_PRICING.ground=d.ground;if(typeof d.dining==='number')_HOD_TBL_PRICING.dining=d.dining;if(typeof d.rooftop==='number')_HOD_TBL_PRICING.rooftop=d.rooftop;if(typeof d.enabled==='boolean')_HOD_TBL_PRICING.enabled=d.enabled;}}catch(_){}}).catch(function(){});}catch(_){}}
+function _hodFloorPriceKey(f){return f==='dance'?'ground':f;}
+function _hodIsWeekendIso(iso){try{var d=new Date(iso+'T12:00:00');var wd=d.getDay();return wd===5||wd===6||wd===0;}catch(_){return false;}}
 var _HOD_TABLES = {
   dance:{
-    label:'Dance Floor',icon:'🎧',
+    label:'Ground Floor',icon:'🎧',
     vb:'0 0 500 430',
     tables:[
       {id:'C1',seats:4,sh:'circle',cx:115,cy:215,r:34},
       {id:'C2',seats:4,sh:'circle',cx:225,cy:165,r:34},
       {id:'C3',seats:4,sh:'circle',cx:335,cy:215,r:34},
       {id:'C4',seats:4,sh:'circle',cx:225,cy:295,r:34},
-      {id:'VIP1',seats:8,sh:'rect',x:390,y:120,w:90,h:80,vip:true},
-      {id:'VIP2',seats:8,sh:'rect',x:390,y:260,w:90,h:80,vip:true}
+      {id:'VIP1',seats:6,sh:'rect',x:390,y:120,w:90,h:80,vip:true},
+      {id:'VIP2',seats:6,sh:'rect',x:390,y:260,w:90,h:80,vip:true}
     ],
     bg:'<defs><filter id="tglow"><feGaussianBlur stdDeviation="3" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/></filter></defs>'
       +'<rect x="8" y="8" width="484" height="414" rx="12" fill="rgba(12,8,22,.95)" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/>'
@@ -4810,7 +4831,7 @@ function renderTableFloorPlan(){
   floorOuter.style.cssText='padding:0 20px;margin-bottom:0;';
   var floorBar=document.createElement('div');
   floorBar.style.cssText='display:flex;border-bottom:1px solid rgba(255,255,255,.08);';
-  Object.keys(_HOD_TABLES).filter(function(k){return k!=='dance';}).forEach(function(k){
+  Object.keys(_HOD_TABLES).forEach(function(k){
     var fd=_HOD_TABLES[k];
     var isOn=k===activeFloor;
     var btn=document.createElement('button');
@@ -4897,12 +4918,15 @@ function renderTableFloorPlan(){
   // ── Multi-slot helpers (Plan A: doc-per-slot, 2-hr gap)
   var _HOD_SLOT_GAP_MIN=120;
   var _HOD_ALL_SLOTS=['12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM','5:30 PM','6:00 PM','6:30 PM','7:00 PM','7:30 PM','8:00 PM','8:30 PM','9:00 PM','9:30 PM','10:00 PM','10:30 PM','11:00 PM','11:30 PM'];
-  function _t2m(t){var m=/^(\d+):(\d+)\s*(AM|PM)$/i.exec(t||'');if(!m)return -1;var h=parseInt(m[1]),mn=parseInt(m[2]),pm=/PM/i.test(m[3]);if(h===12)h=0;if(pm)h+=12;return h*60+mn;}
+  // 🆕 v3.148 — Ground Floor (dance) books 8 PM → 12 AM only; other floors keep the full range.
+  var _GROUND_SLOTS=['8:00 PM','8:30 PM','9:00 PM','9:30 PM','10:00 PM','10:30 PM','11:00 PM','11:30 PM','12:00 AM'];
+  var _floorSlots=(activeFloor==='dance')?_GROUND_SLOTS:_HOD_ALL_SLOTS;
+  function _t2m(t){if(/^\s*12:00\s*AM\s*$/i.test(t||''))return 1440;var m=/^(\d+):(\d+)\s*(AM|PM)$/i.exec(t||'');if(!m)return -1;var h=parseInt(m[1]),mn=parseInt(m[2]),pm=/PM/i.test(m[3]);if(h===12)h=0;if(pm)h+=12;return h*60+mn;}
   function _t2hhmm(t){var mn=_t2m(t);if(mn<0)return '0000';var h=Math.floor(mn/60),m2=mn%60;return (h<10?'0':'')+h+(m2<10?'0':'')+m2;}
   function _slotsConflict(t1,t2){var a=_t2m(t1),b=_t2m(t2);if(a<0||b<0)return false;return Math.abs(a-b)<_HOD_SLOT_GAP_MIN;}
   function _tableSlotsFor(tableId){var arr=bks[tableId];if(!arr)return [];return Array.isArray(arr)?arr:[arr];}
   function _activeSlotsFor(tableId){return _tableSlotsFor(tableId).filter(function(s){return s.status!=='cancelled';});}
-  function _tableFullyBooked(tableId){var slots=_activeSlotsFor(tableId);if(slots.length===0)return false;for(var i=0;i<_HOD_ALL_SLOTS.length;i++){var conflict=false;for(var j=0;j<slots.length;j++){if(_slotsConflict(slots[j].arrivalTime,_HOD_ALL_SLOTS[i])){conflict=true;break;}}if(!conflict)return false;}return true;}
+  function _tableFullyBooked(tableId){var slots=_activeSlotsFor(tableId);if(slots.length===0)return false;for(var i=0;i<_floorSlots.length;i++){var conflict=false;for(var j=0;j<slots.length;j++){if(_slotsConflict(slots[j].arrivalTime,_floorSlots[i])){conflict=true;break;}}if(!conflict)return false;}return true;}
 
   function getTableStatus(id){
     var slots=_activeSlotsFor(id);
@@ -5130,6 +5154,17 @@ function renderTableFloorPlan(){
     sizeI.value=Math.min(2,table.seats);
     var emailI=document.createElement('input');emailI.placeholder='Email Address (optional)';emailI.type='email';emailI.style.cssText=fcss;
     var arrivalI=document.createElement('select');arrivalI.style.cssText=fcss+'margin-bottom:16px;';
+    // 🆕 v3.148 — popup the MOMENT a 9 PM-or-later slot is picked on a weekend (any floor).
+    arrivalI.onchange=function(){
+      try{
+        var _arr=arrivalI.value; if(!_arr) return;
+        var _ph=_coverPerHeadFor(dateI.value,_arr);
+        if(_ph<=0) return;
+        var V=_collect(true);
+        if(V){ _rcbShowPay(_ph*V.ps,V); }
+        else { errD.style.color='#C9A84C'; errD.textContent='⚠️ Cover ₹'+_ph.toLocaleString('en-IN')+'/head applies for '+_arr+' (100% redeemable on F&B). Enter your details, then tap Reserve.'; errD.style.display='block'; }
+      }catch(_e){}
+    };
     function _rebuildArrival(formDate){
       arrivalI.innerHTML='';
       var dao=document.createElement('option');dao.value='';dao.textContent='Estimated Arrival Time *';arrivalI.appendChild(dao);
@@ -5144,7 +5179,7 @@ function renderTableFloorPlan(){
       var _todayIso=_now.toISOString().split('T')[0];
       var _isToday=(formDate===_todayIso);
       var _nowMin=_now.getHours()*60+_now.getMinutes()+15;
-      _HOD_ALL_SLOTS.forEach(function(t){
+      _floorSlots.forEach(function(t){
         try{ if(_isToday && _t2m(t)>=0 && _t2m(t)<_nowMin) return; }catch(_){}
         var ao=document.createElement('option');ao.value=t;ao.textContent=t;arrivalI.appendChild(ao);
       });
@@ -5164,6 +5199,7 @@ function renderTableFloorPlan(){
         });
       }).catch(function(){});
     }
+    try{_hodLoadTablePricing();}catch(_){}
     _rebuildArrival(dateI.value);
     dateI.onchange=function(){_rebuildArrival(dateI.value);};
     // 🔴 2026-05-26 — refresh every 60s so a slot that crosses "now"
@@ -5217,13 +5253,22 @@ function renderTableFloorPlan(){
     backdrop.id='tbl-backdrop';
     document.body.appendChild(backdrop);
 
-    confBtn.onclick=function(){
+    // 🆕 2026-05-31 v3.148 — WEEKEND TABLE COVER (per-head, per-floor, admin-configurable).
+    // Replaces the v3.141 one-night RCB (31 May) hardcode. Applies on Fri/Sat/Sun
+    // with arrival 9 PM or later on ANY floor, when enabled. Price per head is read
+    // from appSettings/tablePricing (defaults ₹2,500/floor). Fail-open: any error → ₹0 → free flow.
+    function _coverPerHeadFor(_iso,_arr){
+      try{
+        if(!_HOD_TBL_PRICING.enabled) return 0;
+        if(!_hodIsWeekendIso(_iso)) return 0;
+        if(typeof _t2m!=='function' || _t2m(_arr)<1260) return 0;
+        var _v=_HOD_TBL_PRICING[_hodFloorPriceKey(activeFloor)];
+        return (typeof _v==='number' && _v>0)?_v:0;
+      }catch(_e){ return 0; }
+    }
+    function _collect(soft){
       var name=nameI.value.trim();
-      // 🆕 v3.80 — phone now carries country code (e.g. "+91 9611111261").
-      // India numbers still validated at 10 digits; international numbers
-      // accepted at ≥7 digits (E.164 lower bound) so we don't block legit
-      // overseas guests. Stored as "<cc> <digits>" so downstream WhatsApp /
-      // SMS sends can use it directly.
+      // phone carries country code (e.g. "+91 9611111261"); India=10 digits, intl≥7.
       var cc=(ccI.value||'+91').trim();
       var phoneDigits=phoneI.value.trim().replace(/\D/g,'');
       var phone=cc+' '+phoneDigits;
@@ -5231,28 +5276,20 @@ function renderTableFloorPlan(){
       var email=emailI.value.trim();
       var arrival=arrivalI.value;
       var bookDate=dateI.value;
-      if(!name){errD.textContent='Please enter your name.';errD.style.display='block';return;}
-      if(cc==='+91' && phoneDigits.length!==10){errD.textContent='Please enter a valid 10-digit Indian phone number.';errD.style.display='block';return;}
-      if(cc!=='+91' && phoneDigits.length<7){errD.textContent='Please enter a valid phone number for the selected country.';errD.style.display='block';return;}
-      if(!bookDate){errD.textContent='Please select a date.';errD.style.display='block';return;}
-      // 🆕 v3.82 — final guard: reject past dates even if user typed past min.
-      if(bookDate<_todayLocal){errD.textContent='Please pick today or a future date.';errD.style.display='block';dateI.value=_todayLocal;try{_rebuildArrival(_todayLocal);}catch(_){}return;}
-      if(!arrival){errD.textContent='Please select your arrival time.';errD.style.display='block';return;}
-      // 🆕 2026-05-30 v3.141 (Khushi) — RCB FINAL 31-MAY TABLE COVER. Dining +
-      // Rooftop tables booked for 9 PM or later on 31 May 2026 cost ₹2,500 per
-      // head (100% redeemable on F&B), with online + pay-at-venue options —
-      // exactly like covers. Ground floor (dance) + every other date + every
-      // pre-9PM slot stay UNCHANGED (free reservation). Fail-open: any error in
-      // the gate silently falls back to the free flow.
-      var _rcbCoverAmt=0;
-      try{
-        if(bookDate==='2026-05-31' && (activeFloor==='dining'||activeFloor==='rooftop'||activeFloor==='dance') && (typeof _t2m==='function') && _t2m(arrival)>=1260){
-          _rcbCoverAmt=2500*ps;
-        }
-      }catch(_rcbE){ _rcbCoverAmt=0; }
-      var _rcbV={name:name,phone:phone,ps:ps,email:email,arrival:arrival,bookDate:bookDate};
-      if(_rcbCoverAmt>0){ _rcbShowPay(_rcbCoverAmt,_rcbV); return; }
-      _finalizeReserve(null,0,_rcbV);
+      function _f(msg,fix){ if(!soft){errD.style.color='#EF4444';errD.textContent=msg;errD.style.display='block';if(fix){try{fix();}catch(_x){}}} return null; }
+      if(!name) return _f('Please enter your name.');
+      if(cc==='+91' && phoneDigits.length!==10) return _f('Please enter a valid 10-digit Indian phone number.');
+      if(cc!=='+91' && phoneDigits.length<7) return _f('Please enter a valid phone number for the selected country.');
+      if(!bookDate) return _f('Please select a date.');
+      if(bookDate<_todayLocal) return _f('Please pick today or a future date.',function(){dateI.value=_todayLocal;_rebuildArrival(_todayLocal);});
+      if(!arrival) return _f('Please select your arrival time.');
+      return {name:name,phone:phone,ps:ps,email:email,arrival:arrival,bookDate:bookDate};
+    }
+    confBtn.onclick=function(){
+      var V=_collect(false); if(!V) return;
+      var _ph=_coverPerHeadFor(V.bookDate,V.arrival);
+      if(_ph>0){ _rcbShowPay(_ph*V.ps,V); return; }
+      _finalizeReserve(null,0,V);
     };
 
     // 🆕 v3.141 — writes the tableReservations doc + covers doc + confirmation.
@@ -5400,21 +5437,23 @@ doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bk
       });
     }
 
-    // 🆕 v3.141 — RCB table-cover payment chooser. Mirrors the covers two-button
+    // 🆕 v3.148 — table-cover payment chooser. Mirrors the covers two-button
     // UX (Pay Online via Razorpay + Reserve Now, Pay at Venue). On success it
     // calls _finalizeReserve with the right paymentId. Fail-open everywhere.
+    // Per-head price is derived from the passed total (amount / party size).
     function _rcbShowPay(amount,V){
+      var _phd=(V&&V.ps>0)?Math.round(amount/V.ps):amount;
       var ov=document.createElement('div');ov.id='rcb-pay-ov';
       ov.style.cssText='position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;';
       var card=document.createElement('div');
       card.style.cssText='background:linear-gradient(135deg,rgba(12,8,22,.99),rgba(18,8,30,.99));border:1px solid rgba(201,168,76,.3);border-radius:24px 24px 0 0;padding:26px 22px 34px;width:100%;max-width:540px;box-shadow:0 -20px 60px rgba(0,0,0,.9);';
-      card.innerHTML='<div style="font-size:10px;font-weight:800;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">🏏 RCB FINAL · 31 MAY</div>'
+      card.innerHTML='<div style="font-size:10px;font-weight:800;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">TABLE BOOKING</div>'
         +'<div style="font-family:var(--fp);font-size:22px;font-weight:900;color:var(--text);margin-bottom:14px;">Table Cover Charge</div>'
-        +'<div style="background:linear-gradient(135deg,#1c0608,#2c0a0c);border:1px solid rgba(201,168,76,.4);border-radius:13px;padding:12px 14px;margin-bottom:16px;"><div style="font-size:13px;font-weight:900;color:#ff4d4d;line-height:1.3;">🔴 RCB IS IN THE FINAL — HOD IS GOING ALL OUT!</div><div style="font-size:11.5px;font-weight:600;color:#F2EBD3;margin-top:6px;line-height:1.45;"><span style="color:#C9A84C;font-weight:900;">⚠️ COVER CHARGES APPLY.</span> Due to massive demand, cover charges are being collected for all table bookings across all floors and are 100% redeemable.</div></div>'
+        +'<div style="background:linear-gradient(135deg,#08160d,#0c2614);border:1px solid rgba(34,197,94,.45);border-radius:13px;padding:12px 14px;margin-bottom:16px;"><div style="font-size:13px;font-weight:900;color:#34d27a;line-height:1.3;">✓ COVER CHARGES APPLY</div><div style="font-size:11.5px;font-weight:600;color:#F2EBD3;margin-top:6px;line-height:1.45;">Cover charges apply on this table and are <span style="color:#34d27a;font-weight:900;">100% fully redeemable on food &amp; drinks</span>.</div></div>'
         +'<div style="background:rgba(255,255,255,.04);border:1px solid rgba(201,168,76,.2);border-radius:14px;padding:14px 16px;margin-bottom:18px;">'
         +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Table</span><span style="font-weight:800;font-size:13px;color:var(--gold);">'+sanitize(table.id)+' · '+sanitize(_HOD_TABLES[activeFloor].label)+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Date &amp; Arrival</span><span style="font-weight:800;font-size:13px;">'+sanitize(V.bookDate)+' · '+sanitize(V.arrival)+'</span></div>'
-        +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Cover</span><span style="font-weight:800;font-size:13px;">'+V.ps+' × ₹2,500</span></div>'
+        +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Cover</span><span style="font-weight:800;font-size:13px;">'+V.ps+' × ₹'+_phd.toLocaleString('en-IN')+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;"><span style="color:var(--gold);font-size:13px;font-weight:800;">Total</span><span style="font-weight:900;font-size:16px;color:var(--gold);">₹'+amount.toLocaleString('en-IN')+'</span></div>'
         +'<div style="font-size:10px;color:var(--muted);margin-top:8px;">100% redeemable on food &amp; drinks</div></div>';
       var payBtn=document.createElement('button');
@@ -5431,8 +5470,8 @@ doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bk
         payBtn.disabled=true;cashBtn.disabled=true;
         payBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:16px;height:16px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span> Opening payment…';
         var _reset=function(){payBtn.disabled=false;cashBtn.disabled=false;payBtn.innerHTML='💳 Pay ₹'+amount.toLocaleString('en-IN')+' Online';};
-        var options={key:RAZORPAY_KEY,amount:amount*100,currency:'INR',name:'HOD — House of Dopamine',description:'RCB Final Table Cover · '+table.id+' · '+_HOD_TABLES[activeFloor].label,image:'https://hodclub.in/logo.png',
-          notes:{kind:'rcb_table_cover',tableId:String(table.id),floor:String(activeFloor),date:String(V.bookDate),arrivalTime:String(V.arrival),partySize:String(V.ps),name:String(V.name||'').slice(0,100),phone:String(V.phone||'').slice(0,20),email:String(V.email||'').slice(0,200),expectedTotal:String(amount)},
+        var options={key:RAZORPAY_KEY,amount:amount*100,currency:'INR',name:'HOD — House of Dopamine',description:'Table Cover · '+table.id+' · '+_HOD_TABLES[activeFloor].label,image:'https://hodclub.in/logo.png',
+          notes:{kind:'table_cover',tableId:String(table.id),floor:String(activeFloor),date:String(V.bookDate),arrivalTime:String(V.arrival),partySize:String(V.ps),name:String(V.name||'').slice(0,100),phone:String(V.phone||'').slice(0,20),email:String(V.email||'').slice(0,200),expectedTotal:String(amount)},
           handler:function(resp){ ov.remove(); _finalizeReserve(resp.razorpay_payment_id,amount,V); },
           prefill:{name:V.name,email:V.email,contact:V.phone},theme:{color:'#C9A84C'},
           modal:{ondismiss:_reset}};
