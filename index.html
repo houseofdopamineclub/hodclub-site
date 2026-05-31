@@ -170,7 +170,7 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
 .meta-r.tap:hover{color:var(--gold);}
 .meta-r.tap:hover::after{color:var(--gold);transform:translate(2px,-1px);}
 .meta-r.tap:active{opacity:.7;}
-.ev-desc{font-size:12px;color:var(--muted);line-height:1.65;margin-bottom:8px;font-family:var(--fi);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.ev-desc{font-size:12px;color:#ffffff;font-weight:600;line-height:1.65;margin-bottom:8px;font-family:var(--fi);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 /* 🔴 2026-05-26 (Khushi) — T&C dropdown shown on every event card + modal. */
 .ev-tc-toggle{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--gold);letter-spacing:.6px;text-transform:uppercase;cursor:pointer;padding:6px 10px;border-radius:8px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.22);user-select:none;margin-bottom:14px;transition:background .18s;}
 .ev-tc-toggle:hover{background:rgba(201,168,76,.16);}
@@ -202,12 +202,12 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
 .m-body{padding:22px;}
 .m-title{font-family:var(--fp);font-size:24px;font-weight:700;margin-bottom:14px;line-height:1.2;}
 .m-meta{padding:14px;background:var(--surface);border-radius:12px;margin-bottom:18px;border:1px solid var(--border);display:flex;flex-direction:column;gap:7px;}
-.m-desc{font-size:13px;color:rgba(245,240,232,.65);line-height:1.75;margin-bottom:22px;font-family:var(--fi);white-space:pre-wrap;word-break:break-word;}
+.m-desc{font-size:13px;color:#ffffff;font-weight:600;line-height:1.75;margin-bottom:22px;font-family:var(--fi);white-space:pre-wrap;word-break:break-word;}
 /* FORM */
 .f-title{font-size:11px;font-weight:800;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;}
 .fld{margin-bottom:13px;}
-.fld label{display:block;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px;}
-.fld input,.fld select,.fld textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:11px 13px;color:var(--text);font-size:13px;font-family:var(--fs);outline:none;transition:border-color .2s,box-shadow .2s;}
+.fld label{display:block;font-size:11px;font-weight:800;color:var(--gold2);letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px;}
+.fld input,.fld select,.fld textarea{width:100%;background:var(--surface);border:1.5px solid rgba(201,168,76,.45);border-radius:9px;padding:11px 13px;color:var(--text);font-size:13px;font-family:var(--fs);outline:none;transition:border-color .2s,box-shadow .2s;}
 .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--borderf);box-shadow:0 0 0 3px rgba(201,168,76,.07);}
 .fld input.err{border-color:#FF3558!important;}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
@@ -481,6 +481,19 @@ html,body{background:var(--black);color:var(--text);font-family:var(--fs);min-he
   <script>
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
+      // 🆕 v3.153 — only initialize OneSignal on the LIVE HOD domains. Opening
+      // this file locally (file://), on localhost, or in preview made OneSignal
+      // briefly inject its prompt UI on the RIGHT, then yank it the instant it
+      // errored on the wrong origin ("Can only be used on: https://hodclub.netlify.app")
+      // — that's the millisecond flash. Gate by hostname so it stays silent
+      // everywhere but production (behavior on the live domains is unchanged).
+      var _h=(location.hostname||'').toLowerCase();
+      // 🆕 v3.154 — OneSignal's app is configured ONLY for https://hodclub.netlify.app.
+      // On hodclub.in (and everywhere else) init throws "Can only be used on..." and
+      // briefly flashes its prompt UI on the right before yanking it. Restrict init to
+      // the ONE origin where it actually works → no flash on hodclub.in or anywhere else.
+      // (To enable push on hodclub.in, add it as an allowed origin in the OneSignal dashboard.)
+      if(_h!=='hodclub.netlify.app') return;
       await OneSignal.init({
         appId: "c397f7f2-da32-4092-bcf8-4a75be22ebf4",
         notifyButton: { enable: false },
@@ -1540,13 +1553,7 @@ function startEventsListener(){
     var db=getDB();db.events=evs;try{saveDB(db);}catch(e){}
     // Re-render on home or admin events tab.
     if(S.view==='home'){
-      if(!S.modal){
-        // 🆕 Background poll re-render — PRESERVE the customer's scroll position
-        // so a live stock/sold update never yanks them back to the top.
-        var _sy=(typeof window!=='undefined')?(window.scrollY||window.pageYOffset||0):0;
-        render();
-        try{ window.scrollTo(0,_sy); }catch(_e){}
-      } else {
+      if(S.modal){
         // 🆕 Modal OPEN: only re-render if the modal's event JUST became
         // available (deep-link ?event=… pending → loaded). Once it's already
         // present, SKIP — rebuilding the open modal resets its scroll (the
@@ -1554,6 +1561,19 @@ function startEventsListener(){
         var _hadBefore=(_prevEvs||[]).some(function(e){return e&&e.id===S.modal;});
         var _hasNow=evs.some(function(e){return e&&e.id===S.modal;});
         if(!_hadBefore && _hasNow){ render(); }
+      } else if(S._homeTab==='tables'){
+        // 🆕 v3.154 — On the BOOK A TABLE tab the events list isn't shown, and the
+        // floor plan has its OWN 20s availability poll. The 30s events poll used to
+        // call full render() here, rebuilding the floor plan every ~30s — the
+        // "re-renders every minute / scroll jump" flicker Khushi saw. Skip the
+        // rebuild on this tab; the events cache is still updated above, so switching
+        // back to UPCOMING EVENTS paints fresh.
+      } else {
+        // 🆕 Background poll re-render — PRESERVE the customer's scroll position
+        // so a live stock/sold update never yanks them back to the top.
+        var _sy=(typeof window!=='undefined')?(window.scrollY||window.pageYOffset||0):0;
+        render();
+        try{ window.scrollTo(0,_sy); }catch(_e){}
       }
     }
     else if(S.view==='admin'&&S.adminTab==='events'){
@@ -2162,25 +2182,37 @@ function renderHome(){
   // poster images and slowing the homepage). pastEvs no longer computed.
   var allPublished=(S._cachedEvents||db.events).filter(function(e){return e.published;}).sort(function(a,b){return a.date<b.date?-1:1;});
   var pub=allPublished.filter(function(e){return !isEventPast(e);});  // upcoming only
+  // 🆕 v3.151 — stamp the event-data signature THIS paint reflects, so the
+  // loadEventsFromFirebase callback can skip a redundant identical re-render
+  // when the realtime listener already painted the same data (triple-render fix).
+  S._eventsPaintedJson=S._cachedEventsJson||null;
   var dates=['all'];
   pub.forEach(function(e){if(!dates.includes(e.date))dates.push(e.date);});
   // Events are kept fresh by startEventsListener() — no fetch needed here
   // If cache is empty (first load before listener fires), do a one-time get
   if(!S._cachedEvents||!S._cachedEvents.length){
     loadEventsFromFirebase(function(evs){
-      // Always re-render on home so loading state is replaced — even if 0 events.
-      if(S.view==='home'){
-        if(!S.modal){render();}
-        else if(evs && evs.some(function(e){return e.id===S.modal;})){render();}
-      }
+      if(S.view!=='home')return;
+      // 🆕 v3.151 — RENDER DEDUPE. On cold load BOTH this manual get() and the
+      // realtime listener fetch the same events (race); whichever resolves
+      // SECOND used to fire a redundant identical re-paint (the 3rd render
+      // Khushi saw). renderHome stamps S._eventsPaintedJson with the data it
+      // last painted; skip if ours matches what's already on screen.
+      // Normalized compare (||null on both sides) so the no-Firestore / failed-get
+      // path — where _cachedEventsJson stays undefined — ALSO dedupes (null===null)
+      // and can't trigger the synchronous callback→render→renderHome→loadEvents loop.
+      if((S._cachedEventsJson||null)===S._eventsPaintedJson) return;
+      if(!S.modal){render();}
+      else if(evs && evs.some(function(e){return e.id===S.modal;})){render();}
     });
-    // Safety net: force a re-render after 3s in case the listener/get both stalled.
-    // Cheap insurance — if cache populated by then, render() shows the events.
+    // Safety net: force ONE re-render after 3s ONLY if events still aren't
+    // painted (listener + get both stalled). Guarded on the ABSENCE of any
+    // .ev-card so the normal fast path never double-paints.
     if(!S._homeRetryScheduled){
       S._homeRetryScheduled=true;
       setTimeout(function(){
         S._homeRetryScheduled=false;
-        if(S.view==='home' && !S.modal && S._cachedEvents && S._cachedEvents.length){
+        if(S.view==='home' && !S.modal && S._cachedEvents && S._cachedEvents.length && !document.querySelector('.ev-card')){
           render();
         }
       },3000);
@@ -4606,9 +4638,24 @@ function renderWaitlistWidget(ev){
 // 📊 PREMIUM ANALYTICS DASHBOARD v4 — Full 5D/3D
 // ════════════════════════════════════════════════════════════
 // 🆕 2026-05-31 v3.148 — per-floor WEEKEND table cover pricing, admin-set via POS → appSettings/tablePricing. Defaults ₹2500/head, enabled. Customer site READS only (public-read rule already live); it never writes.
-var _HOD_TBL_PRICING={ground:2500,dining:2500,rooftop:2500,enabled:true};
-function _hodLoadTablePricing(){try{if(typeof firestore==='undefined'||!firestore)return;firestore.collection('appSettings').doc('tablePricing').get().then(function(s){try{if(s&&s.exists){var d=s.data()||{};if(typeof d.ground==='number')_HOD_TBL_PRICING.ground=d.ground;if(typeof d.dining==='number')_HOD_TBL_PRICING.dining=d.dining;if(typeof d.rooftop==='number')_HOD_TBL_PRICING.rooftop=d.rooftop;if(typeof d.enabled==='boolean')_HOD_TBL_PRICING.enabled=d.enabled;}}catch(_){}}).catch(function(){});}catch(_){}}
+// 🆕 v3.155 — Ground split into PREMIUM (C1–C4) + VVIP (VIP1/VIP2); each tier (and
+// dining/rooftop) has its OWN per-head price AND its OWN cover start time (minutes
+// since midnight). Doc at appSettings/tablePricing (POS-set):
+//   { enabled, groundPremium:{price,startMin}, groundVvip:{price,startMin},
+//     dining:{price,startMin}, rooftop:{price,startMin} }
+// Back-compat: an OLD doc with flat numeric ground/dining/rooftop still seeds prices.
+// Default startMin 1260 = 9 PM. Customer READS only; POS writes. Fail-open everywhere.
+var _HOD_TBL_PRICING={
+  enabled:true,
+  groundPremium:{price:2500,startMin:1260},
+  groundVvip:{price:2500,startMin:1260},
+  dining:{price:2500,startMin:1260},
+  rooftop:{price:2500,startMin:1260}
+};
+function _hodApplyTier(d,key){try{var o=d&&d[key];if(o&&typeof o==='object'){if(typeof o.price==='number'&&o.price>=0)_HOD_TBL_PRICING[key].price=o.price;if(typeof o.startMin==='number'&&o.startMin>=0)_HOD_TBL_PRICING[key].startMin=o.startMin;}}catch(_){}}
+function _hodLoadTablePricing(){try{if(typeof firestore==='undefined'||!firestore)return;firestore.collection('appSettings').doc('tablePricing').get().then(function(s){try{if(s&&s.exists){var d=s.data()||{};if(typeof d.enabled==='boolean')_HOD_TBL_PRICING.enabled=d.enabled;if(typeof d.ground==='number'){_HOD_TBL_PRICING.groundPremium.price=d.ground;_HOD_TBL_PRICING.groundVvip.price=d.ground;}if(typeof d.dining==='number')_HOD_TBL_PRICING.dining.price=d.dining;if(typeof d.rooftop==='number')_HOD_TBL_PRICING.rooftop.price=d.rooftop;_hodApplyTier(d,'groundPremium');_hodApplyTier(d,'groundVvip');_hodApplyTier(d,'dining');_hodApplyTier(d,'rooftop');}}catch(_){}}).catch(function(){});}catch(_){}}
 function _hodFloorPriceKey(f){return f==='dance'?'ground':f;}
+function _hodCoverCat(_floor,_isVip){if(_floor==='dance'||_floor==='ground')return _isVip?'groundVvip':'groundPremium';if(_floor==='dining')return 'dining';if(_floor==='rooftop')return 'rooftop';return 'groundPremium';}
 function _hodIsWeekendIso(iso){try{var d=new Date(iso+'T12:00:00');var wd=d.getDay();return wd===5||wd===6||wd===0;}catch(_){return false;}}
 var _HOD_TABLES = {
   dance:{
@@ -4825,19 +4872,24 @@ function renderTableFloorPlan(){
     wrap.appendChild(evRow);
   }
 
-  // ── FLOOR TABS — premium underline style
+  // ── FLOOR TABS — 🆕 v3.151 boxed gold tabs so customers clearly see the 3 floors
   var activeFloor=S._tableFloor||'dining';
   var floorOuter=document.createElement('div');
-  floorOuter.style.cssText='padding:0 20px;margin-bottom:0;';
+  floorOuter.style.cssText='padding:0 20px;margin-bottom:14px;';
+  var floorHint=document.createElement('div');
+  floorHint.style.cssText='font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--gold);opacity:.85;margin:0 0 8px 2px;text-transform:uppercase;';
+  floorHint.textContent='👇 Choose your floor — 3 options';
+  floorOuter.appendChild(floorHint);
   var floorBar=document.createElement('div');
-  floorBar.style.cssText='display:flex;border-bottom:1px solid rgba(255,255,255,.08);';
+  floorBar.style.cssText='display:flex;gap:8px;';
   Object.keys(_HOD_TABLES).forEach(function(k){
     var fd=_HOD_TABLES[k];
     var isOn=k===activeFloor;
     var btn=document.createElement('button');
-    btn.style.cssText='flex:1;padding:13px 4px 11px;border:none;font-size:11px;font-weight:800;cursor:pointer;font-family:var(--fs);letter-spacing:1px;transition:all .22s;background:transparent;'
-      +'border-bottom:2.5px solid '+(isOn?'var(--gold)':'transparent')+';'
-      +'color:'+(isOn?'var(--gold)':'rgba(245,240,232,.3)')+';';
+    btn.style.cssText='flex:1;padding:12px 6px;border-radius:12px;border:1.5px solid var(--gold);font-size:11px;font-weight:800;cursor:pointer;font-family:var(--fs);letter-spacing:.5px;transition:all .22s;'
+      +(isOn
+        ?'background:linear-gradient(135deg,rgba(201,168,76,.95),rgba(160,120,48,.85));color:#000;box-shadow:0 0 18px rgba(201,168,76,.35);'
+        :'background:rgba(201,168,76,.08);color:var(--gold);');
     btn.innerHTML=fd.icon+'<span style="margin-left:6px;">'+fd.label.toUpperCase()+'</span>';
     btn.onclick=function(){set({_tableFloor:k,_selectedTable:null});};
     floorBar.appendChild(btn);
@@ -5261,8 +5313,13 @@ function renderTableFloorPlan(){
       try{
         if(!_HOD_TBL_PRICING.enabled) return 0;
         if(!_hodIsWeekendIso(_iso)) return 0;
-        if(typeof _t2m!=='function' || _t2m(_arr)<1260) return 0;
-        var _v=_HOD_TBL_PRICING[_hodFloorPriceKey(activeFloor)];
+        var _cat=_hodCoverCat(activeFloor,(table&&table.vip));
+        var _c=_HOD_TBL_PRICING[_cat]||{};
+        // tonight (Sun 31 May 2026) ONLY → cover starts 7 PM (1140) for every tier,
+        // per Khushi (RCB final). Other nights use the per-tier start time from CRM.
+        var _sm=(_iso==='2026-05-31')?1140:((typeof _c.startMin==='number')?_c.startMin:1260);
+        if(typeof _t2m!=='function' || _t2m(_arr)<_sm) return 0;
+        var _v=_c.price;
         return (typeof _v==='number' && _v>0)?_v:0;
       }catch(_e){ return 0; }
     }
@@ -5449,7 +5506,7 @@ doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bk
       card.style.cssText='background:linear-gradient(135deg,rgba(12,8,22,.99),rgba(18,8,30,.99));border:1px solid rgba(201,168,76,.3);border-radius:24px 24px 0 0;padding:26px 22px 34px;width:100%;max-width:540px;box-shadow:0 -20px 60px rgba(0,0,0,.9);';
       card.innerHTML='<div style="font-size:10px;font-weight:800;color:var(--gold);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">TABLE BOOKING</div>'
         +'<div style="font-family:var(--fp);font-size:22px;font-weight:900;color:var(--text);margin-bottom:14px;">Table Cover Charge</div>'
-        +'<div style="background:linear-gradient(135deg,#08160d,#0c2614);border:1px solid rgba(34,197,94,.45);border-radius:13px;padding:12px 14px;margin-bottom:16px;"><div style="font-size:13px;font-weight:900;color:#34d27a;line-height:1.3;">✓ COVER CHARGES APPLY</div><div style="font-size:11.5px;font-weight:600;color:#F2EBD3;margin-top:6px;line-height:1.45;">Cover charges apply on this table and are <span style="color:#34d27a;font-weight:900;">100% fully redeemable on food &amp; drinks</span>.</div></div>'
+        +'<div style="background:linear-gradient(135deg,#08160d,#0c2614);border:1px solid rgba(34,197,94,.45);border-radius:13px;padding:12px 14px;margin-bottom:16px;"><div style="font-size:13px;font-weight:900;color:#34d27a;line-height:1.3;">✓ RCB IS IN THE FINALS! 🏆</div><div style="font-size:11.5px;font-weight:600;color:#F2EBD3;margin-top:6px;line-height:1.45;">Due to huge demand, cover charges apply on all tables across all floors tonight — and are <span style="color:#34d27a;font-weight:900;">100% redeemable on food &amp; drinks</span>.</div></div>'
         +'<div style="background:rgba(255,255,255,.04);border:1px solid rgba(201,168,76,.2);border-radius:14px;padding:14px 16px;margin-bottom:18px;">'
         +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Table</span><span style="font-weight:800;font-size:13px;color:var(--gold);">'+sanitize(table.id)+' · '+sanitize(_HOD_TABLES[activeFloor].label)+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:var(--muted);font-size:12px;">Date &amp; Arrival</span><span style="font-weight:800;font-size:13px;">'+sanitize(V.bookDate)+' · '+sanitize(V.arrival)+'</span></div>'
