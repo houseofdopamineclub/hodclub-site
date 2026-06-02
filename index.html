@@ -12,7 +12,7 @@
      file / wrong deploy). Cumulative: carries v3.159 / v3.168 wallet "YOUR
      TABLE" card + "TWO WAYS TO ORDER" copy / v3.170 aggregator-wallet lock /
      v3.183 table-mode no-balance-block + green recharge UX + RECHARGE AT BAR. -->
-<script>window.HOD_BUILD="v3.183";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-02)","color:#10b981;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.189";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-02)","color:#10b981;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(255,255,255,.30);background:rgba(0,0,0,.35);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -7033,8 +7033,30 @@ function renderWalletPage(bookingRef){
               try { showToast('Ask your captain to settle the table bill first','warn',2500); } catch(_){}
             };
           };
-          // Sync check (cv.tabRounds — covers customer-self-order rounds)
-          if (_hasOpenRoundsFn(cv.tabRounds)) _lockBarForOpenTab('cv rounds');
+          // Sync check (cv.tabRounds — covers customer-self-order rounds).
+          // 🆕 2026-06-02 v3.184c (Khushi CORE FIX) — a guest already IN BAR mode
+          // keeps INSTANT-redeeming at the bar; their OWN bar rounds must NOT
+          // lock the bar (they were just charged). Only an open TABLE-mode round
+          // (a tab the captain settles at the END) should force "settle first".
+          // Bar rounds are tagged source 'customer_self_order_bar'/'recharge_at_bar'
+          // (see _parkOrderForBartender); table-mode self-orders have no/other
+          // source. Captain rounds on the linked table doc still lock via the
+          // async stale-check above (unchanged).
+          var _isBarRound=function(r){
+            var s=String((r&&r.source)||'').toLowerCase();
+            return s.indexOf('bar')!==-1; // customer_self_order_bar, recharge_at_bar
+          };
+          var _hasOpenTableRoundsFn=function(arr){
+            try {
+              return Array.isArray(arr) && arr.some(function(r){
+                if(!r) return false;
+                var st=String(r.status||'').toLowerCase();
+                var open=(st==='preparing'||st==='activated'||st==='served');
+                return open && !_isBarRound(r);
+              });
+            } catch(_){ return false; }
+          };
+          if (_hasOpenTableRoundsFn(cv.tabRounds)) _lockBarForOpenTab('open table-mode round');
           _lpMd.appendChild(_barBtn);
           var _lpCloseBtn=document.createElement('button');
           _lpCloseBtn.style.cssText='width:100%;padding:10px;border-radius:10px;background:transparent;border:none;color:#666;font-size:12px;cursor:pointer;font-family:var(--fs);';
