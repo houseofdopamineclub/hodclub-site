@@ -12,7 +12,7 @@
      file / wrong deploy). Cumulative: carries v3.159 / v3.168 wallet "YOUR
      TABLE" card + "TWO WAYS TO ORDER" copy / v3.170 aggregator-wallet lock /
      v3.183 table-mode no-balance-block + green recharge UX + RECHARGE AT BAR. -->
-<script>window.HOD_BUILD="v3.194";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-02)","color:#10b981;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.196";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-02)","color:#10b981;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(255,255,255,.30);background:rgba(0,0,0,.35);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -7183,19 +7183,38 @@ function renderWalletPage(bookingRef){
         }
         if(placeBtn.disabled)return;
         placeBtn.disabled=true;placeBtn.textContent='Placing...';
+        // 🆕 2026-06-02 v3.196 (Khushi BUG — Aditya) — CAPTURE the location choice
+        // SYNCHRONOUSLY. The _lpOv picker's TABLE button does
+        // `placeBtn._loc='table'; placeBtn.onclick(); finally{ placeBtn._loc=null }`
+        // — so by the time the ASYNC firestore .then() below fires, placeBtn._loc
+        // is already null. Snapshot it now so the post-place routing knows the
+        // guest chose TABLE (skip the duplicate "WHERE ARE YOU?" popup + keep the
+        // order off the bartender dashboard).
+        var _chosenLoc=placeBtn._loc;
+        var _isTableChoice=(_chosenLoc==='table');
         var roundItems=Object.values(cart).map(function(it){return {n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};});
         var newRound={roundNum:getRoundNum(),items:roundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString()};
+        // Tag a TABLE self-order so the bartender side never surfaces it as a
+        // bar pre-order (captain owns it). Mirrors the source already written on
+        // the tableReservations copy below.
+        if(_isTableChoice)newRound.source='customer_self_order';
         var coverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
         // Auto-mark previous activated rounds as served (customer ordering again = they got their last order)
         var updatedRounds=tabRounds.map(function(r){
           if(r.status==='activated')return Object.assign({},r,{status:'served',servedAt:new Date().toISOString()});
           return r;
         }).concat([newRound]);
-        firestore.collection('covers').doc(coverDocId).set({
+        var _coverPatch={
           tabRounds:updatedRounds,tabTotal:getTabTotal()+ct,
           ref:cv.ref||cv.bookingId||'',name:cv.name||'',phone:cv.phone||'',
           isTableBooking:!!cv.isTableBooking,tableId:cv.tableId||'',floorLabel:cv.floorLabel||''
-        },{merge:true}).then(function(){
+        };
+        // 🆕 2026-06-02 v3.196 — guest is at the TABLE → the captain serves this
+        // round. CLEAR any sticky BAR markers left by a previous round's "I'M AT
+        // THE BAR" choice (atBar / hasIncomingCustomerOrder are durable) so this
+        // table order does NOT ALSO light up the bartender's incoming dashboard.
+        if(_isTableChoice){_coverPatch.atBar=false;_coverPatch.hasIncomingCustomerOrder=false;}
+        firestore.collection('covers').doc(coverDocId).set(_coverPatch,{merge:true}).then(function(){
           tabRounds=updatedRounds;
           // 🔴 2026-05-20 (Khushi Bug 1 fix) — AUTO-IMPORT customer's self-
           // order onto the captain's running tab.
@@ -7328,7 +7347,44 @@ function renderWalletPage(bookingRef){
             // only linkedTableId (the human-readable "F-12") is present
             // without a doc ref, we can't write the ping anywhere, so fall
             // through to bartender QR. (Architect note 2026-05-20.)
-            if(!_linkedTblRef){
+            if(_isTableChoice && _linkedTblRef){
+              // 🆕 2026-06-02 v3.196 (Khushi BUG — Aditya) — the guest ALREADY
+              // told us "I'M AT MY TABLE" in the pre-place _lpOv picker
+              // (_chosenLoc==='table'). Re-showing the chOv "WHERE ARE YOU?"
+              // popup here was a CONFUSING DOUBLE popup (pick table → asked
+              // again). Ping the captain DIRECTLY and show a single CAPTAIN
+              // NOTIFIED card. Fail-open: on write error, fall back to the
+              // bartender QR so the guest always has a path.
+              var _tnOv=document.createElement('div');
+              _tnOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);font-family:var(--fs);';
+              var _tnMd=document.createElement('div');
+              _tnMd.style.cssText='background:linear-gradient(180deg,#1a1a1a,#0c0c0c);border:1.5px solid rgba(242,199,68,.4);border-radius:22px;padding:26px 22px 20px;width:100%;max-width:380px;text-align:center;color:#fff;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(242,199,68,.15);';
+              _tnMd.innerHTML='<div style="font-size:48px;margin-bottom:10px;line-height:1;">⏳</div>'
+                +'<div style="font-family:var(--fp);font-size:20px;font-weight:900;color:#F2C744;letter-spacing:.4px;">CALLING CAPTAIN…</div>';
+              _tnOv.appendChild(_tnMd);
+              document.body.appendChild(_tnOv);
+              firestore.collection('tableReservations').doc(_linkedTblRef).update({
+                customerCallRequest:{
+                  at:new Date().toISOString(),
+                  itemsPreview:_placedItemsStr,
+                  total:_placedTotal
+                }
+              }).then(function(){
+                _tnMd.innerHTML=
+                   '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🔔</div>'
+                  +'<div style="font-family:var(--fp);font-size:22px;font-weight:900;color:#10b981;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
+                  +'<div style="font-size:13px;color:#aaa;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#F2C744;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#666;font-size:11px;">Sit tight, enjoy the music 🎶</span></div>';
+                var _tnOk=document.createElement('button');
+                _tnOk.style.cssText='width:100%;padding:13px;border-radius:12px;background:linear-gradient(180deg,#C9A84C,#A88838);border:none;color:#0c0c0c;font-size:14px;font-weight:900;letter-spacing:.6px;cursor:pointer;text-transform:uppercase;font-family:var(--fs);';
+                _tnOk.textContent='Got it ✓';
+                _tnOk.onclick=function(){_tnOv.remove();};
+                _tnMd.appendChild(_tnOk);
+              }).catch(function(err){
+                _tnOv.remove();
+                showToast('⚠️ Could not reach captain — show QR to bartender or wave for service.','err',5000);
+                _showBartenderQR();
+              });
+            } else if(!_linkedTblRef){
               _showBartenderQR();
             } else {
               // LINKED-TABLE WALLET → "WHERE ARE YOU?" 2-button popup.
