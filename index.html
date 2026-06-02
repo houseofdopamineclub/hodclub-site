@@ -12,7 +12,7 @@
      file / wrong deploy). Cumulative: carries v3.159 / v3.168 wallet "YOUR
      TABLE" card + "TWO WAYS TO ORDER" copy / v3.170 aggregator-wallet lock /
      v3.183 table-mode no-balance-block + green recharge UX + RECHARGE AT BAR. -->
-<script>window.HOD_BUILD="v3.189";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-02)","color:#10b981;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.194";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-02)","color:#10b981;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(255,255,255,.30);background:rgba(0,0,0,.35);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -7070,14 +7070,24 @@ function renderWalletPage(bookingRef){
 
         // Block if order exceeds wallet balance — ONLY in BAR / instant-
         // redemption mode. 🆕 2026-06-02 v3.183 (Khushi CORE FIX): in TABLE
-        // mode (a table is attached AND the guest has NOT explicitly chosen
-        // the bar) orders accrue as a tab and the CAPTAIN settles the bill at
-        // the END, so we must NEVER block on balance there. Pure covers (dance
-        // floor, no table) are always instant-redemption → still gated. A
-        // cover+table guest who tapped I'M AT THE BAR (atBar:true) is back in
-        // instant-redemption → still gated.
+        // mode (a table is attached) orders accrue as a tab and the CAPTAIN
+        // settles the bill at the END, so we must NEVER block on balance there.
+        // Pure covers (dance floor, no table) are always instant-redemption →
+        // still gated.
+        //
+        // 🆕 2026-06-02 v3.194 (Khushi BUG — Aditya) — DROPPED the
+        // `&& cv.atBar !== true` condition. The durable `atBar` flag is set when
+        // a guest taps "I'M AT THE BAR" and STAYS true (sticky). But the bar/
+        // table CHOICE popup ("WHERE ARE YOU?") appears AFTER this pre-order
+        // gate. So a table guest who chose BAR in round 1 (balance → 0) had
+        // atBar:true carried into round 2 → this gate fired the RECHARGE popup
+        // BEFORE he could even pick TABLE again. A table-attached wallet must
+        // ALWAYS be allowed to order (accrue the tab) and then route via the
+        // WHERE-ARE-YOU popup: TABLE → captain notified; BAR → bartender QR,
+        // and BarMode/recharge-at-bar handles any shortfall bartender-side.
+        // Pure covers (no table) are unaffected — still gated.
         var _hasTableForGate = !!(cv.isTableBooking || cv.linkedTableRef || cv.tableId);
-        var _inTableMode = _hasTableForGate && cv.atBar !== true;
+        var _inTableMode = _hasTableForGate;
         if(!_inTableMode){
           var pendingTotalRaw=tabRounds.filter(function(r){return r.status==='preparing';}).reduce(function(s,r){return s+(r.roundTotal||0);},0);
           // 🔴 2026-05-20 (Khushi Bug 2 fallback, architect-narrowed) — clamp
