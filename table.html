@@ -228,6 +228,11 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
       }
     } catch(e){ console.warn("App Check init skipped:", e.message); }
     db = firebase.firestore();
+    // 🆕 2026-06-02 — Firestore realtime LISTEN (onSnapshot) over WebChannel can stall
+    // ~30s on phones / venue wifi / proxied networks before falling back to long-polling.
+    // experimentalAutoDetectLongPolling keeps fast WebChannel where it works and auto-
+    // switches to long-polling when the stream is buffered. Must run before any read.
+    try{ db.settings({ experimentalAutoDetectLongPolling:true, merge:true }); console.info('✅ Firestore long-polling auto-detect ON'); }catch(_e){ console.warn('Firestore settings skipped:', _e&&_e.message); }
     // Anonymous auth so writes are auth>=null OK if rules require it
     firebase.auth().signInAnonymously().catch(function(e){
       console.warn("[auth] anonymous sign-in failed (non-fatal)", e.message);

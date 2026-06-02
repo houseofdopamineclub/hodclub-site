@@ -1179,6 +1179,14 @@ function initFirebase(){
         }catch(e){ console.warn('App Check init failed (continuing without):', e); }
       }
       firestore = firebase.firestore();
+      // 🆕 2026-06-02 — Firestore realtime LISTEN (onSnapshot) over WebChannel can
+      // stall ~30s on phones / venue wifi / proxied networks before falling back to
+      // long-polling — this is the customer ticket-wallet "takes 30s to load" bug
+      // (one-shot get() reads are fast; only the wallet's onSnapshot listener stalls).
+      // experimentalAutoDetectLongPolling keeps fast WebChannel where it works and
+      // auto-switches to long-polling when the stream is being buffered. Money logic
+      // untouched. Must be set before any Firestore read.
+      try{ firestore.settings({ experimentalAutoDetectLongPolling:true, merge:true }); console.info('✅ Firestore long-polling auto-detect ON'); }catch(_e){ console.warn('Firestore settings skipped:', _e&&_e.message); }
       firebase.auth().onAuthStateChanged(function(user){
         S._fbUser = user || null;
       });
