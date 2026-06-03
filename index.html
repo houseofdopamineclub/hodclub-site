@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.203";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-03)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.205";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-03)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -6173,43 +6173,31 @@ function renderWalletPage(bookingRef){
       emptyBanner.style.cssText='background:rgba(239,68,68,.06);border:1.5px solid rgba(239,68,68,.3);border-radius:8px;padding:20px;margin-bottom:16px;text-align:center;';
       emptyBanner.innerHTML='<div style="font-size:28px;margin-bottom:8px;">⚡</div>'
         +'<div style="font-size:15px;font-weight:900;color:#FF5733;margin-bottom:6px;">Load your wallet to start ordering</div>'
-        +'<div style="font-size:12px;color:#3D3D3D;line-height:1.6;margin-bottom:14px;">Recharge online below or show your QR to the bartender. Browse the menu while you decide!</div>';
-      // Compact recharge presets
-      var rcRow=document.createElement('div');
-      rcRow.style.cssText='display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px;';
+        +'<div style="font-size:12px;color:#3D3D3D;line-height:1.6;margin-bottom:14px;">Enter an amount below and pay online, or show your QR above to the bartender — they can recharge for you too.</div>';
       var _rcAmt=0;
-      [500,999,1499,1999].forEach(function(amt){
-        var pb=document.createElement('button');
-        pb.style.cssText='padding:10px 14px;border-radius:8px;background:#fff;border:2px solid #000;color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ff);transition:all .2s;';
-        pb.textContent='₹'+amt.toLocaleString('en-IN');
-        pb.onclick=function(){
-          _rcAmt=amt;
-          rcRow.querySelectorAll('button').forEach(function(b){b.style.borderColor='2px solid #000';b.style.background='#fff';});
-          pb.style.borderColor='rgba(239,68,68,.6)';pb.style.background='rgba(239,68,68,.12)';
-        };
-        rcRow.appendChild(pb);
-      });
-      emptyBanner.appendChild(rcRow);
       // ── 2026-05-11 (Khushi feature) — CUSTOM AMOUNT INPUT on empty-wallet banner.
-      // Min ₹100 (Razorpay min), max ₹50,000. Typing here clears chip selection.
-      // FALLBACK: blank/invalid input → chip-selected amount wins (no ₹0 send).
+      // 🆕 2026-06-03 v3.205 (Khushi) — quick-amount chips (₹500/999/1499/1999)
+      // REMOVED entirely, and the input's inner 2px border + number-spinner box
+      // removed (the "box inside the amount box" looked bad). Now ONE clean
+      // amount field. Min ₹1, max ₹50,000; blank/invalid → Pay button blocks
+      // (no ₹0 send). type=text + inputmode=numeric kills the browser spinner.
       var _emptyCustomWrap=document.createElement('div');
       _emptyCustomWrap.style.cssText='margin:4px 0 10px;';
-      _emptyCustomWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:#3D3D3D;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;text-align:center;">Or enter your own amount</div>';
+      _emptyCustomWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:#3D3D3D;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;text-align:center;">Enter recharge amount</div>';
       var _emptyCustomRow=document.createElement('div');
-      _emptyCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1.5px solid rgba(0,0,0,.1);background:rgba(0,0,0,.03);';
-      _emptyCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#3D3D3D;">₹</span>';
+      _emptyCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:8px;border:2px solid #000;background:#fff;';
+      _emptyCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#000;">₹</span>';
       var _emptyCustomInput=document.createElement('input');
-      _emptyCustomInput.type='number';_emptyCustomInput.min='1';_emptyCustomInput.max='50000';_emptyCustomInput.step='1';
+      _emptyCustomInput.type='text';_emptyCustomInput.inputMode='numeric';_emptyCustomInput.setAttribute('pattern','[0-9]*');
       _emptyCustomInput.placeholder='Enter amount';
-      _emptyCustomInput.style.cssText='flex:1;background:transparent;border:2px solid #000;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
+      _emptyCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
       _emptyCustomInput.oninput=function(){
-        var v=parseInt(_emptyCustomInput.value,10);
-        if(isNaN(v)||v<1){_emptyCustomRow.style.borderColor='rgba(239,68,68,.4)';return;}
-        if(v>50000){_emptyCustomInput.value='50000';v=50000;}
-        _emptyCustomRow.style.borderColor='rgba(239,68,68,.6)';
+        var v=parseInt((_emptyCustomInput.value||'').replace(/[^0-9]/g,''),10);
+        if(isNaN(v)||v<1){_emptyCustomRow.style.borderColor='#FF5733';_rcAmt=0;return;}
+        if(v>50000){v=50000;}
+        _emptyCustomInput.value=String(v);
+        _emptyCustomRow.style.borderColor='#000';
         _rcAmt=v;
-        rcRow.querySelectorAll('button').forEach(function(b){b.style.borderColor='2px solid #000';b.style.background='#fff';});
       };
       _emptyCustomRow.appendChild(_emptyCustomInput);
       _emptyCustomWrap.appendChild(_emptyCustomRow);
@@ -6238,8 +6226,10 @@ function renderWalletPage(bookingRef){
         });
       };
       emptyBanner.appendChild(rcPayBtn);
-      inner.appendChild(emptyBanner);
-      // Don't return — menu continues below
+      // 🆕 2026-06-03 v3.205 (Khushi) — DO NOT append the recharge card here.
+      // It is now placed BELOW the balance + QR (see append after the QR
+      // section). Desired order: customer details → balance → scanner →
+      // recharge → "recharge above" note. Don't return — menu continues below.
     }
 
     // 🆕 2026-06-02 (Khushi) — LINKED-TABLE wallet: surface the assigned
@@ -6311,6 +6301,12 @@ function renderWalletPage(bookingRef){
     qrSec.appendChild(qrWrap);qrSec.appendChild(qrInfo2);inner.appendChild(qrSec);
     generateLocalQR('wallet-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
 
+    // 🆕 2026-06-03 v3.205 (Khushi) — RECHARGE card placed HERE, below the
+    // balance + QR (order: customer details → balance → scanner → recharge →
+    // "recharge above" note in evInfo). emptyBanner is created above only when
+    // bal<=0 && !isTableBooking; var-hoisted so it's undefined otherwise.
+    if(typeof emptyBanner!=='undefined' && emptyBanner){ inner.appendChild(emptyBanner); }
+
     // For event tickets — show bartender instruction then the menu below
     if(!cv.isTableBooking){
       var evInfo=document.createElement('div');
@@ -6350,13 +6346,16 @@ function renderWalletPage(bookingRef){
       inner.appendChild(evInfo);
     }
 
-    // Instructions
-    var info=document.createElement('div');
-    info.style.cssText='background:rgba(35,160,148,.06);border:1px solid rgba(35,160,148,.2);border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:rgba(35,160,148,.8);';
-    info.innerHTML=cv.isTableBooking
-      ?'\u2139\ufe0f Browse the menu below, select what you want, and tap <strong>Submit Pre-Order</strong>. Your waiter will scan your QR and activate your order at the table.'
-      :'\u2139\ufe0f Browse our menu below — your cover balance will be deducted automatically as you order.';
-    inner.appendChild(info);
+    // Instructions — 🆕 2026-06-03 v3.205 (Khushi) — the non-table
+    // "ℹ️ Browse our menu below — your cover balance will be deducted..." line
+    // was REMOVED (redundant with the evInfo callout above). The table-booking
+    // pre-order instruction is kept.
+    if(cv.isTableBooking){
+      var info=document.createElement('div');
+      info.style.cssText='background:rgba(35,160,148,.06);border:1px solid rgba(35,160,148,.2);border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:rgba(35,160,148,.8);';
+      info.innerHTML='\u2139\ufe0f Browse the menu below, select what you want, and tap <strong>Submit Pre-Order</strong>. Your waiter will scan your QR and activate your order at the table.';
+      inner.appendChild(info);
+    }
 
     // Cart summary (sticky) — 2026-05-13 (Khushi spec, round 5):
     // suppressed entirely. The same info now lives in the bottom
@@ -8783,11 +8782,13 @@ function renderWalletPage(bookingRef){
                     '<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:6px;">Your HOD Ticket</div>'+
                     '<div style="font-size:13px;color:#3D3D3D;">'+sanitize(bk.eventTitle||bk.event||'HOD Event')+'</div>'+
                   '</div>'+
-                  '<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:18px;margin-bottom:16px;">'+
-                    '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Guest</span><span style="font-weight:700;font-size:13px;color:#000;">'+sanitize(bk.name||'')+'</span></div>'+
-                    '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Entry</span><span style="font-weight:700;font-size:13px;color:#000;">'+(bk.entryType||'stag').toUpperCase()+'</span></div>'+
-                    '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Date</span><span style="font-weight:700;font-size:13px;color:#000;">'+sanitize(bk.date||'')+'</span></div>'+
-                    '<div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#3D3D3D;font-size:12px;">'+ (_isCash?'Amount Due':'Paid')+'</span><span style="font-weight:700;font-size:13px;color:'+(_isCash?'#F59E0B':'#00C864')+';">'+(bk.total===0?'FREE':(_isCash?'💵 ₹'+bk.total+' at venue':'₹'+bk.total))+'</span></div>'+
+                  '<div style="background:#fff;border:2px solid #000;border-radius:8px;margin-bottom:16px;overflow:hidden;">'+
+                    '<table style="width:100%;border-collapse:collapse;font-family:var(--ff);">'+
+                      '<tr style="border-bottom:2px solid #000;"><td style="padding:15px 18px;color:#000;font-size:15px;font-weight:800;letter-spacing:.3px;">Guest</td><td style="padding:15px 18px;text-align:right;font-weight:900;font-size:18px;color:#000;">'+sanitize(bk.name||'')+'</td></tr>'+
+                      '<tr style="border-bottom:2px solid #000;"><td style="padding:15px 18px;color:#000;font-size:15px;font-weight:800;letter-spacing:.3px;">Entry</td><td style="padding:15px 18px;text-align:right;font-weight:900;font-size:18px;color:#000;">'+(bk.entryType||'stag').toUpperCase()+'</td></tr>'+
+                      '<tr style="border-bottom:2px solid #000;"><td style="padding:15px 18px;color:#000;font-size:15px;font-weight:800;letter-spacing:.3px;">Date</td><td style="padding:15px 18px;text-align:right;font-weight:900;font-size:18px;color:#000;">'+sanitize(bk.date||'')+'</td></tr>'+
+                      '<tr><td style="padding:15px 18px;color:#000;font-size:15px;font-weight:800;letter-spacing:.3px;">'+(_isCash?'Amount Due':'Paid')+'</td><td style="padding:15px 18px;text-align:right;font-weight:900;font-size:18px;color:'+(_isCash?'#F59E0B':'#00C864')+';">'+(bk.total===0?'FREE':(_isCash?'💵 ₹'+bk.total+' at venue':'₹'+bk.total))+'</td></tr>'+
+                    '</table>'+
                   '</div>';
                 // QR code
                 ticketDiv.innerHTML+=
