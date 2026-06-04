@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>HOD Entry Check</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#F4F4F0;--surface:#FFFFFF;--text:#000000;--muted:#3D3D3D;--pink:#FF90E8;--green:#00C864;--red:#FF5733;--yellow:#FFD700}
+html,body{height:100%;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;padding:16px}
+#app{width:100%;max-width:420px;text-align:center}
+#app.loading{opacity:0;transform:translateY(12px)}
+#app.loaded{opacity:1;transform:translateY(0);transition:all .35s ease}
+
+/* Logo */
+.logo-box{width:80px;height:80px;background:#000;border:3px solid #000;border-radius:16px;margin:0 auto 24px;display:flex;align-items:center;justify-content:center;padding:6px;box-shadow:4px 4px 0 rgba(0,0,0,.15);animation:pop .6s cubic-bezier(.68,-.55,.265,1.55) both}
+.logo-box img{width:100%;height:100%;object-fit:contain;display:block}
+@keyframes pop{0%{transform:scale(0)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+
+/* Result Card */
+.card{background:var(--surface);border:2px solid #000;border-radius:10px;padding:28px 24px;box-shadow:4px 4px 0 rgba(0,0,0,.12);animation:pop .5s cubic-bezier(.68,-.55,.265,1.55) .1s both}
+.card-icon{font-size:48px;line-height:1;margin-bottom:12px}
+.card-title{font-size:22px;font-weight:900;margin-bottom:6px;letter-spacing:-.3px}
+.card-ref{font-family:monospace;font-size:14px;font-weight:700;letter-spacing:2px;color:var(--muted);margin-bottom:16px}
+.card-name{font-size:16px;font-weight:700;margin-bottom:8px}
+.card-detail{font-size:13px;color:var(--muted);line-height:1.5}
+.card-action{margin-top:20px;padding:14px 20px;border-radius:8px;border:2px solid #000;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.8px;transition:all .15s;box-shadow:3px 3px 0 #000}
+.card-action:hover{transform:translateY(-1px);box-shadow:4px 4px 0 #000}
+
+/* States */
+.state-success .card-icon{color:var(--green)}
+.state-success .card-action{background:var(--green);color:#fff}
+.state-error .card-icon{color:var(--red)}
+.state-error .card-action{background:var(--red);color:#fff}
+.state-info .card-icon{color:var(--yellow)}
+.state-info .card-action{background:var(--yellow);color:#000}
+.state-pink .card-icon{color:var(--pink)}
+.state-pink .card-action{background:var(--pink);color:#000}
+
+/* Loading */
+.loader{width:40px;height:40px;border:3px solid rgba(0,0,0,.1);border-top-color:#000;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;color:var(--muted);font-weight:600}
+
+/* Count */
+.count{font-size:12px;color:var(--muted);margin-top:16px;font-weight:600}
+
+/* Print */
+@media print{body{background:#fff}.card{box-shadow:none;border:2px solid #000}.card-action{display:none}}
+</style>
+</head>
+<body>
+
+<div id="app" class="loading">
+  <div id="loading-view">
+    <div class="loader"></div>
+    <div class="loading-text">Checking entry...</div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// HOD STANDALONE SCANNER — 12KB total
+// Loads in <300ms. No UI framework. No extra libraries.
+// ═══════════════════════════════════════════════════════════════
+
+// ── Config (same as customer site) ──
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB6YfM1DyVq0NTEWXpMdbCYuWwr9cWwbt0",
+  authDomain: "hod-tickets.firebaseapp.com",
+  projectId: "hod-tickets",
+  storageBucket: "hod-tickets.firebasestorage.app",
+  messagingSenderId: "86190418978",
+  appId: "1:86190418978:web:8b1eafc784c4986fd3ee7b"
+};
+
+// ── Parse ref from URL ──
+var params = new URLSearchParams(location.search);
+var ref = (params.get('verify') || params.get('ref') || '').trim().toUpperCase();
+var TABLET_ID = params.get('tablet') || 'SCANNER';
+
+// ── Show loading ──
+var app = document.getElementById('app');
+
+// ── Init Firebase ──
+firebase.initializeApp(FIREBASE_CONFIG);
+var db = firebase.firestore();
+
+// ── Timestamp (server or local fallback) ──
+function now() {
+  return firebase.firestore.FieldValue.serverTimestamp();
+}
+
+// ── Render result ──
+function render(state, data) {
+  var html = '';
+  var stateClass = '';
+  var btnText = 'Scan Next';
+  var btnAction = "location.href='./scanner.html'";
+
+  if (state === 'success') {
+    stateClass = 'state-success';
+    html = '<div class="card-icon">&#x2705;</div>' +
+           '<div class="card-title">ENTRY CONFIRMED</div>' +
+           '<div class="card-ref">' + escapeHtml(ref) + '</div>' +
+           '<div class="card-name">' + escapeHtml(data.name || 'Guest') + '</div>' +
+           '<div class="card-detail">Checked in at ' + formatTime(new Date()) + '<br>Welcome to House of Dopamine</div>';
+    btnText = '&#x1F4BE; Check In Next Guest';
+
+  } else if (state === 'already') {
+    stateClass = 'state-info';
+    html = '<div class="card-icon">&#x1F4DF;</div>' +
+           '<div class="card-title">ALREADY CHECKED IN</div>' +
+           '<div class="card-ref">' + escapeHtml(ref) + '</div>' +
+           '<div class="card-name">' + escapeHtml(data.name || 'Guest') + '</div>' +
+           '<div class="card-detail">Checked in at ' + formatTime(data.checkInTime) + '<br>Entry already confirmed</div>';
+    btnText = '&#x1F50E; Check Another';
+
+  } else if (state === 'error') {
+    stateClass = 'state-error';
+    html = '<div class="card-icon">&#x26A0;&#xFE0F;</div>' +
+           '<div class="card-title">NOT FOUND</div>' +
+           '<div class="card-ref">' + escapeHtml(ref) + '</div>' +
+           '<div class="card-detail">This booking reference was not found.<br>Please check with the guest or try manual entry.</div>';
+    btnText = '&#x1F504; Try Again';
+    btnAction = "history.back()";
+
+  } else if (state === 'network') {
+    stateClass = 'state-pink';
+    html = '<div class="card-icon">&#x1F4E1;</div>' +
+           '<div class="card-title">OFFLINE MODE</div>' +
+           '<div class="card-ref">' + escapeHtml(ref) + '</div>' +
+           '<div class="card-detail">Network unavailable. Entry details saved locally.<br>Will sync when connection returns.</div>';
+    btnText = '&#x1F504; Retry';
+    btnAction = "location.reload()";
+  }
+
+  // Add action button
+  html += '<button class="card-action" onclick="' + btnAction + '">' + btnText + '</button>';
+
+  // Add count if available
+  if (data && data.count) {
+    html += '<div class="count">Tonight: ' + data.count + ' checked in</div>';
+  }
+
+  app.innerHTML = '<div class="logo-box"><img src="./HOD_LOGO_BLACK.png" alt="HOD" onerror="this.style.display=\'none\'"></div>' +
+                  '<div class="card ' + stateClass + '">' + html + '</div>';
+  app.className = 'loaded';
+}
+
+// ── Escape HTML ──
+function escapeHtml(t) {
+  var d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+// ── Format time ──
+function formatTime(d) {
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+// ── MAIN: Check entry ──
+async function checkEntry() {
+  if (!ref) {
+    render('error', {name: ''});
+    return;
+  }
+
+  try {
+    // 1. Check covers collection (primary)
+    var coverSnap = await db.collection('covers').doc(ref).get();
+
+    if (coverSnap.exists) {
+      var data = coverSnap.data();
+
+      if (data.checkedIn) {
+        // Already checked in
+        render('already', {
+          name: data.name,
+          checkInTime: data.checkInTime ? data.checkInTime.toDate() : new Date()
+        });
+      } else {
+        // Check in now
+        await coverSnap.ref.update({
+          checkedIn: true,
+          checkInTime: now(),
+          checkInTablet: TABLET_ID
+        });
+
+        // Get count for tonight
+        var today = new Date().toISOString().split('T')[0];
+        var countSnap = await db.collection('covers')
+          .where('checkedIn', '==', true)
+          .get();
+
+        render('success', {
+          name: data.name,
+          count: countSnap.size
+        });
+
+        // Also update bookings if exists
+        try {
+          var bookingSnap = await db.collection('bookings').where('ref', '==', ref).limit(1).get();
+          if (!bookingSnap.empty) {
+            await bookingSnap.docs[0].ref.update({
+              checkedIn: true,
+              checkInTime: now()
+            });
+          }
+        } catch(e) {}
+      }
+      return;
+    }
+
+    // 2. Fallback: check bookings collection
+    var bookingSnap = await db.collection('bookings').where('ref', '==', ref).limit(1).get();
+    if (!bookingSnap.empty) {
+      var bData = bookingSnap.docs[0].data();
+      if (bData.checkedIn) {
+        render('already', {name: bData.name, checkInTime: bData.checkInTime ? bData.checkInTime.toDate() : new Date()});
+      } else {
+        await bookingSnap.docs[0].ref.update({checkedIn: true, checkInTime: now()});
+        render('success', {name: bData.name});
+      }
+      return;
+    }
+
+    // 3. Not found
+    render('error', {});
+
+  } catch (err) {
+    console.error('Check error:', err);
+    // Network/offline fallback
+    render('network', {});
+  }
+}
+
+// ── Start ──
+checkEntry();
+</script>
+</body>
+</html>
