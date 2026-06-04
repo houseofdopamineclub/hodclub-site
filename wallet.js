@@ -77,7 +77,7 @@ function renderWalletPage(bookingRef){
       +'.hod-wallet-v2 .wv-tab4.on{background:#FF90E8 !important;color:#000 !important;border-color:#000 !important;font-weight:900;}'
       +'.hod-wallet-v2 .wv-tab4:active{transform:scale(.97);}'
       // Filters bar
-      +'.hod-wallet-v2 .wv-filters{background:#FFD700;color:#000;border:2px solid #000;padding:13px 16px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:pointer;font-size:13px;font-weight:800;letter-spacing:.6px;}'
+      +'.hod-wallet-v2 .wv-filters{background:#F4F4F0;color:#000;border:2px solid #000;padding:13px 16px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:pointer;font-size:13px;font-weight:800;letter-spacing:.6px;}'
       +'.hod-wallet-v2 .wv-filters .wv-fl-arrow{font-size:11px;transition:transform .15s;}'
       +'.hod-wallet-v2 .wv-filters.open .wv-fl-arrow{transform:rotate(180deg);}'
       +'.hod-wallet-v2 .wv-filters-panel{display:none;background:#fff;border:2px solid #000;border-radius:8px;padding:12px 14px;margin-bottom:10px;gap:8px;flex-wrap:wrap;}'
@@ -160,14 +160,14 @@ function renderWalletPage(bookingRef){
     if(cv.isTableBooking){
       var tbBanner=document.createElement('div');
       tbBanner.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:14px 16px;margin-bottom:14px;';
-      tbBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">🪑 Table Reservation · Pre-Order Menu</div>'
+      tbBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;"> Table Reservation · Pre-Order Menu</div>'
         +'<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#3D3D3D;">'
-        +'<span>📍 <b style="color:#000;">'+sanitize(cv.tableId||'')+'</b> · '+sanitize(cv.floorLabel||'')+'</span>'
-        +'<span>📅 <b style="color:#000;">'+sanitize(cv.date||'')+'</b></span>'
-        +'<span>🕐 <b style="color:#000;">'+sanitize(cv.arrivalTime||'')+'</b></span>'
-        +'<span>👥 <b style="color:#000;">'+sanitize(String(cv.partySize||0))+'</b> guests</span>'
+        +'<span> <b style="color:#000;">'+sanitize(cv.tableId||'')+'</b> · '+sanitize(cv.floorLabel||'')+'</span>'
+        +'<span> <b style="color:#000;">'+sanitize(cv.date||'')+'</b></span>'
+        +'<span> <b style="color:#000;">'+sanitize(cv.arrivalTime||'')+'</b></span>'
+        +'<span> <b style="color:#000;">'+sanitize(String(cv.partySize||0))+'</b> guests</span>'
         +'</div>'
-        +(bal<=0?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;">💰 Pre-order below — pay via cash, card or UPI at your table.</div>':'')
+        +(bal<=0?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;"> Pre-order below — pay via cash, card or UPI at your table.</div>':'')
         ;
       inner.appendChild(tbBanner);
     } else {
@@ -175,7 +175,7 @@ function renderWalletPage(bookingRef){
       // as table banner above for visual parity. Header line varies
       // based on type (entry-only is door-only, others redeem against
       // the wallet balance via bartender scan).
-      var _coverHeader = '🎫 Cover · ' + sanitize(cv.eventTitle || 'HOD · Tonight');
+      var _coverHeader = ' Cover · ' + sanitize(cv.eventTitle || 'HOD · Tonight');
       var _balChipBg = bal > 0 ? '#F4F4F0' : '#F4F4F0';
       var _balChipBorder = bal > 0 ? '2px solid #000' : '2px solid #000';
       var _balChipColor = bal > 0 ? '#000' : '#3D3D3D';
@@ -185,14 +185,14 @@ function renderWalletPage(bookingRef){
       // displayed prominently in its own BALANCE card above the QR (below).
       coverBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">'+_coverHeader+'</div>'
         +'<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#3D3D3D;">'
-        +  '<span>👤 <b style="color:#000;">'+sanitize(name)+'</b></span>'
-        +  (activated>0?'<span>💰 <b style="color:#000;">\u20b9'+used.toLocaleString('en-IN')+'</b> used / \u20b9'+activated.toLocaleString('en-IN')+' total</span>':'')
+        +  '<span> <b style="color:#000;">'+sanitize(name)+'</b></span>'
+        +  (activated>0?'<span> <b style="color:#000;">\u20b9'+used.toLocaleString('en-IN')+'</b> used / \u20b9'+activated.toLocaleString('en-IN')+' total</span>':'')
         +'</div>'
-        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;">⏳ Your cover will be activated at HOD when you arrive.</div>':'');
+        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;"> Your cover will be activated at HOD when you arrive.</div>':'');
       inner.appendChild(coverBanner);
     }
 
-    // 🔴 2026-05-13 (Khushi) — "✅ Bill Settled · View Bill" banner.
+    // 🔴 2026-05-13 (Khushi) — " Bill Settled · View Bill" banner.
     // Shown the moment captain stamps paymentStatus:'paid' on the
     // tableReservation (offline cash/card mark-paid) OR when the
     // wallet's own paid_online stamp lands. The customer can tap
@@ -205,7 +205,7 @@ function renderWalletPage(bookingRef){
       paidBanner.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
       var pmTxt=(cv.paymentMethod==='paid_online'||cv.paymentMethod==='online')?'Paid Online':((cv.paymentMethod||'').toUpperCase()||'Settled');
       var amtTxt=cv.amountPaid?(' · ₹'+Number(cv.amountPaid).toLocaleString('en-IN')):'';
-      paidBanner.innerHTML='<div style="font-size:24px;">✅</div>'
+      paidBanner.innerHTML='<div style="font-size:24px;"></div>'
         +'<div style="flex:1;min-width:140px;">'
         +  '<div style="font-size:13px;font-weight:900;color:#000;letter-spacing:.4px;">Bill Settled</div>'
         +  '<div style="font-size:11px;color:rgba(0,0,0,.7);margin-top:2px;">'+sanitize(pmTxt)+sanitize(amtTxt)+'</div>'
@@ -246,7 +246,7 @@ function renderWalletPage(bookingRef){
     if(_isWalletExpired){
       var expDiv=document.createElement('div');
       expDiv.style.cssText='text-align:center;padding:40px 20px;color:#3D3D3D;';
-      expDiv.innerHTML='<div style="font-size:44px;margin-bottom:12px;">⏰</div>'
+      expDiv.innerHTML='<div style="font-size:44px;margin-bottom:12px;"></div>'
         +'<div style="font-size:16px;font-weight:800;color:#FF5733;margin-bottom:8px;">Wallet Expired</div>'
         +'<div style="font-size:13px;">This cover has ended. Balance has been reset.</div>';
       inner.appendChild(expDiv);return;
@@ -270,7 +270,7 @@ function renderWalletPage(bookingRef){
       // Waiting message
       var waitMsg=document.createElement('div');
       waitMsg.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;';
-      waitMsg.innerHTML='<div style="font-size:40px;margin-bottom:12px;">🪑</div>'
+      waitMsg.innerHTML='<div style="font-size:40px;margin-bottom:12px;"></div>'
         +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:8px;">We\'re preparing your table!</div>'
         +(cv.tableId?'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:16px;">Your table <strong style="color:#000;">'+sanitize(cv.tableId)+'</strong>'+(cv.floorLabel?' on <strong style="color:#000;">'+sanitize(cv.floorLabel)+'</strong>':'')+' is being set up for you.</div>':'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:16px;">Your table is being set up. Show your reservation QR to your captain on arrival.</div>')
         +'<div style="display:grid;grid-template-columns:'+(cv.date?'1fr 1fr 1fr':'1fr 1fr')+';gap:10px;margin-bottom:16px;">'
@@ -278,7 +278,7 @@ function renderWalletPage(bookingRef){
         +'<div style="background:#F4F4F0;border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Arrival</div><div style="font-size:13px;font-weight:800;color:#000;">'+sanitize(cv.arrivalTime||'—')+'</div></div>'
         +'<div style="background:#F4F4F0;border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Guests</div><div style="font-size:13px;font-weight:800;color:#000;">'+(cv.partySize||0)+'</div></div>'
         +'</div>'
-        +'<div style="background:#F4F4F0;border:1px solid #000;border-radius:8px;padding:12px 16px;font-size:12px;color:rgba(35,160,148,.8);line-height:1.6;">ℹ️ The menu will unlock once you arrive and your captain confirms your presence. You\'ll be able to browse and pre-order right from your phone!</div>';
+        +'<div style="background:#F4F4F0;border:1px solid #000;border-radius:8px;padding:12px 16px;font-size:12px;color:#3D3D3D;line-height:1.6;"> The menu will unlock once you arrive and your captain confirms your presence. You\'ll be able to browse and pre-order right from your phone!</div>';
       waitDiv.appendChild(waitMsg);
       inner.appendChild(waitDiv);
       return;
@@ -289,7 +289,7 @@ function renderWalletPage(bookingRef){
       var emptyBanner=document.createElement('div');
       // 🔴 2026-05-13 v2 (Khushi) — recolor purple → red/yellow/white theme.
       emptyBanner.style.cssText='background:#fff;border:2px solid #000;border-radius:12px;padding:24px;margin-bottom:16px;text-align:center;';
-      emptyBanner.innerHTML='<div style="font-size:32px;margin-bottom:10px;">💳</div>'
+      emptyBanner.innerHTML='<div style="font-size:32px;margin-bottom:10px;"></div>'
         +'<div style="font-size:16px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">RECHARGE YOUR WALLET</div>'
         +'<div style="font-size:12px;color:#3D3D3D;line-height:1.6;margin-bottom:16px;">Enter an amount and pay online, or show your QR to the bartender.</div>';
       var _rcAmt=0;
@@ -322,7 +322,7 @@ function renderWalletPage(bookingRef){
       emptyBanner.appendChild(_emptyCustomWrap);
       var rcPayBtn=document.createElement('button');
       rcPayBtn.style.cssText='width:100%;padding:12px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.4px;';
-      rcPayBtn.textContent='💳 Pay & Recharge';
+      rcPayBtn.textContent=' Pay & Recharge';
       rcPayBtn.onclick=function(){
         if(!_rcAmt){showToast('Select an amount first','err',2000);return;}
         rcPayBtn.disabled=true;rcPayBtn.textContent='Opening payment...';
@@ -334,13 +334,13 @@ function renderWalletPage(bookingRef){
           name:cv.name||'', phone:cv.phone||'',
           description:'Wallet Recharge ₹'+_rcAmt, payBtn:rcPayBtn,
           onSuccess:function(newBalance){
-            showToast('✅ Recharged ₹'+_rcAmt+'! Wallet updated.','success',4000);
+            showToast(' Recharged ₹'+_rcAmt+'! Wallet updated.','success',4000);
           },
           onError:function(msg){
-            rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';
-            showToast('⚠️ '+msg,'err',10000);
+            rcPayBtn.disabled=false;rcPayBtn.textContent=' Pay & Recharge';
+            showToast(' '+msg,'err',10000);
           },
-          onClose:function(){rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';}
+          onClose:function(){rcPayBtn.disabled=false;rcPayBtn.textContent=' Pay & Recharge';}
         });
       };
       emptyBanner.appendChild(rcPayBtn);
@@ -361,7 +361,7 @@ function renderWalletPage(bookingRef){
     if(_walTblId){
       var tblCard=document.createElement('div');
       tblCard.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:12px;';
-      tblCard.innerHTML='<span style="font-size:24px;line-height:1;">\ud83e\ude91</span>'
+      tblCard.innerHTML='<span style="font-size:24px;line-height:1;"></span>'
         +'<div style="text-align:left;">'
         +  '<div style="font-family:var(--ff);font-size:10px;font-weight:800;color:rgba(255,255,255,.6);letter-spacing:1.6px;text-transform:uppercase;margin-bottom:2px;">Your Table</div>'
         +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(255,255,255,.55);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
@@ -404,7 +404,7 @@ function renderWalletPage(bookingRef){
     var qrInfo2=document.createElement('div');
     var _isActivated=cv.checkedIn||cv.coverActivated>0;
     var _qrSub=cv.isTableBooking?'Show to your captain to activate orders.':(_isActivated?'Your HOD Wallet':'Show this at the entrance to check in.');
-    var _walletNote=cv.isTableBooking?'':(!_isActivated?'<div style="font-size:11px;background:#fff;border:2px solid #000;border-radius:8px;padding:6px 10px;margin-top:8px;color:#3D3D3D;">⏳ Your wallet activates when you arrive at HOD</div>':'');
+    var _walletNote=cv.isTableBooking?'':(!_isActivated?'<div style="font-size:11px;background:#fff;border:2px solid #000;border-radius:8px;padding:6px 10px;margin-top:8px;color:#3D3D3D;"> Your wallet activates when you arrive at HOD</div>':'');
     // 2026-05-13 (Khushi spec) — show the guest's name prominently above the
     // QR card so the captain can verify identity at a glance before scanning.
     var _guestName=sanitize(cv.name||'Guest');
@@ -436,15 +436,15 @@ function renderWalletPage(bookingRef){
           // Present BOTH ways to order up front so the guest decides; the
           // actual delivery routing is still confirmed in the post-order
           // "WHERE ARE YOU?" popup (which pre-selects this table).
-          // ⚠️ Gated on linkedTableRef (not just the id) so we only promise
+          //  Gated on linkedTableRef (not just the id) so we only promise
           // "captain serves you" when the post-order captain-ping can ACTUALLY
           // fire — that path requires linkedTableRef. If a table id exists but
           // no ref, we fall through to the safe bar-only copy (popup also
           // falls back to bartender QR), keeping the message and routing aligned.
-          evInfo.innerHTML='<div style="font-size:26px;margin-bottom:10px;">🍽️ · 🥃</div>'
+          evInfo.innerHTML='<div style="font-size:26px;margin-bottom:10px;">️ · 🥃</div>'
             +'<div style="font-family:var(--ff);font-size:17px;font-weight:900;color:#000;margin-bottom:12px;letter-spacing:.3px;line-height:1.3;">TWO WAYS TO ORDER</div>'
             +'<div style="font-size:12.5px;color:#000;line-height:1.6;text-align:left;max-width:300px;margin:0 auto;">'
-            +  '<div style="margin-bottom:9px;"><strong style="color:#000;">🪑 At your table '+sanitize(_walTblId)+'</strong> — browse the menu &amp; order below; your captain serves you.</div>'
+            +  '<div style="margin-bottom:9px;"><strong style="color:#000;"> At your table '+sanitize(_walTblId)+'</strong> — browse the menu &amp; order below; your captain serves you.</div>'
             +  '<div><strong style="color:#000;">🥃 At the bar</strong> — show the QR above to the bartender.</div>'
             +'</div>'
             +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;margin-top:11px;">Your balance of <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> is deducted as you order.</div>';
@@ -462,13 +462,13 @@ function renderWalletPage(bookingRef){
     }
 
     // Instructions — 🆕 2026-06-03 v3.205 (Khushi) — the non-table
-    // "ℹ️ Browse our menu below — your cover balance will be deducted..." line
+    // "Browse our menu below — your cover balance will be deducted..." line
     // was REMOVED (redundant with the evInfo callout above). The table-booking
     // pre-order instruction is kept.
     if(cv.isTableBooking){
       var info=document.createElement('div');
-      info.style.cssText='background:#F4F4F0;border:1px solid #000;border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:rgba(35,160,148,.8);';
-      info.innerHTML='\u2139\ufe0f Browse the menu below, select what you want, and tap <strong>Submit Pre-Order</strong>. Your waiter will scan your QR and activate your order at the table.';
+      info.style.cssText='background:#F4F4F0;border:1px solid #000;border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:#3D3D3D;';
+      info.innerHTML=' Browse the menu below, select what you want, and tap <strong>Submit Pre-Order</strong>. Your waiter will scan your QR and activate your order at the table.';
       inner.appendChild(info);
     }
 
@@ -552,15 +552,15 @@ function renderWalletPage(bookingRef){
       var b=_filterMenu(_BAR,q);
       // Tag categories so user can tell food vs drink in unified view
       var out=[];
-      f.forEach(function(c){out.push({cat:'\ud83c\udf7d '+c.cat,items:c.items});});
-      b.forEach(function(c){out.push({cat:'\ud83e\udd43 '+c.cat,items:c.items});});
+      f.forEach(function(c){out.push({cat:' '+c.cat,items:c.items});});
+      b.forEach(function(c){out.push({cat:' '+c.cat,items:c.items});});
       return out;
     }
     var menuSearchWrap=document.createElement('div');
     menuSearchWrap.style.cssText='margin-bottom:10px;position:relative;';
     var menuSearchInp=document.createElement('input');
     menuSearchInp.type='search';
-    menuSearchInp.placeholder='\ud83d\udd0d Search menu — food, drinks, brands…';
+    menuSearchInp.placeholder=' Search menu — food, drinks, brands…';
     menuSearchInp.className='wv-search';
     menuSearchInp.oninput=function(){
       menuQuery=menuSearchInp.value;
@@ -851,7 +851,7 @@ function renderWalletPage(bookingRef){
       placeBtn.id='tab-place-btn';
       placeBtn.className='wv-place';
       placeBtn.style.cssText='margin-bottom:10px;opacity:.45;';
-      placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
+      placeBtn.textContent=cv.isTableBooking?'️  Place Order':' Place Order';
       submitCard.appendChild(placeBtn);
 
       // 2026-05-13 (Khushi spec, v2) — Done Ordering: keep Digitory red but
@@ -886,7 +886,7 @@ function renderWalletPage(bookingRef){
       if(!_isDiningOrRooftop){
         var songCard=document.createElement('div');
         songCard.style.cssText='background:rgba(255,51,102,.15);border:2px solid rgba(255,51,102,.35);border-radius:8px;padding:20px;margin:20px 0;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(255,51,102,.08);';
-        songCard.innerHTML='<div style="text-align:center;margin-bottom:12px;"><span style="font-size:32px;">🎵</span></div>'
+        songCard.innerHTML='<div style="text-align:center;margin-bottom:12px;"><span style="font-size:32px;"></span></div>'
           +'<div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:-.3px;">Request a Song</div>'
           +'<div style="text-align:center;font-size:13px;color:rgba(255,255,255,.6);margin-bottom:16px;line-height:1.4;">Search any song in the world — we\'ll play it for you tonight!</div>'
           +'<div style="text-align:center;"><div style="display:inline-flex;gap:8px;align-items:center;padding:10px 24px;background:#FF5733;border-radius:8px;font-size:14px;font-weight:700;color:#000;">Pick Your Song →</div></div>'
@@ -977,7 +977,7 @@ function renderWalletPage(bookingRef){
           var _bsMd=document.createElement('div');
           _bsMd.style.cssText='background:#F4F4F0;border:2px solid rgba(255,144,232,.55);border-radius:8px;padding:24px 22px;width:100%;max-width:400px;box-shadow:0 24px 80px rgba(0,0,0,.85),0 0 60px rgba(255,144,232,.25);';
           var _bsHdr='<div style="text-align:center;margin-bottom:18px;">'
-            +'<div style="font-size:48px;margin-bottom:6px;">🍸</div>'
+            +'<div style="font-size:48px;margin-bottom:6px;"></div>'
             +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;letter-spacing:.4px;line-height:1.15;margin-bottom:4px;">SHOW THIS TO THE BARTENDER</div>'
             +'<div style="font-size:12px;color:#aaa;line-height:1.5;">They\'ll place your order on the POS.</div>'
             +'</div>';
@@ -1054,7 +1054,7 @@ function renderWalletPage(bookingRef){
           var _lpMd=document.createElement('div');
           _lpMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:28px 24px 22px;width:100%;max-width:380px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px #F4F4F0;';
           _lpMd.innerHTML=
-            '<div style="font-size:46px;margin-bottom:8px;line-height:1;">📍</div>'
+            '<div style="font-size:46px;margin-bottom:8px;line-height:1;"></div>'
             +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:6px;letter-spacing:.3px;">Where are you?</div>'
             +'<div style="font-size:13px;color:#aaa;line-height:1.5;margin-bottom:20px;">Tell us where you\'d like to order from.</div>';
           var _tableBtn=document.createElement('button');
@@ -1065,7 +1065,7 @@ function renderWalletPage(bookingRef){
           // the guardrail and ping the WRONG captain card.
           _tableBtn._stale=true;
           _tableBtn._verifying=true;
-          _tableBtn.innerHTML='<span style="font-size:18px;">⏳</span><span>CHECKING TABLE SESSION…</span>';
+          _tableBtn.innerHTML='<span style="font-size:18px;"></span><span>CHECKING TABLE SESSION…</span>';
           _tableBtn.onclick=function(){
             if (_tableBtn._verifying) { showToast('Checking your table — one moment','warn',1500); return; }
             if (_tableBtn._stale) return; // hard-blocked when query resolved stale
@@ -1093,7 +1093,7 @@ function renderWalletPage(bookingRef){
           // Both paths preserve the wallet balance — no money is lost.
           var _staleHint=document.createElement('div');
           _staleHint.style.cssText='display:none;font-size:12px;color:#F87171;margin:-4px 0 14px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:8px;';
-          _staleHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;">🚫 YOUR TABLE SESSION HAS ENDED</div><div style="color:#FCA5A5;font-weight:500;font-size:11px;">Please get in touch with the <b style="color:#F87171;">CAPTAIN</b> for a new table,<br>OR tap <b style="color:#000;">🍸 I\'M AT THE BAR</b> below to order &amp; redeem your wallet at the bar.</div>';
+          _staleHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;">🚫 YOUR TABLE SESSION HAS ENDED</div><div style="color:#FCA5A5;font-weight:500;font-size:11px;">Please get in touch with the <b style="color:#F87171;">CAPTAIN</b> for a new table,<br>OR tap <b style="color:#000;"> I\'M AT THE BAR</b> below to order &amp; redeem your wallet at the bar.</div>';
           _lpMd.appendChild(_staleHint);
           // 🆕 2026-05-25 v3 (Khushi BUG REPORT) — Identity check is now
           // LENIENT. v2 required strict phone match on BOTH sides; but
@@ -1126,7 +1126,7 @@ function renderWalletPage(bookingRef){
             _tableBtn.style.color='#000';
             _tableBtn.style.cursor='pointer';
             _tableBtn.style.border='none';
-            _tableBtn.innerHTML='<span style="font-size:22px;">🍽️</span><span>I\'M AT MY TABLE</span>';
+            _tableBtn.innerHTML='<span style="font-size:22px;">️</span><span>I\'M AT MY TABLE</span>';
           };
           // FAIL-SAFE TIMEOUT: if firestore never responds within 4s, stay
           // stale (do NOT silently let through). User can still pick bar.
@@ -1246,7 +1246,7 @@ function renderWalletPage(bookingRef){
           }
           var _barBtn=document.createElement('button');
           _barBtn.style.cssText='width:100%;padding:18px;border-radius:8px;background:rgba(123,47,190,.15);border:1.5px solid rgba(123,47,190,.5);color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
-          _barBtn.innerHTML='<span style="font-size:22px;">🍸</span><span>I\'M AT THE BAR</span>';
+          _barBtn.innerHTML='<span style="font-size:22px;"></span><span>I\'M AT THE BAR</span>';
           _barBtn.onclick=function(){
             _lpOv.remove();
             // 🆕 2026-06-02 v3.183 — all park-for-bartender logic now lives in
@@ -1273,7 +1273,7 @@ function renderWalletPage(bookingRef){
             if (!_tabHint) {
               _tabHint=document.createElement('div');
               _tabHint.style.cssText='font-size:12px;color:#FBBF24;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;';
-              _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
+              _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;"> FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
               // Insert hint BEFORE the bar button if button already in DOM
               if (_barBtn.parentNode) _barBtn.parentNode.insertBefore(_tabHint, _barBtn);
               else _lpMd.appendChild(_tabHint);
@@ -1361,7 +1361,7 @@ function renderWalletPage(bookingRef){
             _ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
             var _md=document.createElement('div');
             // 🟢 2026-06-02 v3.183 (Khushi) — RECHARGE card restyle. GREEN box,
-            // NO ⚠️, NO red. Minimal copy. Quick-recharge preset chips REMOVED.
+            // NO , NO red. Minimal copy. Quick-recharge preset chips REMOVED.
             // Two ways to add funds: PAY ONLINE (Razorpay) OR RECHARGE AT BAR
             // (parks the order so the bartender sees it on scan/search).
             _md.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;';
@@ -1394,7 +1394,7 @@ function renderWalletPage(bookingRef){
             // PAY ONLINE (Razorpay) — server-verified recharge (existing path).
             var _rcPayBtn2=document.createElement('button');
             _rcPayBtn2.style.cssText='width:100%;padding:14px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:10px;letter-spacing:.4px;';
-            _rcPayBtn2.textContent='💳 PAY ONLINE & ORDER';
+            _rcPayBtn2.textContent=' PAY ONLINE & ORDER';
             _rcPayBtn2.onclick=function(){
               if(!_selRcAmt){showToast('Enter an amount','err',2000);return;}
               _rcPayBtn2.disabled=true;_rcPayBtn2.textContent='Opening payment...';
@@ -1405,13 +1405,13 @@ function renderWalletPage(bookingRef){
                 description:'Wallet Recharge ₹'+_selRcAmt, payBtn:_rcPayBtn2,
                 onSuccess:function(newBalance){
                   _ov.remove();
-                  showToast('✅ Recharged ₹'+_selRcAmt+'! Place your order now.','success',4000);
+                  showToast(' Recharged ₹'+_selRcAmt+'! Place your order now.','success',4000);
                 },
                 onError:function(msg){
                   _ov.remove();
-                  showToast('⚠️ '+msg,'err',10000);
+                  showToast(' '+msg,'err',10000);
                 },
-                onClose:function(){_rcPayBtn2.disabled=false;_rcPayBtn2.textContent='💳 PAY ONLINE & ORDER';}
+                onClose:function(){_rcPayBtn2.disabled=false;_rcPayBtn2.textContent=' PAY ONLINE & ORDER';}
               });
             };
             _md.appendChild(_rcPayBtn2);
@@ -1419,7 +1419,7 @@ function renderWalletPage(bookingRef){
             // scan/search and recharges + serves at the bar.
             var _rcBarBtn=document.createElement('button');
             _rcBarBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:rgba(123,47,190,.18);border:1.5px solid rgba(123,47,190,.55);color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:8px;';
-            _rcBarBtn.innerHTML='<span style="font-size:18px;">🍸</span><span>RECHARGE AT BAR</span>';
+            _rcBarBtn.innerHTML='<span style="font-size:18px;"></span><span>RECHARGE AT BAR</span>';
             _rcBarBtn.onclick=function(){
               _ov.remove();
               _parkOrderForBartender('recharge_at_bar');
@@ -1473,7 +1473,7 @@ function renderWalletPage(bookingRef){
           // 🔴 2026-05-20 (Khushi Bug 1 fix) — AUTO-IMPORT customer's self-
           // order onto the captain's running tab.
           // Before: customer placed soup → only landed on the cover wallet.
-          //         Captain saw the 🔔 ping, tapped ✓ ON IT, then had to
+          //         Captain saw the  ping, tapped ✓ ON IT, then had to
           //         manually re-key the soup via ADD ORDER (lost context).
           // Now: if this wallet was created via door's COVER+TABLE flow
           // (cv.linkedTableRef = the tableReservations doc id), we ALSO
@@ -1485,7 +1485,7 @@ function renderWalletPage(bookingRef){
           // pill those rounds for clarity.
           // 🛟 FALLBACK: best-effort try/catch. If the write fails (rules
           // change / network blip), the cover wallet still has the round
-          // and the existing 🔔 CUSTOMER CALLING banner still fires —
+          // and the existing  CUSTOMER CALLING banner still fires —
           // captain can fall back to manual ADD ORDER like before. Zero
           // regression for pure-cover (non-linked) wallets.
           try {
@@ -1503,7 +1503,7 @@ function renderWalletPage(bookingRef){
           cart={};
           updateCartBar();
           renderRoundsHistory();
-          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
+          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'️  Place Order':' Place Order';
 
           if(cv.isTableBooking){
             // TABLE BOOKING: friendly modal popup (Khushi spec 2026-05-13)
@@ -1512,7 +1512,7 @@ function renderWalletPage(bookingRef){
             var tbMd=document.createElement('div');
             tbMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:30px 26px 22px;width:100%;max-width:380px;text-align:center;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(0,0,0,.1);';
             tbMd.innerHTML=
-              '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🍽️</div>'
+              '<div style="font-size:54px;margin-bottom:10px;line-height:1;">️</div>'
               +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:8px;letter-spacing:.3px;">Order Placed!</div>'
               +'<div style="font-size:14px;color:#aaa;line-height:1.55;margin-bottom:18px;">Your captain has been notified and will be with you shortly to confirm.</div>'
               +'<div style="background:#F4F4F0;border:2px solid #000;border-radius:12px;padding:12px 14px;margin-bottom:18px;">'
@@ -1535,10 +1535,10 @@ function renderWalletPage(bookingRef){
             // flow (cv.linkedTableRef set), the customer might be at the
             // bar OR sitting at their table waiting for captain. Show a
             // 2-button "WHERE ARE YOU?" popup:
-            //   🍺 AT BAR  → existing QR popup (bartender redeems)
-            //   🍽 AT TABLE → write customerCallRequest on the linked
+            //    AT BAR  → existing QR popup (bartender redeems)
+            //    AT TABLE → write customerCallRequest on the linked
             //                 tableReservations doc → captain tablet
-            //                 pulses red "🔔 CUSTOMER CALLING".
+            //                 pulses red " CUSTOMER CALLING".
             // 🛟 FALLBACK: if linkedTableRef write fails or the field is
             // missing, fall straight through to the bartender QR (existing
             // safe path). Customer can always walk to bar / wave captain.
@@ -1613,7 +1613,7 @@ function renderWalletPage(bookingRef){
               _tnOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);font-family:var(--ff);';
               var _tnMd=document.createElement('div');
               _tnMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:26px 22px 20px;width:100%;max-width:380px;text-align:center;color:#000;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(0,0,0,.1);';
-              _tnMd.innerHTML='<div style="font-size:48px;margin-bottom:10px;line-height:1;">⏳</div>'
+              _tnMd.innerHTML='<div style="font-size:48px;margin-bottom:10px;line-height:1;"></div>'
                 +'<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;letter-spacing:.4px;">CALLING CAPTAIN…</div>';
               _tnOv.appendChild(_tnMd);
               document.body.appendChild(_tnOv);
@@ -1625,9 +1625,9 @@ function renderWalletPage(bookingRef){
                 }
               }).then(function(){
                 _tnMd.innerHTML=
-                   '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🔔</div>'
+                   '<div style="font-size:54px;margin-bottom:10px;line-height:1;"></div>'
                   +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
-                  +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#000;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#B0B0B0;font-size:11px;">Sit tight, enjoy the music 🎶</span></div>';
+                  +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#000;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#B0B0B0;font-size:11px;">Sit tight, enjoy the music </span></div>';
                 var _tnOk=document.createElement('button');
                 _tnOk.style.cssText='width:100%;padding:13px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;letter-spacing:.6px;cursor:pointer;text-transform:uppercase;font-family:var(--ff);box-shadow:3px 3px 0 #000;';
                 _tnOk.textContent='Got it ✓';
@@ -1635,7 +1635,7 @@ function renderWalletPage(bookingRef){
                 _tnMd.appendChild(_tnOk);
               }).catch(function(err){
                 _tnOv.remove();
-                showToast('⚠️ Could not reach captain — show QR to bartender or wave for service.','err',5000);
+                showToast(' Could not reach captain — show QR to bartender or wave for service.','err',5000);
                 _showBartenderQR();
               });
             } else if(!_linkedTblRef){
@@ -1647,17 +1647,17 @@ function renderWalletPage(bookingRef){
               var chMd=document.createElement('div');
               chMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:26px 22px 20px;width:100%;max-width:380px;text-align:center;color:#000;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(0,0,0,.1);';
               chMd.innerHTML=
-                 '<div style="font-size:46px;margin-bottom:10px;line-height:1;">📍</div>'
+                 '<div style="font-size:46px;margin-bottom:10px;line-height:1;"></div>'
                 +'<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.4px;">WHERE ARE YOU?</div>'
                 +'<div style="font-size:13px;color:#aaa;line-height:1.55;margin-bottom:18px;">Your order of <strong style="color:#000;">₹'+_placedTotal.toLocaleString('en-IN')+'</strong> is in.<br>Tell us where to bring it.</div>'
                 +'<div style="background:#F4F4F0;border:1px dashed rgba(0,0,0,.1);border-radius:8px;padding:10px 12px;margin-bottom:18px;font-size:12px;color:#888;line-height:1.5;">'
                 +  '<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.2px;margin-bottom:4px;">YOUR TABLE</div>'
                 +  '<div style="font-size:14px;color:#000;font-weight:800;">'+sanitize(_linkedTblId||'-')+(_linkedFloor?' · '+sanitize(_linkedFloor):'')+'</div>'
                 +'</div>';
-              // 🍺 AT BAR button → existing bartender QR popup
+              //  AT BAR button → existing bartender QR popup
               var barBtn=document.createElement('button');
               barBtn.style.cssText='width:100%;padding:18px 14px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-family:var(--ff);font-size:15px;font-weight:900;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;margin-bottom:10px;box-shadow:0 4px 14px rgba(0,0,0,.1);';
-              barBtn.innerHTML='🍺 I\'M AT THE BAR<div style="font-size:10px;font-weight:700;opacity:.7;letter-spacing:.4px;text-transform:none;margin-top:3px;">Show QR to bartender</div>';
+              barBtn.innerHTML=' I\'M AT THE BAR<div style="font-size:10px;font-weight:700;opacity:.7;letter-spacing:.4px;text-transform:none;margin-top:3px;">Show QR to bartender</div>';
               barBtn.onclick=function(){
                 chOv.remove();
                 // 🆕 2026-06-02 v3.180 (Khushi BUG) — explicit bar choice → set
@@ -1671,10 +1671,10 @@ function renderWalletPage(bookingRef){
                 _showBartenderQR(true);
               };
               chMd.appendChild(barBtn);
-              // 🍽 AT TABLE button → ping captain
+              //  AT TABLE button → ping captain
               var tblBtn=document.createElement('button');
               tblBtn.style.cssText='width:100%;padding:18px 14px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-family:var(--ff);font-size:15px;font-weight:900;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;margin-bottom:10px;box-shadow:3px 3px 0 #000;';
-              tblBtn.innerHTML='🍽 I\'M AT MY TABLE<div style="font-size:10px;font-weight:700;opacity:.85;letter-spacing:.4px;text-transform:none;margin-top:3px;">Captain will come to you</div>';
+              tblBtn.innerHTML=' I\'M AT MY TABLE<div style="font-size:10px;font-weight:700;opacity:.85;letter-spacing:.4px;text-transform:none;margin-top:3px;">Captain will come to you</div>';
               tblBtn.onclick=function(){
                 tblBtn.disabled=true;
                 tblBtn.innerHTML='Calling captain...';
@@ -1697,9 +1697,9 @@ function renderWalletPage(bookingRef){
                   }
                 }).then(function(){
                   chMd.innerHTML=
-                     '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🔔</div>'
+                     '<div style="font-size:54px;margin-bottom:10px;line-height:1;"></div>'
                     +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
-                    +'<div style="font-size:13px;color:#aaa;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#000;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#666;font-size:11px;">Sit tight, enjoy the music 🎶</span></div>';
+                    +'<div style="font-size:13px;color:#aaa;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#000;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#666;font-size:11px;">Sit tight, enjoy the music </span></div>';
                   var ok=document.createElement('button');
                   ok.style.cssText='width:100%;padding:13px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;letter-spacing:.6px;cursor:pointer;text-transform:uppercase;font-family:var(--ff);';
                   ok.textContent='Got it ✓';
@@ -1708,7 +1708,7 @@ function renderWalletPage(bookingRef){
                 }).catch(function(err){
                   // Fallback — show bartender QR + a small hint
                   chOv.remove();
-                  showToast('⚠️ Could not reach captain — show QR to bartender or wave for service.','err',5000);
+                  showToast(' Could not reach captain — show QR to bartender or wave for service.','err',5000);
                   _showBartenderQR();
                 });
               };
@@ -1731,7 +1731,7 @@ function renderWalletPage(bookingRef){
               .catch(function(){});
           }
         }).catch(function(e){
-          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
+          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'️  Place Order':' Place Order';
           showToast('Failed: '+e.message,'err',3000);
         });
       };
@@ -1795,12 +1795,12 @@ function renderWalletPage(bookingRef){
         // Header row: YOUR TAB · ₹total
         var headHtml=''
           +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;border-bottom:2px dashed #8a6a1f;padding-bottom:10px;">'
-          +'<span style="font-size:14px;font-weight:900;color:#5c3f0a;letter-spacing:2px;">📋 YOUR TAB</span>'
+          +'<span style="font-size:14px;font-weight:900;color:#5c3f0a;letter-spacing:2px;"> YOUR TAB</span>'
           +'<span style="font-size:22px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+grand+'</span>'
           +'</div>';
 
         var statusC={'preparing':'#a85800','activated':'#0a7a3c','served':'#0a7a3c','paid':'#0a7a3c'};
-        var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':'✅ Served','paid':'💳 Paid'};
+        var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':' Served','paid':' Paid'};
 
         var roundsHtml=tabRounds.map(function(r,idx){
           var sc=statusC[r.status]||'#5c3f0a';
@@ -1879,7 +1879,7 @@ function renderWalletPage(bookingRef){
           +'<div><b style="color:#000000;">GUEST:</b> '+sanitize(cv.customerName||'—')+'</div>';
         card.innerHTML=''
           +'<div style="padding:16px 18px;border-bottom:2px solid #000;">'
-          +'<div style="font-size:12px;color:#3D3D3D;font-weight:700;letter-spacing:1px;margin-bottom:4px;">📋 BILL PREVIEW · NOT YET PRINTED</div>'
+          +'<div style="font-size:12px;color:#3D3D3D;font-weight:700;letter-spacing:1px;margin-bottom:4px;"> BILL PREVIEW · NOT YET PRINTED</div>'
           +'<div style="font-size:22px;font-weight:900;color:#000;font-family:ui-sans-serif,system-ui,-apple-system,\'Segoe UI\',Roboto,sans-serif;">HOUSE OF DOPAMINE</div>'
           +'<div style="font-size:11px;color:#B0B0B0;margin-top:2px;">'+sanitize(cv.floorLabel||'')+'</div>'
           +'</div>'
@@ -2002,7 +2002,7 @@ function renderWalletPage(bookingRef){
             // at the top before scrolling into the feedback form.
             var _walletNote=document.createElement('div');
             _walletNote.style.cssText='width:100%;padding:16px 16px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;text-align:center;font-family:var(--ff);margin:18px 0 0;line-height:1.55;';
-            _walletNote.innerHTML='<div style="font-size:11px;color:#000;font-weight:900;letter-spacing:1.2px;margin-bottom:6px;">\uD83C\uDFAB WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+' \u00B7 BILL \u20B9'+tt+'</div>'
+            _walletNote.innerHTML='<div style="font-size:11px;color:#000;font-weight:900;letter-spacing:1.2px;margin-bottom:6px;"> WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+' \u00B7 BILL \u20B9'+tt+'</div>'
               +'<div style="font-size:12px;color:rgba(0,0,0,.75);font-weight:600;letter-spacing:.3px;">Captain will deduct the bill from your wallet on arrival.</div>';
             inner.appendChild(_walletNote);
             showCaptainFeedback(inner, tt, false);
@@ -2010,7 +2010,7 @@ function renderWalletPage(bookingRef){
             // Fallback to legacy infoBox so we never strand the customer.
             var infoBox=document.createElement('div');
             infoBox.style.cssText='width:100%;padding:18px 16px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:700;text-align:center;font-family:var(--ff);margin:18px 0;line-height:1.55;';
-            infoBox.innerHTML='<div style="font-size:24px;margin-bottom:6px;">\uD83C\uDFAB</div>'
+            infoBox.innerHTML='<div style="font-size:24px;margin-bottom:6px;"></div>'
               +'<div style="font-size:12px;color:#000;font-weight:900;letter-spacing:1.2px;margin-bottom:8px;">WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+'</div>'
               +'<div style="font-size:15px;font-weight:900;color:#000;">CAPTAIN WILL BE WITH YOU SHORTLY TO SETTLE THE BILL</div>'
               +'<div style="font-size:11px;color:rgba(0,0,0,.7);font-weight:600;margin-top:8px;letter-spacing:.4px;">Bill amount \u20B9'+tt+' will be deducted from your wallet.</div>';
@@ -2018,7 +2018,7 @@ function renderWalletPage(bookingRef){
             var _fbBack=document.createElement('a');
             _fbBack.href='https://hodclub.in';
             _fbBack.style.cssText='display:block;width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(255,255,255,.14);color:#000;font-family:var(--ff);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;margin-top:10px;';
-            _fbBack.textContent='\uD83C\uDFE0 Back to Events';
+            _fbBack.textContent=' Back to Events';
             inner.appendChild(_fbBack);
           }
           return;
@@ -2026,12 +2026,12 @@ function renderWalletPage(bookingRef){
 
         var poBtn=document.createElement('button');
         poBtn.style.cssText='width:100%;padding:16px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:10px;';
-        poBtn.innerHTML='💳  Pay Online  —  ₹'+tt;
+        poBtn.innerHTML='  Pay Online  —  ₹'+tt;
         poBtn.onclick=function(){
           if(poBtn.disabled)return;
           poBtn.disabled=true;poBtn.textContent='Opening payment...';
           // ── 2026-05-13 round 9 (Khushi spec): Pay Online → flip captain
-          // BILL DUE chip to green ✅ PAID ONLINE.
+          // BILL DUE chip to green  PAID ONLINE.
           // Safety order is critical:
           //   1. Razorpay handler fires ONLY when Razorpay confirms the
           //      charge with a payment_id (success). On dismiss / failure
@@ -2043,7 +2043,7 @@ function renderWalletPage(bookingRef){
           //      the customer a non-dismissable Payment-ID screen they
           //      MUST show to the captain. We also drop a best-effort
           //      pendingPaymentNotices/{ref} marker so a later flow can
-          //      surface a ⚠️ "customer claims paid" hint if needed.
+          //      surface a  "customer claims paid" hint if needed.
           //   3. On payment.failed event we re-enable the button.
           function _writePaidOnline(pid){
             if(!firestore||!cv.ref) return Promise.reject(new Error('no_firestore_or_ref'));
@@ -2081,7 +2081,7 @@ function renderWalletPage(bookingRef){
             // so customer can show it to the captain in person.
             sheet.innerHTML=
               '<div style="text-align:center;padding:20px 6px;">'
-              +'<div style="font-size:48px;margin-bottom:14px;">⚠️</div>'
+              +'<div style="font-size:48px;margin-bottom:14px;"></div>'
               +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:10px;font-family:var(--ff);">Payment Received — Show This To Your Captain</div>'
               +'<div style="font-size:13px;color:#aaa;margin-bottom:18px;line-height:1.5;font-family:var(--ff);">Razorpay confirmed your payment but we couldn\'t notify your table. Please show this Payment ID to your captain — they will mark your bill paid manually.</div>'
               +'<div style="background:rgba(0,0,0,.05);border:1.5px dashed rgba(0,0,0,.15);border-radius:8px;padding:18px;margin-bottom:18px;">'
@@ -2105,7 +2105,7 @@ function renderWalletPage(bookingRef){
             } catch(_){}
           }
           ensureRazorpay(function(_rzReady){
-          if(!_rzReady){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); return; }
+          if(!_rzReady){ poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); return; }
           try{
           var rz=new Razorpay({
             key:RAZORPAY_KEY,amount:tt*100,currency:'INR',
@@ -2118,8 +2118,8 @@ function renderWalletPage(bookingRef){
               if(!pid){
                 // Defensive: handler fired without a payment id. Treat as
                 // failure — keep BILL DUE intact, do NOT flip to paid.
-                alert('\u274c Payment status unclear. Please try again or use Pay at Table.');
-                poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
+                alert(' Payment status unclear. Please try again or use Pay at Table.');
+                poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  \u20b9'+tt;
                 return;
               }
               _writePaidOnline(pid).then(function(){
@@ -2146,24 +2146,24 @@ function renderWalletPage(bookingRef){
                 } catch(_){}
               });
             },
-            modal:{ondismiss:function(){poBtn.disabled=false;poBtn.innerHTML='💳  Pay Online  —  ₹'+tt;}}
+            modal:{ondismiss:function(){poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  ₹'+tt;}}
           });
           if(rz&&typeof rz.on==='function'){
             rz.on('payment.failed',function(r){
               var msg=(r&&r.error&&(r.error.description||r.error.reason))||'Unknown error';
-              alert('\u274c Payment failed: '+msg+'\nPlease try again or use Pay at Table.');
-              poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
+              alert(' Payment failed: '+msg+'\nPlease try again or use Pay at Table.');
+              poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  \u20b9'+tt;
             });
           }
           rz.open();
-          }catch(_e){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); }
+          }catch(_e){ poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); }
           });
         };
         sheet.appendChild(poBtn);
 
         var ptBtn=document.createElement('button');
         ptBtn.style.cssText='width:100%;padding:15px;border-radius:8px;background:rgba(0,0,0,.05);border:1.5px solid rgba(0,0,0,.15);color:#000;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--ff);margin-bottom:10px;';
-        ptBtn.innerHTML='🙋  Pay at Table  —  Cash / Card / UPI';
+        ptBtn.innerHTML='  Pay at Table  —  Cash / Card / UPI';
         ptBtn.onclick=function(){
           if(ptBtn.disabled)return;
           ptBtn.disabled=true;ptBtn.textContent='Notifying captain...';
@@ -2529,7 +2529,7 @@ function renderWalletPage(bookingRef){
     // 2026-05-13 round 9 fix: when this is a tab checkout (cart already
     // emptied into rounds), getCartTotal() returns 0. Fall back to the
     // running tab amount passed in via _pay.amount, otherwise the
-    // "Payment Done!" screen shows "✅ ₹0 paid online" — confusing the
+    // "Payment Done!" screen shows " ₹0 paid online" — confusing the
     // customer even though the captain side correctly shows the real
     // amount stamped via _writePaidOnline.
     var _cartTotal=getCartTotal();
@@ -2575,10 +2575,10 @@ function renderWalletPage(bookingRef){
         inner.innerHTML='';
         var conf=document.createElement('div');conf.style.cssText='padding:40px 20px;text-align:center;';
         var _isOnline=_pay&&_pay.mode==='online';
-        conf.innerHTML='<div style="font-size:48px;margin-bottom:12px;">'+(_isOnline?'💳':'🙋')+'</div>'
+        conf.innerHTML='<div style="font-size:48px;margin-bottom:12px;">'+(_isOnline?'':'')+'</div>'
           +'<div style="font-family:var(--ff);font-size:24px;font-weight:900;color:#000;margin-bottom:8px;">'+(_isOnline?'Payment Done!':'Order Placed!')+'</div>'
           +'<div style="background:#fff;border:2px solid #000;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;">'
-          +(_isOnline?'✅ ₹'+orderData.total+' paid online · ID: '+(_pay.paymentId||'').slice(-8):'💵 Pay ₹'+orderData.total+' to your waiter on arrival')+'</div>'
+          +(_isOnline?' ₹'+orderData.total+' paid online · ID: '+(_pay.paymentId||'').slice(-8):'💵 Pay ₹'+orderData.total+' to your waiter on arrival')+'</div>'
           +'<div style="font-size:12px;color:#3D3D3D;margin-bottom:12px;">Show QR below to your waiter</div>'
           +'<div id="conf-qr-wrap" style="width:120px;height:120px;background:#fff;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;"></div>'
           +'<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:16px;margin-bottom:20px;text-align:left;">';
@@ -2686,7 +2686,7 @@ function renderWalletPage(bookingRef){
                   try{ localStorage.setItem(visitKey,'1'); }catch(e){}
                   _seenLiveDocThisSession=true;
                   inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                    +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
+                    +'<div style="font-size:54px;margin-bottom:14px;"></div>'
                     +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:10px;">Thank you for visiting!</div>'
                     +'<div style="font-size:14px;color:#3D3D3D;line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
                     +'<div style="font-family:monospace;font-size:13px;color:#3D3D3D;margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
@@ -2711,7 +2711,7 @@ function renderWalletPage(bookingRef){
                 if(_seenLiveDocThisSession) return;
                 // Still empty — render thank-you state.
                 inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                  +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
+                  +'<div style="font-size:54px;margin-bottom:14px;"></div>'
                   +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:10px;">Thank you for visiting!</div>'
                   +'<div style="font-size:14px;color:#3D3D3D;line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
                   +'<div style="font-family:monospace;font-size:13px;color:#3D3D3D;margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
@@ -2726,7 +2726,7 @@ function renderWalletPage(bookingRef){
             if(commitToThankYou){
               // Post-release / session-ended state — Khushi spec 2026-05-13.
               inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
+                +'<div style="font-size:54px;margin-bottom:14px;"></div>'
                 +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:10px;">Thank you for visiting!</div>'
                 +'<div style="font-size:14px;color:#3D3D3D;line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
                 +'<div style="font-family:monospace;font-size:13px;color:#3D3D3D;margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
@@ -2737,7 +2737,7 @@ function renderWalletPage(bookingRef){
               try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
             } else {
               inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                +'<div style="font-size:48px;margin-bottom:12px;">🪑</div>'
+                +'<div style="font-size:48px;margin-bottom:12px;"></div>'
                 +'<div style="font-size:16px;font-weight:800;color:#000;margin-bottom:8px;">Table Reservation</div>'
                 +'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;">Your table will be set up when you arrive at HOD.<br>Show your booking reference at the entrance.</div>'
                 +'<div style="font-family:monospace;font-size:16px;color:#000;margin-top:12px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
@@ -2766,7 +2766,7 @@ function renderWalletPage(bookingRef){
             source:td.source||'',
             isAggregator:!!(td.source&&td.source!=='inhouse')||bookingRef.startsWith('AGG-'),
             // 🔴 2026-05-13 (Khushi) — payment fields piped through so the
-            // "✅ Bill Settled · View Bill" banner can render the moment
+            // " Bill Settled · View Bill" banner can render the moment
             // the captain marks paid (offline) or a wallet pay-online
             // stamp lands. Without this, the customer wouldn't see any
             // confirmation until the table is released.
@@ -2811,7 +2811,7 @@ function renderWalletPage(bookingRef){
                   glDiv.style.cssText='padding:20px;max-width:480px;margin:0 auto;';
                   glDiv.innerHTML=
                     '<div style="text-align:center;margin-bottom:24px;">'
-                    +'<div style="font-size:48px;margin-bottom:12px;">📋</div>'
+                    +'<div style="font-size:48px;margin-bottom:12px;"></div>'
                     +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:6px;">Guest List Confirmed</div>'
                     +'<div style="font-size:13px;color:#3D3D3D;">'+(ev3?sanitize(ev3.title):'HOD Event')+'</div>'
                     +'</div>'
@@ -2831,7 +2831,7 @@ function renderWalletPage(bookingRef){
                     +'<div style="font-family:monospace;font-size:14px;color:#000;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
                     +'</div>'
                     +'<div style="background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:18px 20px;text-align:center;">'
-                    +'<div style="font-size:24px;margin-bottom:10px;">✅</div>'
+                    +'<div style="font-size:24px;margin-bottom:10px;"></div>'
                     +'<div style="font-size:14px;font-weight:800;color:#00C864;margin-bottom:6px;">You\'re on the list!</div>'
                     +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Show your QR at the entrance. Free entry before 9 PM.<br>After 9 PM, a cover charge may apply at the door.</div>'
                     +'</div>';
@@ -2893,7 +2893,7 @@ function renderWalletPage(bookingRef){
                 ticketDiv.style.cssText='padding:20px;max-width:480px;margin:0 auto;';
                 ticketDiv.innerHTML=
                   '<div style="text-align:center;margin-bottom:24px;">'+
-                    '<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'+
+                    '<div style="font-size:48px;margin-bottom:12px;">️</div>'+
                     '<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:6px;">Your HOD Ticket</div>'+
                     '<div style="font-size:13px;color:#3D3D3D;">'+sanitize(bk.eventTitle||bk.event||'HOD Event')+'</div>'+
                   '</div>'+
@@ -2919,7 +2919,7 @@ function renderWalletPage(bookingRef){
                 // Wallet activation message
                 ticketDiv.innerHTML+=
                   '<div style="background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:18px 20px;text-align:center;">'+
-                    '<div style="font-size:24px;margin-bottom:10px;">⏳</div>'+
+                    '<div style="font-size:24px;margin-bottom:10px;"></div>'+
                     '<div style="font-size:14px;font-weight:800;color:#000;margin-bottom:6px;">Your wallet activates at HOD</div>'+
                     '<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">When you arrive, show your QR at the entrance. Our door staff will check you in and activate your cover wallet.<br><br>Your cover balance will be loaded and you can start ordering drinks & food!</div>'+
                   '</div>';
@@ -2927,7 +2927,7 @@ function renderWalletPage(bookingRef){
                 setTimeout(function(){generateLocalQR('ticket-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef));},200);
               } else {
                 inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'+
-                  '<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'+
+                  '<div style="font-size:48px;margin-bottom:12px;">️</div>'+
                   '<div style="font-size:16px;font-weight:800;color:#000;margin-bottom:8px;">Ticket: '+sanitize(bookingRef)+'</div>'+
                   '<div style="font-size:13px;color:#3D3D3D;line-height:1.7;">Your wallet will be activated when you arrive at HOD.<br>Show your booking reference at the entrance.</div>'+
                 '</div>';
@@ -3086,7 +3086,7 @@ function renderTopUp(bookingId, diffAmt){
   var card=document.createElement('div');
   card.style.cssText='margin-top:70px;width:100%;max-width:380px;background:#fff;border:2px solid #000;border-radius:18px;padding:28px;';
   card.innerHTML='<div style="text-align:center;margin-bottom:20px;">'
-    +'<div style="font-size:40px;margin-bottom:10px;">💰</div>'
+    +'<div style="font-size:40px;margin-bottom:10px;"></div>'
     +'<div style="font-size:16px;font-weight:900;color:#000;">Top Up Your Cover</div>'
     +'<div style="font-size:12px;color:#3D3D3D;margin-top:4px;">Add more balance to continue enjoying HOD</div>'
     +'</div>';
@@ -3240,15 +3240,15 @@ function renderTopUpContent(card, cv, diffAmt){
           payBtn:payBtn,
           onSuccess:function(newBal){
             card.innerHTML='<div style="text-align:center;padding:30px 20px;">'
-              +'<div style="font-size:56px;margin-bottom:14px;">✅</div>'
+              +'<div style="font-size:56px;margin-bottom:14px;"></div>'
               +'<div style="font-size:20px;font-weight:900;color:#00C864;margin-bottom:8px;">'+(isLockedAmt?'Cover Activated!':'Top-up Successful!')+'</div>'
               +'<div style="font-family:var(--ff);font-size:36px;font-weight:900;color:#000;margin-bottom:8px;">₹'+(newBal||0).toLocaleString('en-IN')+'</div>'
-              +'<div style="font-size:13px;color:#3D3D3D;">'+(isLockedAmt?'Your cover wallet is ready · Head to the bar!':'New cover balance · Go enjoy HOD! 🎧')+'</div>'
+              +'<div style="font-size:13px;color:#3D3D3D;">'+(isLockedAmt?'Your cover wallet is ready · Head to the bar!':'New cover balance · Go enjoy HOD! ')+'</div>'
               +'</div>';
           },
           onError:function(msg){
             _resetBtn();
-            alert('⚠️ '+msg);
+            alert(' '+msg);
           },
           onClose:_resetBtn
         });
