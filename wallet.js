@@ -587,7 +587,7 @@ function renderWalletPage(bookingRef){
     filtersPanel.className='wv-filters-panel';
     var vegChip=document.createElement('button');
     vegChip.className='wv-fchip';
-    vegChip.innerHTML='<span class="wv-vegdot" style="color:#00C864;vertical-align:middle;"></span>Veg only';
+    vegChip.innerHTML='<span class="wv-vegdot" style="color:#000;vertical-align:middle;"></span>Veg only';
     vegChip.onclick=function(ev){
       ev.stopPropagation();
       filterState.vegOnly=!filterState.vegOnly;
@@ -817,13 +817,13 @@ function renderWalletPage(bookingRef){
           var controls=document.createElement('div');
           controls.style.cssText='display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:10px;';
           var minB=document.createElement('button');
-          minB.style.cssText='width:28px;height:28px;border-radius:7px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#FF5733;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+          minB.style.cssText='width:28px;height:28px;border-radius:7px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;';
           minB.textContent='−';
           var qtySpan=document.createElement('span');
           qtySpan.style.cssText='font-size:14px;font-weight:900;color:#000;min-width:16px;text-align:center;';
           qtySpan.textContent=it.qty;
           var plusB=document.createElement('button');
-          plusB.style.cssText='width:28px;height:28px;border-radius:7px;background:rgba(0,200,100,.1);border:1px solid rgba(0,200,100,.3);color:#00C864;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+          plusB.style.cssText='width:28px;height:28px;border-radius:7px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;';
           plusB.textContent='+';
           var priceSpan=document.createElement('span');
           priceSpan.style.cssText='font-size:13px;font-weight:800;color:#000;min-width:50px;text-align:right;';
@@ -1245,7 +1245,7 @@ function renderWalletPage(bookingRef){
             try { console.warn('[picker] stale-check threw, fail-open:', _eStale && _eStale.message); } catch(_){}
           }
           var _barBtn=document.createElement('button');
-          _barBtn.style.cssText='width:100%;padding:18px;border-radius:8px;background:rgba(123,47,190,.15);border:1.5px solid rgba(123,47,190,.5);color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
+          _barBtn.style.cssText='width:100%;padding:18px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
           _barBtn.innerHTML='<span style="font-size:22px;"></span><span>I\'M AT THE BAR</span>';
           _barBtn.onclick=function(){
             _lpOv.remove();
@@ -1367,7 +1367,7 @@ function renderWalletPage(bookingRef){
             _md.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;';
             var _shortfall=ct+pendingTotal-bal;
             _md.innerHTML='<div style="background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:18px 16px;margin-bottom:18px;">'
-              +'<div style="font-size:19px;font-weight:900;color:#00C864;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
+              +'<div style="font-size:19px;font-weight:900;color:#000;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
               +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;">Tap the recharge button below.</div>'
               +'</div>';
             // Amount to recharge — defaults to the EXACT shortfall (editable).
@@ -1375,17 +1375,17 @@ function renderWalletPage(bookingRef){
             var _modalCustomWrap=document.createElement('div');
             _modalCustomWrap.style.cssText='margin:0 0 14px;';
             var _modalCustomRow=document.createElement('div');
-            _modalCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;border:2px solid #000;background:rgba(0,200,100,.06);';
-            _modalCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#00C864;">₹</span>';
+            _modalCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:2px solid #000;';
+            _modalCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#000;font-size:20px;">₹</span>';
             var _modalCustomInput=document.createElement('input');
-            _modalCustomInput.type='number';_modalCustomInput.min='1';_modalCustomInput.max='50000';_modalCustomInput.step='1';
+            _modalCustomInput.type='text';_modalCustomInput.inputMode='numeric';_modalCustomInput.setAttribute('pattern','[0-9]*');
             _modalCustomInput.value=String(_selRcAmt);
-            _modalCustomInput.style.cssText='flex:1;background:transparent;border:2px solid #000;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
+            _modalCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:20px;font-weight:900;width:100%;';
             _modalCustomInput.oninput=function(){
               var v=parseInt(_modalCustomInput.value,10);
-              if(isNaN(v)||v<1){_modalCustomRow.style.borderColor='rgba(239,68,68,.4)';return;}
+              if(isNaN(v)||v<1){_modalCustomRow.style.borderColor='#FF5733';return;}
               if(v>50000){_modalCustomInput.value='50000';v=50000;}
-              _modalCustomRow.style.borderColor='rgba(0,200,100,.5)';
+              _modalCustomRow.style.borderColor='#000';
               _selRcAmt=v;
             };
             _modalCustomRow.appendChild(_modalCustomInput);
@@ -1418,7 +1418,7 @@ function renderWalletPage(bookingRef){
             // 🆕 RECHARGE AT BAR — park the order so the bartender sees it on
             // scan/search and recharges + serves at the bar.
             var _rcBarBtn=document.createElement('button');
-            _rcBarBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:rgba(123,47,190,.18);border:1.5px solid rgba(123,47,190,.55);color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:8px;';
+            _rcBarBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:8px;';
             _rcBarBtn.innerHTML='<span style="font-size:18px;"></span><span>RECHARGE AT BAR</span>';
             _rcBarBtn.onclick=function(){
               _ov.remove();
@@ -1426,7 +1426,7 @@ function renderWalletPage(bookingRef){
             };
             _md.appendChild(_rcBarBtn);
             var _cb=document.createElement('button');
-            _cb.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.12);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
+            _cb.style.cssText='width:100%;padding:12px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
             _cb.textContent='Close';
             _cb.onclick=function(){_ov.remove();};
             _md.appendChild(_cb);_ov.appendChild(_md);
@@ -2376,7 +2376,7 @@ function renderWalletPage(bookingRef){
               if (r.status === 'rejected') console.warn('[waiterCall] surface '+(i+1)+' failed', r.reason);
             });
             if (anyOk) {
-              callBtn.style.background='rgba(0,200,100,.18)';
+              callBtn.style.background='#F4F4F0';
               callBtn.style.borderRadius='8px';
               callBtn.style.padding='4px 8px';
               callLbl.textContent='✓ Captain notified';
@@ -2435,7 +2435,7 @@ function renderWalletPage(bookingRef){
           acknowledgedAt:null,
           acknowledgedBy:null
         }).then(function(){
-          callBtn.style.background='rgba(0,200,100,.18)';
+          callBtn.style.background='#F4F4F0';
           callLbl.textContent='✓ Captain notified';
           setTimeout(function(){
             callBtn.style.background='transparent';
@@ -2819,7 +2819,7 @@ function renderWalletPage(bookingRef){
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Guest</span><span style="font-weight:700;font-size:13px;">'+sanitize(gl.name||'')+'</span></div>'
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Type</span><span style="font-weight:700;font-size:13px;">'+(gl.type||'stag').toUpperCase()+'</span></div>'
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Date</span><span style="font-weight:700;font-size:13px;">'+(ev3?ev3.date:'Tonight')+'</span></div>'
-                    +'<div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#3D3D3D;font-size:12px;">Entry</span><span style="font-weight:700;font-size:13px;color:#00C864;">FREE before 9 PM</span></div>'
+                    +'<div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#3D3D3D;font-size:12px;">Entry</span><span style="font-weight:700;font-size:13px;color:#000;">FREE before 9 PM</span></div>'
                     +'</div>'
                     +'<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:20px 16px;margin-bottom:16px;text-align:center;">'
                     /* 🔴 2026-05-21 (Khushi LIVE-BUG) — wrapper bg MUST be #fff.
@@ -2832,7 +2832,7 @@ function renderWalletPage(bookingRef){
                     +'</div>'
                     +'<div style="background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:18px 20px;text-align:center;">'
                     +'<div style="font-size:24px;margin-bottom:10px;"></div>'
-                    +'<div style="font-size:14px;font-weight:800;color:#00C864;margin-bottom:6px;">You\'re on the list!</div>'
+                    +'<div style="font-size:14px;font-weight:800;color:#000;margin-bottom:6px;">You\'re on the list!</div>'
                     +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Show your QR at the entrance. Free entry before 9 PM.<br>After 9 PM, a cover charge may apply at the door.</div>'
                     +'</div>';
                   inner.appendChild(glDiv);
@@ -3209,11 +3209,11 @@ function renderTopUpContent(card, cv, diffAmt){
           var v=parseInt(_customAmtInput.value,10);
           if(isNaN(v)||v<1){
             // Invalid / too low → keep chip selection as fallback so payBtn never sends ₹0.
-            customRow.style.borderColor='rgba(239,68,68,.4)';
+            customRow.style.borderColor='#FF5733';
             return;
           }
           if(v>50000){_customAmtInput.value='50000';v=50000;}
-          customRow.style.borderColor='rgba(255,144,232,.6)';
+          customRow.style.borderColor='#000';
           selectedAmt=v;
           _clearChipHighlight();
           if(payBtn) payBtn.textContent='Pay ₹'+v.toLocaleString('en-IN')+' →';
@@ -3241,7 +3241,7 @@ function renderTopUpContent(card, cv, diffAmt){
           onSuccess:function(newBal){
             card.innerHTML='<div style="text-align:center;padding:30px 20px;">'
               +'<div style="font-size:56px;margin-bottom:14px;"></div>'
-              +'<div style="font-size:20px;font-weight:900;color:#00C864;margin-bottom:8px;">'+(isLockedAmt?'Cover Activated!':'Top-up Successful!')+'</div>'
+              +'<div style="font-size:20px;font-weight:900;color:#000;margin-bottom:8px;">'+(isLockedAmt?'Cover Activated!':'Top-up Successful!')+'</div>'
               +'<div style="font-family:var(--ff);font-size:36px;font-weight:900;color:#000;margin-bottom:8px;">₹'+(newBal||0).toLocaleString('en-IN')+'</div>'
               +'<div style="font-size:13px;color:#3D3D3D;">'+(isLockedAmt?'Your cover wallet is ready · Head to the bar!':'New cover balance · Go enjoy HOD! ')+'</div>'
               +'</div>';
