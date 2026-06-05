@@ -459,6 +459,16 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
 /* ANIMATED GRADIENT BORDER on modal */
 
 
+/* ── Skeleton shimmer for instant-feel loading (2026-06-05) */
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.sk-card{background:#fff;border:2px solid #000;border-radius:12px;overflow:hidden}
+.sk-banner{width:100%;aspect-ratio:1/1;background:linear-gradient(90deg,#F4F4F0 25%,#fff 50%,#F4F4F0 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+.sk-body{padding:14px}
+.sk-line{height:14px;border-radius:6px;background:linear-gradient(90deg,#F4F4F0 25%,#fff 50%,#F4F4F0 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;margin-bottom:10px}
+.sk-line.short{width:60%}
+.sk-line.tiny{width:40%;height:10px}
+.sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;padding:0 20px 40px}
+
 </style>
 
 <!-- QRCode.js — local QR generation (no external API dependency) -->
@@ -2299,7 +2309,13 @@ function renderHome(){
     // Show loading state if events haven't been fetched yet (avoids "no events" flash on first load)
     var stillLoading=(!S._cachedEvents) && (!db.events || !db.events.length);
     if(stillLoading){
-      empty.innerHTML='<div style="display:inline-block;width:36px;height:36px;border:3px solid #F4F4F0;border-top-color:#000;border-radius:50%;animation:spin 0.9s linear infinite;margin-bottom:14px"></div><div style="font-size:14px;color:#3D3D3D;letter-spacing:1px">Loading events…</div>';
+      // SPEED FIX: Skeleton shimmer cards instead of spinner — page feels instant
+      empty.innerHTML='<div class="sk-grid" style="grid-column:1/-1;">'
+        +'<div class="sk-card"><div class="sk-banner"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line tiny"></div></div></div>'
+        +'<div class="sk-card"><div class="sk-banner"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line tiny"></div></div></div>'
+        +'<div class="sk-card"><div class="sk-banner"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line tiny"></div></div></div>'
+        +'<div class="sk-card"><div class="sk-banner"></div><div class="sk-body"><div class="sk-line"></div><div class="sk-line short"></div><div class="sk-line tiny"></div></div></div>'
+        +'</div>';
     } else {
       empty.innerHTML='<div style="font-size:48px;opacity:.4;margin-bottom:14px">🎧</div><div style="font-size:15px;color:#3D3D3D">No events listed for this date yet. Check back soon!</div>';
     }
@@ -6119,6 +6135,15 @@ function renderHodFeedbackForm(container, total){
 // Initial paint. The events-listener only re-renders when view==='home',
 // so without this call deep links (?wallet=, ?topup=, ?page=privacy) stay blank.
 // (Restored from pre-strip backup — was accidentally removed during deep-strip 2026-05-07.)
+//
+// SPEED FIX: Seed cached events from localStorage BEFORE first render.
+// Returning visitors see events INSTANTLY (no "Loading..." spinner).
+// Firestore refreshes in background and silently updates if data changed.
+var _db=getDB();
+if(_db.events&&_db.events.length){
+  S._cachedEvents=_db.events;
+  try{S._cachedEventsJson=JSON.stringify(_db.events);}catch(_e){}
+}
 render();
 </script>
 </body>
