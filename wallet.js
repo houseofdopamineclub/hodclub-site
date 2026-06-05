@@ -16,95 +16,91 @@ function renderWalletPage(bookingRef){
   if(!document.getElementById('hod-wallet-v2-css')){
     var st=document.createElement('style');st.id='hod-wallet-v2-css';
     st.textContent=
-      '.hod-wallet-v2{--pink:#FF90E8;--yellow:#FFD700;--text:#000;--muted:#3D3D3D;--card:#FFFFFF;--surface:#F4F4F0;--border:2px solid #000;}'
-      // Typography — inherit font family everywhere
+      '.hod-wallet-v2{--pink:#FF90E8;--text:#000000;--muted:#3D3D3D;--card:#FFFFFF;--surface:#F4F4F0;--border:2px solid #000;--red:#FF5733;--red-deep:#CC4422;}'
+      // Lift hardcoded dark-blue panels (#fff etc.) and rgba(0,0,0,.03) into proper Digitory blacks
       +'.hod-wallet-v2 input,.hod-wallet-v2 button,.hod-wallet-v2 select,.hod-wallet-v2 textarea{font-family:var(--ff);}'
-      +'.hod-wallet-v2 input::placeholder{color:#999;}'
-      // QR wrap — white card, clean border
-      +'.hod-wallet-v2 #wallet-qr-wrap,.hod-wallet-v2 #wallet-qr-wait,.hod-wallet-v2 #conf-qr-wrap{background:#fff !important;width:180px !important;height:180px !important;border:2px solid #000 !important;border-radius:12px !important;}'
-      // Item row — white card, black border
+      +'.hod-wallet-v2 input::placeholder{color:#777;}'
+      // QR wrap → white card for crisp scan
+      +'.hod-wallet-v2 #wallet-qr-wrap,.hod-wallet-v2 #wallet-qr-wait,.hod-wallet-v2 #conf-qr-wrap{background:#fff !important;width:180px !important;height:180px !important;border:6px solid #fff !important;border-radius:14px !important;box-shadow:0 4px 22px rgba(242,199,68,.18);}'
+      // Item row dividers — thin red dotted (Digitory)
       +'.hod-wallet-v2 .wv-row{background:#fff !important;border:2px solid #000 !important;border-radius:12px !important;padding:14px 16px !important;margin-bottom:10px !important;}'
-      // ADD button — primary CTA: pink bg, black text, black border
-      +'.hod-wallet-v2 .wv-add{padding:9px 22px !important;border-radius:10px !important;background:#FF90E8 !important;border:2px solid #000 !important;color:#000 !important;font-size:13px !important;font-weight:900 !important;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);transition:transform .15s;}'
+      // ADD button — bold red with yellow text
+      +'.hod-wallet-v2 .wv-add{padding:9px 22px !important;border-radius:10px !important;background:#000000 !important;border:2px solid #000 !important;color:#FF90E8 !important;font-size:13px !important;font-weight:900 !important;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);box-shadow:0 2px 10px rgba(184,50,39,.35);transition:transform .15s,box-shadow .15s;}'
       +'.hod-wallet-v2 .wv-add:active{transform:scale(.96);}'
-      +'.hod-wallet-v2 .wv-add:hover{background:#000 !important;color:#FF90E8 !important;border-color:#000 !important;}'
-      // Qty stepper buttons — surface bg, black border
+      +'.hod-wallet-v2 .wv-add:hover{background:#FF90E8 !important;color:#000000 !important;border-color:#FF90E8 !important;}'
+      // Qty stepper buttons
       +'.hod-wallet-v2 .wv-qbtn{width:32px !important;height:32px !important;border-radius:8px !important;background:#F4F4F0 !important;border:2px solid #000 !important;color:#000 !important;font-size:16px !important;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--ff);}'
-      +'.hod-wallet-v2 .wv-qbtn:hover{background:#000 !important;color:#fff !important;}'
+      +'.hod-wallet-v2 .wv-qbtn:hover{background:#000000 !important;}'
       +'.hod-wallet-v2 .wv-qty{font-family:var(--ff);font-size:15px;font-weight:900;color:#000;min-width:22px;text-align:center;}'
-      // Category accordion — white card, black border
-      +'.hod-wallet-v2 .wv-cat{background:#fff !important;border:2px solid #000 !important;border-radius:8px !important;padding:14px 16px !important;cursor:pointer;}'
+      // Category accordion header — bold black panel with yellow underline
+      +'.hod-wallet-v2 .wv-cat{background:#fff !important;border:2px solid #000 !important;border-left:4px solid #000000 !important;border-radius:8px !important;padding:14px 16px !important;cursor:pointer;}'
       +'.hod-wallet-v2 .wv-cat .wv-cat-name{font-size:13px !important;font-weight:900 !important;color:#000 !important;letter-spacing:1.6px !important;text-transform:uppercase;}'
-      +'.hod-wallet-v2 .wv-cat .wv-cat-count{font-size:11px;color:#3D3D3D;font-weight:700;letter-spacing:.5px;}'
-      // Tab chips — white inactive, pink active
-      +'.hod-wallet-v2 .wv-tab{flex:1;padding:18px 8px !important;border-radius:12px !important;font-size:13px !important;font-weight:900 !important;letter-spacing:1.4px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);border:2px solid #000 !important;transition:all .15s;}'
-      +'.hod-wallet-v2 .wv-tab.on{background:#FF90E8 !important;border-color:#000 !important;color:#000 !important;}'
-      +'.hod-wallet-v2 .wv-tab.off{background:#fff !important;border-color:#000 !important;color:#000 !important;}'
-      +'.hod-wallet-v2 .wv-tab.off:hover{background:#F4F4F0 !important;}'
-      // Sticky bottom View Cart bar — black bg, white text
-      +'.hod-wallet-v2 .wv-stickycart{position:fixed;left:0;right:0;bottom:0;z-index:200;background:#000;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;font-family:var(--ff);font-weight:900;font-size:15px;letter-spacing:.4px;cursor:pointer;}'
-      +'.hod-wallet-v2 .wv-stickycart .wv-sc-amt{font-family:var(--ff);font-size:20px;color:#FF90E8;}'
-      // Search input — white bg, black border
+      +'.hod-wallet-v2 .wv-cat .wv-cat-count{font-size:11px;color:#6B6B6B;font-weight:700;letter-spacing:.5px;}'
+      // Tab buttons — yellow solid active, deep-red outlined inactive
+      +'.hod-wallet-v2 .wv-tab{flex:1;padding:18px 8px !important;border-radius:12px !important;font-size:13px !important;font-weight:900 !important;letter-spacing:1.4px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);border:2px solid !important;transition:all .15s;}'
+      +'.hod-wallet-v2 .wv-tab.on{background:#FF90E8 !important;border-color:#FF90E8 !important;color:#000000 !important;box-shadow:0 4px 16px rgba(242,199,68,.3);}'
+      +'.hod-wallet-v2 .wv-tab.off{background:transparent !important;border-color:#000000 !important;color:#000 !important;}'
+      +'.hod-wallet-v2 .wv-tab.off:hover{background:rgba(184,50,39,.18) !important;}'
+      // Sticky bottom View Cart bar — Digitory red
+      +'.hod-wallet-v2 .wv-stickycart{position:fixed;left:0;right:0;bottom:0;z-index:200;background:#000000;color:#FF90E8;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;font-family:var(--ff);font-weight:900;font-size:15px;letter-spacing:.4px;box-shadow:0 -8px 24px rgba(0,0,0,.5);cursor:pointer;}'
+      +'.hod-wallet-v2 .wv-stickycart .wv-sc-amt{font-family:var(--ff);font-size:20px;color:#fff;}'
+      // Search input — yellow outline on black
       +'.hod-wallet-v2 .wv-search{width:100%;padding:14px 16px !important;border-radius:12px !important;background:#fff !important;border:2px solid #000 !important;color:#000 !important;font-size:14px !important;font-weight:600;font-family:var(--ff);outline:none;box-sizing:border-box;letter-spacing:.3px;}'
-      +'.hod-wallet-v2 .wv-search:focus{border-color:#FF90E8 !important;}'
-      // Header strip — black bg, white text
-      +'.hod-wallet-v2 .wv-hdr{background:#000 !important;border-bottom:2px solid #000 !important;padding:14px 18px !important;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}'
-      +'.hod-wallet-v2 .wv-hdr-brand{font-family:var(--ff);font-size:24px;font-weight:900;color:#fff;letter-spacing:3px;}'
-      +'.hod-wallet-v2 .wv-hdr-pill{display:inline-block;padding:7px 14px;border-radius:999px;background:#FF90E8;color:#000;font-size:11px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;border:2px solid #000;cursor:pointer;font-family:var(--ff);}'
-      // Wallet hero card — white bg, black border
-      +'.hod-wallet-v2 .wv-wcard{background:#FFFFFF !important;border:2px solid #000 !important;border-radius:18px !important;padding:24px !important;margin-bottom:18px;color:#000;}'
+      +'.hod-wallet-v2 .wv-search:focus{border-color:#FF90E8 !important;box-shadow:0 0 0 3px rgba(242,199,68,.12);}'
+      // Header strip
+      +'.hod-wallet-v2 .wv-hdr{background:#000 !important;border-bottom:2px solid #000000 !important;padding:14px 18px !important;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}'
+      +'.hod-wallet-v2 .wv-hdr-brand{font-family:var(--ff);font-size:24px;font-weight:900;color:#000;letter-spacing:3px;}'
+      +'.hod-wallet-v2 .wv-hdr-pill{display:inline-block;padding:7px 14px;border-radius:999px;background:#000;color:#fff;font-size:11px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;border:2px solid #000;cursor:pointer;font-family:var(--ff);}'
+      // Wallet hero card — red-to-black with yellow balance
+      +'.hod-wallet-v2 .wv-wcard{background:#FFFFFF !important;border:1.5px solid #FF90E8 !important;border-radius:18px !important;padding:24px !important;margin-bottom:18px;color:#000;box-shadow:0 8px 32px rgba(184,50,39,.25);}'
       +'.hod-wallet-v2 .wv-wcard .wv-bal{font-family:var(--ff);font-size:44px;font-weight:900;color:#000;line-height:1;letter-spacing:-1px;}'
-      +'.hod-wallet-v2 .wv-wcard .wv-bal.zero{color:#3D3D3D;opacity:.5;}'
-      // Place order button — primary CTA: pink
-      +'.hod-wallet-v2 .wv-place{width:100%;padding:18px !important;border-radius:14px !important;background:#FF90E8 !important;border:2px solid #000 !important;color:#000 !important;font-size:15px !important;font-weight:900 !important;letter-spacing:1.2px !important;text-transform:uppercase;cursor:pointer;font-family:var(--ff);transition:transform .15s;}'
-      +'.hod-wallet-v2 .wv-place:active{transform:scale(.98);}'
-      +'.hod-wallet-v2 .wv-place:disabled,.hod-wallet-v2 .wv-place[style*="opacity:.45"]{opacity:.4;cursor:not-allowed;}'
-      // Veg dot
+      +'.hod-wallet-v2 .wv-wcard .wv-bal.zero{color:#000;opacity:.6;}'
+      // Place order primary button — yellow solid
+      +'.hod-wallet-v2 .wv-place{width:100%;padding:18px !important;border-radius:14px !important;background:#FF90E8 !important;border:2px solid #FF90E8 !important;color:#000000 !important;font-size:15px !important;font-weight:900 !important;letter-spacing:1.2px !important;text-transform:uppercase;cursor:pointer;font-family:var(--ff);box-shadow:0 6px 22px rgba(242,199,68,.32);}'
+      +'.hod-wallet-v2 .wv-place:disabled,.hod-wallet-v2 .wv-place[style*="opacity:.45"]{opacity:.4;}'
+      // Veg dot crisp
       +'.hod-wallet-v2 .wv-vegdot{width:11px !important;height:11px !important;border-radius:2px !important;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;margin-right:8px;}'
       +'.hod-wallet-v2 .wv-vegdot::after{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;display:block;}'
-      // Color scheme
+      // Force gold→yellow for any remaining #FF90E8 references inside QR-bg circles etc.
       +'.hod-wallet-v2{color-scheme:light;}'
-      // ── V2 Header ──
+      // ── DIGITORY V3 ADDITIONS ─────────────────────────
+      // Full-bleed deep red header strip (replaces black wv-hdr style)
       +'.hod-wallet-v2 .wv-hdr2{background:#fff !important;color:#000;border-bottom:2px solid #000 !important;padding:14px 18px !important;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}'
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-brand{font-size:13px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;line-height:1.2;color:#000;}'
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-otp{font-size:12px;font-weight:700;color:#3D3D3D;letter-spacing:.4px;margin-top:2px;font-family:var(--ff);}'
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-otp b{color:#000;letter-spacing:1.5px;font-weight:900;}'
-      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-call{display:flex;align-items:center;gap:8px;color:#000;font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;background:transparent;border:2px solid #000;padding:6px 12px;border-radius:8px;font-family:var(--ff);}'
-      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-avatar{width:26px;height:26px;border-radius:50%;background:#FF90E8;color:#000;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;}'
-      // 4-tab grid
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-call{display:flex;align-items:center;gap:8px;color:#000;font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;background:transparent;border:2px solid #000;font-family:var(--ff);}'
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-avatar{width:26px;height:26px;border-radius:50%;background:#FF90E8;color:#000000;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;}'
+      // 4-tab solid rectangles like Digitory FOOD/LIQUOR/NAB/SMOKE
       +'.hod-wallet-v2 .wv-tab4row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;}'
-      +'.hod-wallet-v2 .wv-tab4{padding:22px 6px;border-radius:8px;font-size:12px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);border:2px solid #000;text-align:center;transition:all .12s;color:#000;background:#fff;line-height:1.1;}'
-      +'.hod-wallet-v2 .wv-tab4.on{background:#FF90E8 !important;color:#000 !important;border-color:#000 !important;font-weight:900;}'
+      +'.hod-wallet-v2 .wv-tab4{padding:22px 6px;border-radius:8px;font-size:12px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);border:2px solid #000;text-align:center;transition:all .12s;color:#000;background:#fff;line-height:1.1;box-shadow:0 1px 4px rgba(0,0,0,.15);}'
+      +'.hod-wallet-v2 .wv-tab4.on{background:#FF90E8 !important;color:#000000 !important;font-weight:900;box-shadow:0 4px 14px rgba(242,199,68,.32);}'
       +'.hod-wallet-v2 .wv-tab4:active{transform:scale(.97);}'
-      // Filters bar
-      +'.hod-wallet-v2 .wv-filters{background:#F4F4F0;color:#000;border:2px solid #000;padding:13px 16px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:pointer;font-size:13px;font-weight:800;letter-spacing:.6px;}'
-      +'.hod-wallet-v2 .wv-filters .wv-fl-arrow{font-size:11px;transition:transform .15s;}'
+      // Filters bar (deep red row above tabs)
+      +'.hod-wallet-v2 .wv-filters{background:#F2C744;color:#000;border:2px solid #000;padding:13px 16px;border-radius:6px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;cursor:pointer;font-size:13px;font-weight:700;letter-spacing:.6px;text-transform:none;}'
+      +'.hod-wallet-v2 .wv-filters .wv-fl-arrow{font-size:11px;opacity:.85;transition:transform .15s;}'
       +'.hod-wallet-v2 .wv-filters.open .wv-fl-arrow{transform:rotate(180deg);}'
-      +'.hod-wallet-v2 .wv-filters-panel{display:none;background:#fff;border:2px solid #000;border-radius:8px;padding:12px 14px;margin-bottom:10px;gap:8px;flex-wrap:wrap;}'
+      +'.hod-wallet-v2 .wv-filters-panel{display:none;background:#fff;border:2px solid #000;border-radius:6px;padding:12px 14px;margin-bottom:10px;gap:8px;flex-wrap:wrap;}'
       +'.hod-wallet-v2 .wv-filters-panel.open{display:flex;}'
-      +'.hod-wallet-v2 .wv-fchip{padding:8px 14px;border-radius:999px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;font-family:var(--ff);text-transform:uppercase;transition:all .12s;}'
-      +'.hod-wallet-v2 .wv-fchip.on{background:#FF90E8;color:#000;border-color:#000;}'
-      // Sub-category chip row
+      +'.hod-wallet-v2 .wv-fchip{padding:8px 14px;border-radius:999px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;font-family:var(--ff);text-transform:uppercase;}'
+      +'.hod-wallet-v2 .wv-fchip.on{background:#FF90E8;color:#000000;border-color:#FF90E8;}'
+      // Sub-category chip row (wrapped)
       +'.hod-wallet-v2 .wv-subrow{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px;padding:0 4px;}'
-      +'.hod-wallet-v2 .wv-subchip{padding:7px 12px;border-radius:6px;background:transparent;border:2px solid #000;color:#000;font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);transition:all .12s;}'
-      +'.hod-wallet-v2 .wv-subchip:hover{background:#F4F4F0;}'
-      +'.hod-wallet-v2 .wv-subchip.on{border-color:#000;color:#000;background:#FF90E8;}'
-      // Section title
+      +'.hod-wallet-v2 .wv-subchip{padding:7px 12px;border-radius:6px;background:transparent;border:2px solid #000;color:rgba(0,0,0,.85);font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);transition:all .12s;}'
+      +'.hod-wallet-v2 .wv-subchip:hover{color:#FF90E8;border-color:#FF90E8;}'
+      +'.hod-wallet-v2 .wv-subchip.on{border-color:#000;color:#000;background:#FF90E8;box-shadow:0 0 0 1px #000;}'
+      // Section title above item list (e.g. "MANGO MANIA")
       +'.hod-wallet-v2 .wv-sectiontitle{font-family:var(--ff);font-size:24px;font-weight:900;color:#000;letter-spacing:1.2px;text-transform:uppercase;margin:18px 4px 14px;}'
-      // Bottom fixed cart footer — black bg, white text, pink CTA
-      +'.hod-wallet-v2 .wv-cartfooter{position:fixed;left:0;right:0;bottom:0;z-index:200;background:#000;padding:0;font-family:var(--ff);display:none;}'
+      // Bottom fixed View Cart footer (red strip)
+      +'.hod-wallet-v2 .wv-cartfooter{position:fixed;left:0;right:0;bottom:0;z-index:200;background:#000000;padding:0;font-family:var(--ff);box-shadow:0 -8px 24px rgba(0,0,0,.5);display:none;}'
       +'.hod-wallet-v2 .wv-cartfooter.show{display:block;}'
-      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-tax{text-align:center;background:#000;color:#3D3D3D;font-size:11px;padding:7px 12px;letter-spacing:.4px;font-style:italic;}'
-      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-btn{width:100%;padding:16px;background:#FF90E8;color:#000;font-size:15px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;border:2px solid #000;cursor:pointer;font-family:var(--ff);display:flex;align-items:center;justify-content:center;gap:10px;transition:transform .15s;}'
-      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-btn:active{transform:scale(.98);}'
-      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-btn .wv-cf-amt{background:#000;color:#FF90E8;padding:5px 10px;border-radius:6px;font-family:var(--ff);font-size:14px;font-weight:900;letter-spacing:.5px;}'
-      // Reserve bottom space
-      +'.hod-wallet-v2{padding-bottom:90px;}'
-      // Minimal spin keyframe for loading spinner
-      +'@keyframes spin{to{transform:rotate(360deg);}}';
+      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-tax{text-align:center;background:#000000;color:rgba(245,241,232,.55);font-size:11px;padding:7px 12px;letter-spacing:.4px;font-style:italic;}'
+      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-btn{width:100%;padding:16px;background:#000000;color:#FF90E8;font-size:15px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;border:2px solid #000;cursor:pointer;font-family:var(--ff);display:flex;align-items:center;justify-content:center;gap:10px;}'
+      +'.hod-wallet-v2 .wv-cartfooter .wv-cf-btn .wv-cf-amt{background:#000000;color:#FF90E8;padding:5px 10px;border-radius:6px;font-family:var(--ff);font-size:14px;font-weight:900;letter-spacing:.5px;}'
+      // Reserve bottom space so the fixed footer never covers content
+      +'.hod-wallet-v2{padding-bottom:90px;}';
     document.head.appendChild(st);
   }
-
 
   // Header — Digitory deep-red strip with venue name + ref/OTP left,
   // Call Waiter + avatar on the right. Ref defaults to wallet/booking ref.
@@ -133,7 +129,7 @@ function renderWalletPage(bookingRef){
   // Loading state
   var loadDiv=document.createElement('div');
   loadDiv.style.cssText='text-align:center;padding:60px 20px;color:#3D3D3D;';
-  loadDiv.innerHTML='<div style="border:2px solid rgba(0,0,0,.1);border-top-color:#000;border-radius:50%;width:28px;height:28px;animation:spin .7s linear infinite;margin:0 auto 14px;"></div>Loading your wallet...';
+  loadDiv.innerHTML='<div style="border:2px solid rgba(242,199,68,.2);border-top-color:#000;border-radius:50%;width:28px;height:28px;animation:spin .7s linear infinite;margin:0 auto 14px;"></div>Loading your wallet...';
   inner.appendChild(loadDiv);
 
   // Cart state
@@ -159,15 +155,15 @@ function renderWalletPage(bookingRef){
     var _isActivatedTop = !!cv.checkedIn || (cv.coverActivated||0) > 0;
     if(cv.isTableBooking){
       var tbBanner=document.createElement('div');
-      tbBanner.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:14px 16px;margin-bottom:14px;';
-      tbBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;"> Table Reservation · Pre-Order Menu</div>'
+      tbBanner.style.cssText='background:rgba(242,199,68,.08);border:2px solid #000;border-radius:8px;padding:14px 16px;margin-bottom:14px;';
+      tbBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">🪑 Table Reservation · Pre-Order Menu</div>'
         +'<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#3D3D3D;">'
-        +'<span> <b style="color:#000;">'+sanitize(cv.tableId||'')+'</b> · '+sanitize(cv.floorLabel||'')+'</span>'
-        +'<span> <b style="color:#000;">'+sanitize(cv.date||'')+'</b></span>'
-        +'<span> <b style="color:#000;">'+sanitize(cv.arrivalTime||'')+'</b></span>'
-        +'<span> <b style="color:#000;">'+sanitize(String(cv.partySize||0))+'</b> guests</span>'
+        +'<span>📍 <b style="color:#000;">'+sanitize(cv.tableId||'')+'</b> · '+sanitize(cv.floorLabel||'')+'</span>'
+        +'<span>📅 <b style="color:#000;">'+sanitize(cv.date||'')+'</b></span>'
+        +'<span>🕐 <b style="color:#000;">'+sanitize(cv.arrivalTime||'')+'</b></span>'
+        +'<span>👥 <b style="color:#000;">'+sanitize(String(cv.partySize||0))+'</b> guests</span>'
         +'</div>'
-        +(bal<=0?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;"> Pre-order below — pay via cash, card or UPI at your table.</div>':'')
+        +(bal<=0?'<div style="margin-top:8px;font-size:11px;color:rgba(242,199,68,.7);">💰 Pre-order below — pay via cash, card or UPI at your table.</div>':'')
         ;
       inner.appendChild(tbBanner);
     } else {
@@ -175,24 +171,24 @@ function renderWalletPage(bookingRef){
       // as table banner above for visual parity. Header line varies
       // based on type (entry-only is door-only, others redeem against
       // the wallet balance via bartender scan).
-      var _coverHeader = ' Cover · ' + sanitize(cv.eventTitle || 'HOD · Tonight');
-      var _balChipBg = bal > 0 ? '#F4F4F0' : '#F4F4F0';
-      var _balChipBorder = bal > 0 ? '2px solid #000' : '2px solid #000';
-      var _balChipColor = bal > 0 ? '#000' : '#3D3D3D';
+      var _coverHeader = 'COVER · ' + sanitize(cv.eventTitle || 'HOD · Tonight');
+      var _balChipBg = bal > 0 ? 'rgba(34,197,94,.12)' : 'rgba(0,0,0,.04)';
+      var _balChipBorder = bal > 0 ? 'rgba(34,197,94,.4)' : 'rgba(0,0,0,.12)';
+      var _balChipColor = bal > 0 ? '#22C55E' : 'rgba(255,255,255,.55)';
       var coverBanner = document.createElement('div');
-      coverBanner.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:14px 16px;margin-bottom:14px;';
+      coverBanner.style.cssText='background:#fff;border:2px solid #000;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:8px 8px 0 0;padding:14px 16px;margin-bottom:0;';
       // 🔴 2026-05-13 v2 (Khushi) — small balance chip removed; balance now
       // displayed prominently in its own BALANCE card above the QR (below).
       coverBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">'+_coverHeader+'</div>'
         +'<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#3D3D3D;">'
-        +  '<span> <b style="color:#000;">'+sanitize(name)+'</b></span>'
-        +  (activated>0?'<span> <b style="color:#000;">\u20b9'+used.toLocaleString('en-IN')+'</b> used / \u20b9'+activated.toLocaleString('en-IN')+' total</span>':'')
+        +  '<span><b style="color:#000;">'+sanitize(name)+'</b></span>'
+        +  (activated>0?'<span><b style="color:#000;">\u20b9'+used.toLocaleString('en-IN')+'</b> used / \u20b9'+activated.toLocaleString('en-IN')+' total</span>':'')
         +'</div>'
-        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;"> Your cover will be activated at HOD when you arrive.</div>':'');
+        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;">⏳ Your cover will be activated at HOD when you arrive.</div>':'');
       inner.appendChild(coverBanner);
     }
 
-    // 🔴 2026-05-13 (Khushi) — " Bill Settled · View Bill" banner.
+    // 🔴 2026-05-13 (Khushi) — "✅ Bill Settled · View Bill" banner.
     // Shown the moment captain stamps paymentStatus:'paid' on the
     // tableReservation (offline cash/card mark-paid) OR when the
     // wallet's own paid_online stamp lands. The customer can tap
@@ -202,15 +198,15 @@ function renderWalletPage(bookingRef){
     // — that path also gets a View Bill button, see below).
     if(cv.isTableBooking && cv.paymentStatus==='paid'){
       var paidBanner=document.createElement('div');
-      paidBanner.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
+      paidBanner.style.cssText='background:rgba(34,197,94,.10);border:1.5px solid rgba(34,197,94,.45);border-radius:8px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
       var pmTxt=(cv.paymentMethod==='paid_online'||cv.paymentMethod==='online')?'Paid Online':((cv.paymentMethod||'').toUpperCase()||'Settled');
       var amtTxt=cv.amountPaid?(' · ₹'+Number(cv.amountPaid).toLocaleString('en-IN')):'';
-      paidBanner.innerHTML='<div style="font-size:24px;"></div>'
+      paidBanner.innerHTML='<div style="font-size:24px;">✅</div>'
         +'<div style="flex:1;min-width:140px;">'
-        +  '<div style="font-size:13px;font-weight:900;color:#000;letter-spacing:.4px;">Bill Settled</div>'
+        +  '<div style="font-size:13px;font-weight:900;color:#22C55E;letter-spacing:.4px;">Bill Settled</div>'
         +  '<div style="font-size:11px;color:rgba(0,0,0,.7);margin-top:2px;">'+sanitize(pmTxt)+sanitize(amtTxt)+'</div>'
         +'</div>'
-        +'<button id="hod-paid-viewbill" style="padding:9px 14px;border-radius:9px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:12px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;">📄 View Bill</button>';
+        +'<button id="hod-paid-viewbill" style="padding:9px 14px;border-radius:9px;background:rgba(242,199,68,.15);border:2px solid #000;color:#000;font-size:12px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;">📄 View Bill</button>';
       inner.appendChild(paidBanner);
       var _vbBtn=document.getElementById('hod-paid-viewbill');
       if(_vbBtn) _vbBtn.onclick=function(){
@@ -246,7 +242,7 @@ function renderWalletPage(bookingRef){
     if(_isWalletExpired){
       var expDiv=document.createElement('div');
       expDiv.style.cssText='text-align:center;padding:40px 20px;color:#3D3D3D;';
-      expDiv.innerHTML='<div style="font-size:44px;margin-bottom:12px;"></div>'
+      expDiv.innerHTML='<div style="font-size:44px;margin-bottom:12px;">⏰</div>'
         +'<div style="font-size:16px;font-weight:800;color:#FF5733;margin-bottom:8px;">Wallet Expired</div>'
         +'<div style="font-size:13px;">This cover has ended. Balance has been reset.</div>';
       inner.appendChild(expDiv);return;
@@ -269,16 +265,16 @@ function renderWalletPage(bookingRef){
       generateLocalQR('wallet-qr-wait','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
       // Waiting message
       var waitMsg=document.createElement('div');
-      waitMsg.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;';
-      waitMsg.innerHTML='<div style="font-size:40px;margin-bottom:12px;"></div>'
+      waitMsg.style.cssText='background:rgba(242,199,68,.06);border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;';
+      waitMsg.innerHTML='<div style="font-size:40px;margin-bottom:12px;">🪑</div>'
         +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:8px;">We\'re preparing your table!</div>'
         +(cv.tableId?'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:16px;">Your table <strong style="color:#000;">'+sanitize(cv.tableId)+'</strong>'+(cv.floorLabel?' on <strong style="color:#000;">'+sanitize(cv.floorLabel)+'</strong>':'')+' is being set up for you.</div>':'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:16px;">Your table is being set up. Show your reservation QR to your captain on arrival.</div>')
         +'<div style="display:grid;grid-template-columns:'+(cv.date?'1fr 1fr 1fr':'1fr 1fr')+';gap:10px;margin-bottom:16px;">'
-        +(cv.date?'<div style="background:#F4F4F0;border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Date</div><div style="font-size:13px;font-weight:800;color:#000;">'+sanitize(cv.date)+'</div></div>':'')
-        +'<div style="background:#F4F4F0;border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Arrival</div><div style="font-size:13px;font-weight:800;color:#000;">'+sanitize(cv.arrivalTime||'—')+'</div></div>'
-        +'<div style="background:#F4F4F0;border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Guests</div><div style="font-size:13px;font-weight:800;color:#000;">'+(cv.partySize||0)+'</div></div>'
+        +(cv.date?'<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Date</div><div style="font-size:13px;font-weight:800;color:#000;">'+sanitize(cv.date)+'</div></div>':'')
+        +'<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Arrival</div><div style="font-size:13px;font-weight:800;color:#000;">'+sanitize(cv.arrivalTime||'—')+'</div></div>'
+        +'<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Guests</div><div style="font-size:13px;font-weight:800;color:#000;">'+(cv.partySize||0)+'</div></div>'
         +'</div>'
-        +'<div style="background:#F4F4F0;border:1px solid #000;border-radius:8px;padding:12px 16px;font-size:12px;color:#3D3D3D;line-height:1.6;"> The menu will unlock once you arrive and your captain confirms your presence. You\'ll be able to browse and pre-order right from your phone!</div>';
+        +'<div style="background:rgba(35,160,148,.06);border:1px solid rgba(35,160,148,.2);border-radius:8px;padding:12px 16px;font-size:12px;color:rgba(35,160,148,.8);line-height:1.6;">ℹ️ The menu will unlock once you arrive and your captain confirms your presence. You\'ll be able to browse and pre-order right from your phone!</div>';
       waitDiv.appendChild(waitMsg);
       inner.appendChild(waitDiv);
       return;
@@ -288,10 +284,10 @@ function renderWalletPage(bookingRef){
       // Show recharge banner — menu continues below
       var emptyBanner=document.createElement('div');
       // 🔴 2026-05-13 v2 (Khushi) — recolor purple → red/yellow/white theme.
-      emptyBanner.style.cssText='background:#fff;border:2px solid #000;border-radius:12px;padding:24px;margin-bottom:16px;text-align:center;';
-      emptyBanner.innerHTML='<div style="font-size:32px;margin-bottom:10px;"></div>'
-        +'<div style="font-size:16px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">RECHARGE YOUR WALLET</div>'
-        +'<div style="font-size:12px;color:#3D3D3D;line-height:1.6;margin-bottom:16px;">Enter an amount and pay online, or show your QR to the bartender.</div>';
+      emptyBanner.style.cssText='background:rgba(239,68,68,.06);border:1.5px solid rgba(239,68,68,.3);border-radius:8px;padding:20px;margin-bottom:16px;text-align:center;';
+      emptyBanner.innerHTML='<div style="font-size:28px;margin-bottom:8px;">⚡</div>'
+        +'<div style="font-size:15px;font-weight:900;color:#FF5733;margin-bottom:6px;">Load your wallet to start ordering</div>'
+        +'<div style="font-size:12px;color:#3D3D3D;line-height:1.6;margin-bottom:14px;">Enter an amount below and pay online, or show your QR above to the bartender — they can recharge for you too.</div>';
       var _rcAmt=0;
       // ── 2026-05-11 (Khushi feature) — CUSTOM AMOUNT INPUT on empty-wallet banner.
       // 🆕 2026-06-03 v3.205 (Khushi) — quick-amount chips (₹500/999/1499/1999)
@@ -303,12 +299,12 @@ function renderWalletPage(bookingRef){
       _emptyCustomWrap.style.cssText='margin:4px 0 10px;';
       _emptyCustomWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:#3D3D3D;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;text-align:center;">Enter recharge amount</div>';
       var _emptyCustomRow=document.createElement('div');
-      _emptyCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:2px solid #000;';
-      _emptyCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;">₹</span>';
+      _emptyCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:8px;border:2px solid #000;background:#fff;';
+      _emptyCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#000;">₹</span>';
       var _emptyCustomInput=document.createElement('input');
       _emptyCustomInput.type='text';_emptyCustomInput.inputMode='numeric';_emptyCustomInput.setAttribute('pattern','[0-9]*');
-      _emptyCustomInput.placeholder='0';
-      _emptyCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:20px;font-weight:900;width:100%;';
+      _emptyCustomInput.placeholder='Enter amount';
+      _emptyCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
       _emptyCustomInput.oninput=function(){
         var v=parseInt((_emptyCustomInput.value||'').replace(/[^0-9]/g,''),10);
         if(isNaN(v)||v<1){_emptyCustomRow.style.borderColor='#FF5733';_rcAmt=0;return;}
@@ -322,7 +318,7 @@ function renderWalletPage(bookingRef){
       emptyBanner.appendChild(_emptyCustomWrap);
       var rcPayBtn=document.createElement('button');
       rcPayBtn.style.cssText='width:100%;padding:12px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.4px;';
-      rcPayBtn.textContent=' Pay & Recharge';
+      rcPayBtn.textContent='💳 Pay & Recharge';
       rcPayBtn.onclick=function(){
         if(!_rcAmt){showToast('Select an amount first','err',2000);return;}
         rcPayBtn.disabled=true;rcPayBtn.textContent='Opening payment...';
@@ -334,13 +330,13 @@ function renderWalletPage(bookingRef){
           name:cv.name||'', phone:cv.phone||'',
           description:'Wallet Recharge ₹'+_rcAmt, payBtn:rcPayBtn,
           onSuccess:function(newBalance){
-            showToast(' Recharged ₹'+_rcAmt+'! Wallet updated.','success',4000);
+            showToast('✅ Recharged ₹'+_rcAmt+'! Wallet updated.','success',4000);
           },
           onError:function(msg){
-            rcPayBtn.disabled=false;rcPayBtn.textContent=' Pay & Recharge';
-            showToast(' '+msg,'err',10000);
+            rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';
+            showToast('⚠️ '+msg,'err',10000);
           },
-          onClose:function(){rcPayBtn.disabled=false;rcPayBtn.textContent=' Pay & Recharge';}
+          onClose:function(){rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';}
         });
       };
       emptyBanner.appendChild(rcPayBtn);
@@ -360,11 +356,11 @@ function renderWalletPage(bookingRef){
     var _walTblFloor = cv.linkedFloorLabel || cv.floorLabel || '';
     if(_walTblId){
       var tblCard=document.createElement('div');
-      tblCard.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:12px;';
-      tblCard.innerHTML='<span style="font-size:24px;line-height:1;"></span>'
+      tblCard.style.cssText='background:rgba(16,185,129,.08);border:1.5px solid rgba(16,185,129,.45);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:12px;';
+      tblCard.innerHTML='<span style="font-size:24px;line-height:1;">\ud83e\ude91</span>'
         +'<div style="text-align:left;">'
         +  '<div style="font-family:var(--ff);font-size:10px;font-weight:800;color:rgba(255,255,255,.6);letter-spacing:1.6px;text-transform:uppercase;margin-bottom:2px;">Your Table</div>'
-        +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(255,255,255,.55);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
+        +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#23A094;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(255,255,255,.55);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
         +'</div>';
       inner.appendChild(tblCard);
     }
@@ -385,7 +381,7 @@ function renderWalletPage(bookingRef){
     if(_showBal){
       var balBlock=document.createElement('div');
       var _bbColor = bal > 0 ? '#000' : '#FF5733';
-      balBlock.style.cssText='background:#fff;border:2px solid #000;border-radius:12px;padding:18px;margin-bottom:12px;text-align:center;';
+      balBlock.style.cssText='background:#fff;border:2px solid #000;border-top:none;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:0;padding:18px;margin-bottom:0;text-align:center;';
       balBlock.innerHTML='<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Wallet Balance</div>'
         +'<div style="font-family:var(--ff);font-size:40px;font-weight:900;color:'+_bbColor+';line-height:1;font-variant-numeric:tabular-nums;">\u20b9'+bal.toLocaleString('en-IN')+'</div>';
       inner.appendChild(balBlock);
@@ -397,14 +393,14 @@ function renderWalletPage(bookingRef){
     // (the captain just glances at it before scanning). Shrunk the card +
     // QR + text considerably so the menu sits closer to the top.
     var _isTbl=cv.isTableBooking;
-    qrSec.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:'+(_isTbl?'12px 14px':'24px 16px')+';margin-bottom:'+(_isTbl?'12px':'18px')+';text-align:center;';
+    qrSec.style.cssText='background:#fff;border:2px solid #000;border-top:none;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:0;padding:'+(_isTbl?'12px 14px':'18px 16px')+';margin-bottom:0;text-align:center;';
     var qrWrap=document.createElement('div');qrWrap.id='wallet-qr-wrap';
-    var _qrPx=_isTbl?100:180;
+    var _qrPx=_isTbl?100:140;
     qrWrap.style.cssText='width:'+_qrPx+'px;height:'+_qrPx+'px;margin:0 auto '+(_isTbl?'8px':'14px')+';background:#fff;border-radius:'+(_isTbl?'8px':'14px')+';display:flex;align-items:center;justify-content:center;overflow:hidden;';
     var qrInfo2=document.createElement('div');
     var _isActivated=cv.checkedIn||cv.coverActivated>0;
     var _qrSub=cv.isTableBooking?'Show to your captain to activate orders.':(_isActivated?'Your HOD Wallet':'Show this at the entrance to check in.');
-    var _walletNote=cv.isTableBooking?'':(!_isActivated?'<div style="font-size:11px;background:#fff;border:2px solid #000;border-radius:8px;padding:6px 10px;margin-top:8px;color:#3D3D3D;"> Your wallet activates when you arrive at HOD</div>':'');
+    var _walletNote=cv.isTableBooking?'':(!_isActivated?'<div style="font-size:11px;background:rgba(242,199,68,.08);border:2px solid #000;border-radius:8px;padding:6px 10px;margin-top:8px;color:rgba(242,199,68,.8);">⏳ Your wallet activates when you arrive at HOD</div>':'');
     // 2026-05-13 (Khushi spec) — show the guest's name prominently above the
     // QR card so the captain can verify identity at a glance before scanning.
     var _guestName=sanitize(cv.name||'Guest');
@@ -425,7 +421,7 @@ function renderWalletPage(bookingRef){
     // For event tickets — show bartender instruction then the menu below
     if(!cv.isTableBooking){
       var evInfo=document.createElement('div');
-      evInfo.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:18px 20px;margin-bottom:16px;text-align:center;';
+      evInfo.style.cssText='background:#F4F4F0;border:2px solid #000;border-top:none;border-radius:0 0 8px 8px;padding:14px 16px;margin-bottom:16px;text-align:center;font-size:12px;color:#3D3D3D;line-height:1.6;';
       if(bal>0){
         // 🔴 2026-05-20 (Khushi) — ONE prominent BOLD "show QR to bartender"
         // message. Previous version repeated the same instruction 3x across
@@ -436,39 +432,36 @@ function renderWalletPage(bookingRef){
           // Present BOTH ways to order up front so the guest decides; the
           // actual delivery routing is still confirmed in the post-order
           // "WHERE ARE YOU?" popup (which pre-selects this table).
-          //  Gated on linkedTableRef (not just the id) so we only promise
+          // ⚠️ Gated on linkedTableRef (not just the id) so we only promise
           // "captain serves you" when the post-order captain-ping can ACTUALLY
           // fire — that path requires linkedTableRef. If a table id exists but
           // no ref, we fall through to the safe bar-only copy (popup also
           // falls back to bartender QR), keeping the message and routing aligned.
-          evInfo.innerHTML='<div style="font-size:26px;margin-bottom:10px;">️ · 🥃</div>'
-            +'<div style="font-family:var(--ff);font-size:17px;font-weight:900;color:#000;margin-bottom:12px;letter-spacing:.3px;line-height:1.3;">TWO WAYS TO ORDER</div>'
-            +'<div style="font-size:12.5px;color:#000;line-height:1.6;text-align:left;max-width:300px;margin:0 auto;">'
-            +  '<div style="margin-bottom:9px;"><strong style="color:#000;"> At your table '+sanitize(_walTblId)+'</strong> — browse the menu &amp; order below; your captain serves you.</div>'
-            +  '<div><strong style="color:#000;">🥃 At the bar</strong> — show the QR above to the bartender.</div>'
+          evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">ORDERING OPTIONS</div>'
+            +'<div style="font-size:11px;color:#3D3D3D;line-height:1.6;text-align:left;max-width:300px;margin:0 auto;">'
+            +  '<div style="margin-bottom:6px;"><strong style="color:#000;">At table '+sanitize(_walTblId)+'</strong> — browse menu below, captain serves you.</div>'
+            +  '<div><strong style="color:#000;">At the bar</strong> — show QR above to bartender.</div>'
             +'</div>'
-            +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;margin-top:11px;">Your balance of <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> is deducted as you order.</div>';
+            +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;margin-top:8px;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
         } else {
-        evInfo.innerHTML='<div style="font-size:28px;margin-bottom:12px;">🥃</div>'
-          +'<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;line-height:1.3;">SHOW THIS QR TO THE BARTENDER TO ORDER</div>'
-          +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Your cover balance of <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> will be deducted as you order.</div>';
+        evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">SHOW QR TO BARTENDER TO ORDER</div>'
+          +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
         }
       } else {
-        evInfo.innerHTML='<div style="font-size:24px;margin-bottom:10px;">🥃</div>'
-          +'<div style="font-family:var(--ff);font-size:16px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">RECHARGE YOUR WALLET TO ORDER</div>'
-          +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Recharge above, or ask your bartender — they can also recharge for you via cash, UPI or card.</div>';
+        evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">RECHARGE TO ORDER</div>'
+          +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;">Recharge above, or ask bartender — they accept cash, UPI or card.</div>';
       }
       inner.appendChild(evInfo);
     }
 
     // Instructions — 🆕 2026-06-03 v3.205 (Khushi) — the non-table
-    // "Browse our menu below — your cover balance will be deducted..." line
+    // "ℹ️ Browse our menu below — your cover balance will be deducted..." line
     // was REMOVED (redundant with the evInfo callout above). The table-booking
     // pre-order instruction is kept.
     if(cv.isTableBooking){
       var info=document.createElement('div');
-      info.style.cssText='background:#F4F4F0;border:1px solid #000;border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:#3D3D3D;';
-      info.innerHTML=' Browse the menu below, select what you want, and tap <strong>Submit Pre-Order</strong>. Your waiter will scan your QR and activate your order at the table.';
+      info.style.cssText='background:rgba(35,160,148,.06);border:1px solid rgba(35,160,148,.2);border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:rgba(35,160,148,.8);';
+      info.innerHTML='\u2139\ufe0f Browse the menu below, select what you want, and tap <strong>Submit Pre-Order</strong>. Your waiter will scan your QR and activate your order at the table.';
       inner.appendChild(info);
     }
 
@@ -501,9 +494,9 @@ function renderWalletPage(bookingRef){
         +'<div style="display:flex;justify-content:space-between;padding:2px 0;color:#3D3D3D;"><span>SGST (2.5%)</span><span>'+_fmt(_bd.sgst)+'</span></div>';
       if(Math.abs(_bd.roundOff)>=0.01)_bdRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;color:#3D3D3D;"><span>Round Off</span><span>'+(_bd.roundOff>=0?'+':'')+_fmt(_bd.roundOff)+'</span></div>';
       cartBar.innerHTML='<div style="padding:8px 4px 4px;">'
-        +'<div style="font-size:12px;color:#000;line-height:1.9;margin-bottom:8px;">'+_lines+'</div>'
+        +'<div style="font-size:12px;color:rgba(242,199,68,.9);line-height:1.9;margin-bottom:8px;">'+_lines+'</div>'
         +'<details style="border-top:1px solid rgba(0,0,0,.08);padding-top:6px;margin-bottom:6px;">'
-        +'<summary style="display:flex;justify-content:space-between;align-items:center;list-style:none;cursor:pointer;font-size:11px;color:#3D3D3D;font-style:italic;">'
+        +'<summary style="display:flex;justify-content:space-between;align-items:center;list-style:none;cursor:pointer;font-size:11px;color:rgba(242,199,68,.7);font-style:italic;">'
         +'<span>Inclusive of all taxes <span style="opacity:.6;font-size:9px;">\u25be view breakdown</span></span>'
         +'<span style="font-size:18px;font-weight:900;color:#000;font-style:normal;">\u20b9'+total.toLocaleString('en-IN')+'</span>'
         +'</summary>'
@@ -552,15 +545,15 @@ function renderWalletPage(bookingRef){
       var b=_filterMenu(_BAR,q);
       // Tag categories so user can tell food vs drink in unified view
       var out=[];
-      f.forEach(function(c){out.push({cat:' '+c.cat,items:c.items});});
-      b.forEach(function(c){out.push({cat:' '+c.cat,items:c.items});});
+      f.forEach(function(c){out.push({cat:'\ud83c\udf7d '+c.cat,items:c.items});});
+      b.forEach(function(c){out.push({cat:'\ud83e\udd43 '+c.cat,items:c.items});});
       return out;
     }
     var menuSearchWrap=document.createElement('div');
     menuSearchWrap.style.cssText='margin-bottom:10px;position:relative;';
     var menuSearchInp=document.createElement('input');
     menuSearchInp.type='search';
-    menuSearchInp.placeholder=' Search menu — food, drinks, brands…';
+    menuSearchInp.placeholder='\ud83d\udd0d Search menu — food, drinks, brands…';
     menuSearchInp.className='wv-search';
     menuSearchInp.oninput=function(){
       menuQuery=menuSearchInp.value;
@@ -587,7 +580,7 @@ function renderWalletPage(bookingRef){
     filtersPanel.className='wv-filters-panel';
     var vegChip=document.createElement('button');
     vegChip.className='wv-fchip';
-    vegChip.innerHTML='<span class="wv-vegdot" style="color:#000;vertical-align:middle;"></span>Veg only';
+    vegChip.innerHTML='<span class="wv-vegdot" style="color:#00C864;vertical-align:middle;"></span>Veg only';
     vegChip.onclick=function(ev){
       ev.stopPropagation();
       filterState.vegOnly=!filterState.vegOnly;
@@ -696,7 +689,7 @@ function renderWalletPage(bookingRef){
         var priceHtml=hasDisc
           ? '<span style="text-decoration:line-through;color:rgba(0,0,0,.4);margin-right:6px;font-weight:600;">\u20b9'+item.p+'</span>'
             +'<span style="color:#000;font-weight:900;">\u20b9'+eff+'</span>'
-            +(ov && ov.discountReason ? '<span style="color:#3D3D3D;font-size:10px;margin-left:6px;font-weight:600;">\u00b7 '+sanitize(ov.discountReason)+'</span>' : '')
+            +(ov && ov.discountReason ? '<span style="color:rgba(242,199,68,.75);font-size:10px;margin-left:6px;font-weight:600;">\u00b7 '+sanitize(ov.discountReason)+'</span>' : '')
           : '<span style="color:#000;font-weight:900;">\u20b9'+item.p+'</span>';
         row.innerHTML='<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;font-size:13px;font-weight:800;color:#000;letter-spacing:.4px;">'+vegDot+'<span style="text-transform:uppercase;">'+sanitize(item.n)+'</span></div>'
           +'<div style="font-size:14px;font-family:var(--ff);font-weight:800;margin-top:6px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
@@ -788,7 +781,7 @@ function renderWalletPage(bookingRef){
       // yet placed). Smaller line so the customer reads Running Tab first,
       // then sees what they're about to add.
       var totalRow=document.createElement('div');
-      totalRow.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:#F4F4F0;border:1px dashed #000;border-radius:8px;';
+      totalRow.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 12px;background:rgba(242,199,68,.05);border:1px dashed rgba(242,199,68,.18);border-radius:8px;';
       totalRow.innerHTML='<span style="font-size:11px;color:#3D3D3D;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;">+ This Round</span>'
         +'<span id="tab-round-total" style="font-size:16px;font-weight:800;color:#000;">₹0</span>';
       submitCard.appendChild(totalRow);
@@ -817,13 +810,13 @@ function renderWalletPage(bookingRef){
           var controls=document.createElement('div');
           controls.style.cssText='display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:10px;';
           var minB=document.createElement('button');
-          minB.style.cssText='width:28px;height:28px;border-radius:7px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+          minB.style.cssText='width:28px;height:28px;border-radius:7px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#FF5733;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;';
           minB.textContent='−';
           var qtySpan=document.createElement('span');
           qtySpan.style.cssText='font-size:14px;font-weight:900;color:#000;min-width:16px;text-align:center;';
           qtySpan.textContent=it.qty;
           var plusB=document.createElement('button');
-          plusB.style.cssText='width:28px;height:28px;border-radius:7px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+          plusB.style.cssText='width:28px;height:28px;border-radius:7px;background:rgba(0,200,100,.1);border:1px solid rgba(0,200,100,.3);color:#00C864;font-size:14px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;';
           plusB.textContent='+';
           var priceSpan=document.createElement('span');
           priceSpan.style.cssText='font-size:13px;font-weight:800;color:#000;min-width:50px;text-align:right;';
@@ -851,7 +844,7 @@ function renderWalletPage(bookingRef){
       placeBtn.id='tab-place-btn';
       placeBtn.className='wv-place';
       placeBtn.style.cssText='margin-bottom:10px;opacity:.45;';
-      placeBtn.textContent=cv.isTableBooking?'️  Place Order':' Place Order';
+      placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
       submitCard.appendChild(placeBtn);
 
       // 2026-05-13 (Khushi spec, v2) — Done Ordering: keep Digitory red but
@@ -886,13 +879,13 @@ function renderWalletPage(bookingRef){
       if(!_isDiningOrRooftop){
         var songCard=document.createElement('div');
         songCard.style.cssText='background:rgba(255,51,102,.15);border:2px solid rgba(255,51,102,.35);border-radius:8px;padding:20px;margin:20px 0;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(255,51,102,.08);';
-        songCard.innerHTML='<div style="text-align:center;margin-bottom:12px;"><span style="font-size:32px;"></span></div>'
+        songCard.innerHTML='<div style="text-align:center;margin-bottom:12px;"><span style="font-size:32px;">🎵</span></div>'
           +'<div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:-.3px;">Request a Song</div>'
           +'<div style="text-align:center;font-size:13px;color:rgba(255,255,255,.6);margin-bottom:16px;line-height:1.4;">Search any song in the world — we\'ll play it for you tonight!</div>'
           +'<div style="text-align:center;"><div style="display:inline-flex;gap:8px;align-items:center;padding:10px 24px;background:#FF5733;border-radius:8px;font-size:14px;font-weight:700;color:#000;">Pick Your Song →</div></div>'
           +'<div style="display:flex;justify-content:center;gap:16px;margin-top:14px;">'
           +'<div style="font-size:10px;color:rgba(0,0,0,.4);text-transform:uppercase;letter-spacing:1px;">Free</div>'
-          +'<div style="font-size:10px;color:rgba(0,0,0,.15);text-transform:uppercase;letter-spacing:1px;">Priority ₹99</div>'
+          +'<div style="font-size:10px;color:rgba(242,199,68,.6);text-transform:uppercase;letter-spacing:1px;">Priority ₹99</div>'
           +'<div style="font-size:10px;color:rgba(255,51,102,.6);text-transform:uppercase;letter-spacing:1px;">VIP ₹299</div>'
           +'</div>';
         songCard.onclick=function(){
@@ -977,7 +970,7 @@ function renderWalletPage(bookingRef){
           var _bsMd=document.createElement('div');
           _bsMd.style.cssText='background:#F4F4F0;border:2px solid rgba(255,144,232,.55);border-radius:8px;padding:24px 22px;width:100%;max-width:400px;box-shadow:0 24px 80px rgba(0,0,0,.85),0 0 60px rgba(255,144,232,.25);';
           var _bsHdr='<div style="text-align:center;margin-bottom:18px;">'
-            +'<div style="font-size:48px;margin-bottom:6px;"></div>'
+            +'<div style="font-size:48px;margin-bottom:6px;">🍸</div>'
             +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;letter-spacing:.4px;line-height:1.15;margin-bottom:4px;">SHOW THIS TO THE BARTENDER</div>'
             +'<div style="font-size:12px;color:#aaa;line-height:1.5;">They\'ll place your order on the POS.</div>'
             +'</div>';
@@ -998,9 +991,9 @@ function renderWalletPage(bookingRef){
           _bsItemsHtml+='<div style="display:flex;justify-content:space-between;padding:10px 0 2px;font-size:16px;font-weight:900;border-top:1.5px solid rgba(255,144,232,.3);margin-top:6px;">'
             +'<span style="color:#000;">TOTAL</span><span style="color:#000;">₹'+ct.toLocaleString('en-IN')+'</span>'
             +'</div></div>';
-          var _bsBal='<div style="background:#F4F4F0;border:2px solid #000;border-radius:12px;padding:10px 14px;margin-bottom:14px;text-align:center;">'
+          var _bsBal='<div style="background:rgba(34,197,94,.08);border:1.5px solid rgba(34,197,94,.4);border-radius:12px;padding:10px 14px;margin-bottom:14px;text-align:center;">'
             +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.5px;margin-bottom:2px;">WALLET BALANCE</div>'
-            +'<div style="font-size:22px;font-weight:900;color:#000;font-variant-numeric:tabular-nums;">₹'+bal.toLocaleString('en-IN')+'</div>'
+            +'<div style="font-size:22px;font-weight:900;color:#22C55E;font-variant-numeric:tabular-nums;">₹'+bal.toLocaleString('en-IN')+'</div>'
             +'</div>';
           var _bsHint='<div style="font-size:11px;color:#888;line-height:1.5;text-align:center;margin-bottom:14px;">Bartender will deduct from your wallet using the ref above.</div>';
           // 🆕 2026-06-03 v3.203 (Khushi): QR inside the "show this to the bartender"
@@ -1054,7 +1047,7 @@ function renderWalletPage(bookingRef){
           var _lpMd=document.createElement('div');
           _lpMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:28px 24px 22px;width:100%;max-width:380px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px #F4F4F0;';
           _lpMd.innerHTML=
-            '<div style="font-size:46px;margin-bottom:8px;line-height:1;"></div>'
+            '<div style="font-size:46px;margin-bottom:8px;line-height:1;">📍</div>'
             +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:6px;letter-spacing:.3px;">Where are you?</div>'
             +'<div style="font-size:13px;color:#aaa;line-height:1.5;margin-bottom:20px;">Tell us where you\'d like to order from.</div>';
           var _tableBtn=document.createElement('button');
@@ -1065,7 +1058,7 @@ function renderWalletPage(bookingRef){
           // the guardrail and ping the WRONG captain card.
           _tableBtn._stale=true;
           _tableBtn._verifying=true;
-          _tableBtn.innerHTML='<span style="font-size:18px;"></span><span>CHECKING TABLE SESSION…</span>';
+          _tableBtn.innerHTML='<span style="font-size:18px;">⏳</span><span>CHECKING TABLE SESSION…</span>';
           _tableBtn.onclick=function(){
             if (_tableBtn._verifying) { showToast('Checking your table — one moment','warn',1500); return; }
             if (_tableBtn._stale) return; // hard-blocked when query resolved stale
@@ -1093,7 +1086,7 @@ function renderWalletPage(bookingRef){
           // Both paths preserve the wallet balance — no money is lost.
           var _staleHint=document.createElement('div');
           _staleHint.style.cssText='display:none;font-size:12px;color:#F87171;margin:-4px 0 14px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:8px;';
-          _staleHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;">🚫 YOUR TABLE SESSION HAS ENDED</div><div style="color:#FCA5A5;font-weight:500;font-size:11px;">Please get in touch with the <b style="color:#F87171;">CAPTAIN</b> for a new table,<br>OR tap <b style="color:#000;"> I\'M AT THE BAR</b> below to order &amp; redeem your wallet at the bar.</div>';
+          _staleHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;">🚫 YOUR TABLE SESSION HAS ENDED</div><div style="color:#FCA5A5;font-weight:500;font-size:11px;">Please get in touch with the <b style="color:#F87171;">CAPTAIN</b> for a new table,<br>OR tap <b style="color:#000;">🍸 I\'M AT THE BAR</b> below to order &amp; redeem your wallet at the bar.</div>';
           _lpMd.appendChild(_staleHint);
           // 🆕 2026-05-25 v3 (Khushi BUG REPORT) — Identity check is now
           // LENIENT. v2 required strict phone match on BOTH sides; but
@@ -1126,7 +1119,7 @@ function renderWalletPage(bookingRef){
             _tableBtn.style.color='#000';
             _tableBtn.style.cursor='pointer';
             _tableBtn.style.border='none';
-            _tableBtn.innerHTML='<span style="font-size:22px;">️</span><span>I\'M AT MY TABLE</span>';
+            _tableBtn.innerHTML='<span style="font-size:22px;">🍽️</span><span>I\'M AT MY TABLE</span>';
           };
           // FAIL-SAFE TIMEOUT: if firestore never responds within 4s, stay
           // stale (do NOT silently let through). User can still pick bar.
@@ -1245,8 +1238,8 @@ function renderWalletPage(bookingRef){
             try { console.warn('[picker] stale-check threw, fail-open:', _eStale && _eStale.message); } catch(_){}
           }
           var _barBtn=document.createElement('button');
-          _barBtn.style.cssText='width:100%;padding:18px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
-          _barBtn.innerHTML='<span style="font-size:22px;"></span><span>I\'M AT THE BAR</span>';
+          _barBtn.style.cssText='width:100%;padding:18px;border-radius:8px;background:rgba(123,47,190,.15);border:1.5px solid rgba(123,47,190,.5);color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
+          _barBtn.innerHTML='<span style="font-size:22px;">🍸</span><span>I\'M AT THE BAR</span>';
           _barBtn.onclick=function(){
             _lpOv.remove();
             // 🆕 2026-06-02 v3.183 — all park-for-bartender logic now lives in
@@ -1273,7 +1266,7 @@ function renderWalletPage(bookingRef){
             if (!_tabHint) {
               _tabHint=document.createElement('div');
               _tabHint.style.cssText='font-size:12px;color:#FBBF24;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;';
-              _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;"> FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
+              _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
               // Insert hint BEFORE the bar button if button already in DOM
               if (_barBtn.parentNode) _barBtn.parentNode.insertBefore(_tabHint, _barBtn);
               else _lpMd.appendChild(_tabHint);
@@ -1361,13 +1354,13 @@ function renderWalletPage(bookingRef){
             _ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
             var _md=document.createElement('div');
             // 🟢 2026-06-02 v3.183 (Khushi) — RECHARGE card restyle. GREEN box,
-            // NO , NO red. Minimal copy. Quick-recharge preset chips REMOVED.
+            // NO ⚠️, NO red. Minimal copy. Quick-recharge preset chips REMOVED.
             // Two ways to add funds: PAY ONLINE (Razorpay) OR RECHARGE AT BAR
             // (parks the order so the bartender sees it on scan/search).
-            _md.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;';
+            _md.style.cssText='background:#fff;border:2px solid #23A094;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;';
             var _shortfall=ct+pendingTotal-bal;
-            _md.innerHTML='<div style="background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:18px 16px;margin-bottom:18px;">'
-              +'<div style="font-size:19px;font-weight:900;color:#000;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
+            _md.innerHTML='<div style="background:rgba(0,200,100,.10);border:2px solid #23A094;border-radius:8px;padding:18px 16px;margin-bottom:18px;">'
+              +'<div style="font-size:19px;font-weight:900;color:#00C864;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
               +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;">Tap the recharge button below.</div>'
               +'</div>';
             // Amount to recharge — defaults to the EXACT shortfall (editable).
@@ -1375,17 +1368,17 @@ function renderWalletPage(bookingRef){
             var _modalCustomWrap=document.createElement('div');
             _modalCustomWrap.style.cssText='margin:0 0 14px;';
             var _modalCustomRow=document.createElement('div');
-            _modalCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:2px solid #000;';
-            _modalCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#000;font-size:20px;">₹</span>';
+            _modalCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;border:2px solid #23A094;background:rgba(0,200,100,.06);';
+            _modalCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#00C864;">₹</span>';
             var _modalCustomInput=document.createElement('input');
-            _modalCustomInput.type='text';_modalCustomInput.inputMode='numeric';_modalCustomInput.setAttribute('pattern','[0-9]*');
+            _modalCustomInput.type='number';_modalCustomInput.min='1';_modalCustomInput.max='50000';_modalCustomInput.step='1';
             _modalCustomInput.value=String(_selRcAmt);
-            _modalCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:20px;font-weight:900;width:100%;';
+            _modalCustomInput.style.cssText='flex:1;background:transparent;border:2px solid #000;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
             _modalCustomInput.oninput=function(){
               var v=parseInt(_modalCustomInput.value,10);
-              if(isNaN(v)||v<1){_modalCustomRow.style.borderColor='#FF5733';return;}
+              if(isNaN(v)||v<1){_modalCustomRow.style.borderColor='rgba(239,68,68,.4)';return;}
               if(v>50000){_modalCustomInput.value='50000';v=50000;}
-              _modalCustomRow.style.borderColor='#000';
+              _modalCustomRow.style.borderColor='rgba(0,200,100,.5)';
               _selRcAmt=v;
             };
             _modalCustomRow.appendChild(_modalCustomInput);
@@ -1394,7 +1387,7 @@ function renderWalletPage(bookingRef){
             // PAY ONLINE (Razorpay) — server-verified recharge (existing path).
             var _rcPayBtn2=document.createElement('button');
             _rcPayBtn2.style.cssText='width:100%;padding:14px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:10px;letter-spacing:.4px;';
-            _rcPayBtn2.textContent=' PAY ONLINE & ORDER';
+            _rcPayBtn2.textContent='💳 PAY ONLINE & ORDER';
             _rcPayBtn2.onclick=function(){
               if(!_selRcAmt){showToast('Enter an amount','err',2000);return;}
               _rcPayBtn2.disabled=true;_rcPayBtn2.textContent='Opening payment...';
@@ -1405,28 +1398,28 @@ function renderWalletPage(bookingRef){
                 description:'Wallet Recharge ₹'+_selRcAmt, payBtn:_rcPayBtn2,
                 onSuccess:function(newBalance){
                   _ov.remove();
-                  showToast(' Recharged ₹'+_selRcAmt+'! Place your order now.','success',4000);
+                  showToast('✅ Recharged ₹'+_selRcAmt+'! Place your order now.','success',4000);
                 },
                 onError:function(msg){
                   _ov.remove();
-                  showToast(' '+msg,'err',10000);
+                  showToast('⚠️ '+msg,'err',10000);
                 },
-                onClose:function(){_rcPayBtn2.disabled=false;_rcPayBtn2.textContent=' PAY ONLINE & ORDER';}
+                onClose:function(){_rcPayBtn2.disabled=false;_rcPayBtn2.textContent='💳 PAY ONLINE & ORDER';}
               });
             };
             _md.appendChild(_rcPayBtn2);
             // 🆕 RECHARGE AT BAR — park the order so the bartender sees it on
             // scan/search and recharges + serves at the bar.
             var _rcBarBtn=document.createElement('button');
-            _rcBarBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:8px;';
-            _rcBarBtn.innerHTML='<span style="font-size:18px;"></span><span>RECHARGE AT BAR</span>';
+            _rcBarBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:rgba(123,47,190,.18);border:1.5px solid rgba(123,47,190,.55);color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:8px;';
+            _rcBarBtn.innerHTML='<span style="font-size:18px;">🍸</span><span>RECHARGE AT BAR</span>';
             _rcBarBtn.onclick=function(){
               _ov.remove();
               _parkOrderForBartender('recharge_at_bar');
             };
             _md.appendChild(_rcBarBtn);
             var _cb=document.createElement('button');
-            _cb.style.cssText='width:100%;padding:12px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
+            _cb.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.12);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
             _cb.textContent='Close';
             _cb.onclick=function(){_ov.remove();};
             _md.appendChild(_cb);_ov.appendChild(_md);
@@ -1473,7 +1466,7 @@ function renderWalletPage(bookingRef){
           // 🔴 2026-05-20 (Khushi Bug 1 fix) — AUTO-IMPORT customer's self-
           // order onto the captain's running tab.
           // Before: customer placed soup → only landed on the cover wallet.
-          //         Captain saw the  ping, tapped ✓ ON IT, then had to
+          //         Captain saw the 🔔 ping, tapped ✓ ON IT, then had to
           //         manually re-key the soup via ADD ORDER (lost context).
           // Now: if this wallet was created via door's COVER+TABLE flow
           // (cv.linkedTableRef = the tableReservations doc id), we ALSO
@@ -1485,7 +1478,7 @@ function renderWalletPage(bookingRef){
           // pill those rounds for clarity.
           // 🛟 FALLBACK: best-effort try/catch. If the write fails (rules
           // change / network blip), the cover wallet still has the round
-          // and the existing  CUSTOMER CALLING banner still fires —
+          // and the existing 🔔 CUSTOMER CALLING banner still fires —
           // captain can fall back to manual ADD ORDER like before. Zero
           // regression for pure-cover (non-linked) wallets.
           try {
@@ -1503,19 +1496,19 @@ function renderWalletPage(bookingRef){
           cart={};
           updateCartBar();
           renderRoundsHistory();
-          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'️  Place Order':' Place Order';
+          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
 
           if(cv.isTableBooking){
             // TABLE BOOKING: friendly modal popup (Khushi spec 2026-05-13)
             var tbOv=document.createElement('div');
             tbOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn .25s ease;';
             var tbMd=document.createElement('div');
-            tbMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:30px 26px 22px;width:100%;max-width:380px;text-align:center;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(0,0,0,.1);';
+            tbMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:30px 26px 22px;width:100%;max-width:380px;text-align:center;position:relative;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(242,199,68,.15);';
             tbMd.innerHTML=
-              '<div style="font-size:54px;margin-bottom:10px;line-height:1;">️</div>'
+              '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🍽️</div>'
               +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:8px;letter-spacing:.3px;">Order Placed!</div>'
               +'<div style="font-size:14px;color:#aaa;line-height:1.55;margin-bottom:18px;">Your captain has been notified and will be with you shortly to confirm.</div>'
-              +'<div style="background:#F4F4F0;border:2px solid #000;border-radius:12px;padding:12px 14px;margin-bottom:18px;">'
+              +'<div style="background:rgba(242,199,68,.06);border:2px solid #000;border-radius:12px;padding:12px 14px;margin-bottom:18px;">'
                 +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.2px;margin-bottom:6px;">YOUR ORDER</div>'
                 +'<div style="font-size:13px;color:#000;font-weight:700;line-height:1.5;">'+sanitize(placedItems)+'</div>'
                 +'<div style="font-size:18px;font-weight:900;color:#000;margin-top:8px;font-family:var(--ff);">₹'+ct.toLocaleString('en-IN')+'</div>'
@@ -1535,10 +1528,10 @@ function renderWalletPage(bookingRef){
             // flow (cv.linkedTableRef set), the customer might be at the
             // bar OR sitting at their table waiting for captain. Show a
             // 2-button "WHERE ARE YOU?" popup:
-            //    AT BAR  → existing QR popup (bartender redeems)
-            //    AT TABLE → write customerCallRequest on the linked
+            //   🍺 AT BAR  → existing QR popup (bartender redeems)
+            //   🍽 AT TABLE → write customerCallRequest on the linked
             //                 tableReservations doc → captain tablet
-            //                 pulses red " CUSTOMER CALLING".
+            //                 pulses red "🔔 CUSTOMER CALLING".
             // 🛟 FALLBACK: if linkedTableRef write fails or the field is
             // missing, fall straight through to the bartender QR (existing
             // safe path). Customer can always walk to bar / wave captain.
@@ -1583,7 +1576,7 @@ function renderWalletPage(bookingRef){
               +'</div>'
               +'<div style="text-align:center;font-size:14px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:700;">'+(_isTbl?'Captain':'Bartender')+' will scan, confirm and <strong style="color:#E8C97A;">deduct</strong> from your wallet automatically</div>';
             var closeBtn=document.createElement('button');
-            closeBtn.style.cssText='width:100%;padding:12px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.6px;text-transform:uppercase;';
+            closeBtn.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(242,199,68,.15);border:2px solid #000;color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.6px;text-transform:uppercase;';
             closeBtn.textContent='Got it ✓';
             closeBtn.onclick=function(){overlay.remove();};
             modal.appendChild(closeBtn);
@@ -1612,8 +1605,8 @@ function renderWalletPage(bookingRef){
               var _tnOv=document.createElement('div');
               _tnOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);font-family:var(--ff);';
               var _tnMd=document.createElement('div');
-              _tnMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:26px 22px 20px;width:100%;max-width:380px;text-align:center;color:#000;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(0,0,0,.1);';
-              _tnMd.innerHTML='<div style="font-size:48px;margin-bottom:10px;line-height:1;"></div>'
+              _tnMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:26px 22px 20px;width:100%;max-width:380px;text-align:center;color:#000;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(242,199,68,.15);';
+              _tnMd.innerHTML='<div style="font-size:48px;margin-bottom:10px;line-height:1;">⏳</div>'
                 +'<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;letter-spacing:.4px;">CALLING CAPTAIN…</div>';
               _tnOv.appendChild(_tnMd);
               document.body.appendChild(_tnOv);
@@ -1625,9 +1618,9 @@ function renderWalletPage(bookingRef){
                 }
               }).then(function(){
                 _tnMd.innerHTML=
-                   '<div style="font-size:54px;margin-bottom:10px;line-height:1;"></div>'
-                  +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
-                  +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#000;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#B0B0B0;font-size:11px;">Sit tight, enjoy the music </span></div>';
+                   '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🔔</div>'
+                  +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#23A094;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
+                  +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#000;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#B0B0B0;font-size:11px;">Sit tight, enjoy the music 🎶</span></div>';
                 var _tnOk=document.createElement('button');
                 _tnOk.style.cssText='width:100%;padding:13px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;letter-spacing:.6px;cursor:pointer;text-transform:uppercase;font-family:var(--ff);box-shadow:3px 3px 0 #000;';
                 _tnOk.textContent='Got it ✓';
@@ -1635,7 +1628,7 @@ function renderWalletPage(bookingRef){
                 _tnMd.appendChild(_tnOk);
               }).catch(function(err){
                 _tnOv.remove();
-                showToast(' Could not reach captain — show QR to bartender or wave for service.','err',5000);
+                showToast('⚠️ Could not reach captain — show QR to bartender or wave for service.','err',5000);
                 _showBartenderQR();
               });
             } else if(!_linkedTblRef){
@@ -1645,19 +1638,19 @@ function renderWalletPage(bookingRef){
               var chOv=document.createElement('div');
               chOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);font-family:var(--ff);';
               var chMd=document.createElement('div');
-              chMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:26px 22px 20px;width:100%;max-width:380px;text-align:center;color:#000;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(0,0,0,.1);';
+              chMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:26px 22px 20px;width:100%;max-width:380px;text-align:center;color:#000;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(242,199,68,.15);';
               chMd.innerHTML=
-                 '<div style="font-size:46px;margin-bottom:10px;line-height:1;"></div>'
+                 '<div style="font-size:46px;margin-bottom:10px;line-height:1;">📍</div>'
                 +'<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.4px;">WHERE ARE YOU?</div>'
                 +'<div style="font-size:13px;color:#aaa;line-height:1.55;margin-bottom:18px;">Your order of <strong style="color:#000;">₹'+_placedTotal.toLocaleString('en-IN')+'</strong> is in.<br>Tell us where to bring it.</div>'
-                +'<div style="background:#F4F4F0;border:1px dashed rgba(0,0,0,.1);border-radius:8px;padding:10px 12px;margin-bottom:18px;font-size:12px;color:#888;line-height:1.5;">'
+                +'<div style="background:rgba(242,199,68,.06);border:1px dashed rgba(242,199,68,.25);border-radius:8px;padding:10px 12px;margin-bottom:18px;font-size:12px;color:#888;line-height:1.5;">'
                 +  '<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.2px;margin-bottom:4px;">YOUR TABLE</div>'
                 +  '<div style="font-size:14px;color:#000;font-weight:800;">'+sanitize(_linkedTblId||'-')+(_linkedFloor?' · '+sanitize(_linkedFloor):'')+'</div>'
                 +'</div>';
-              //  AT BAR button → existing bartender QR popup
+              // 🍺 AT BAR button → existing bartender QR popup
               var barBtn=document.createElement('button');
-              barBtn.style.cssText='width:100%;padding:18px 14px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-family:var(--ff);font-size:15px;font-weight:900;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;margin-bottom:10px;box-shadow:0 4px 14px rgba(0,0,0,.1);';
-              barBtn.innerHTML=' I\'M AT THE BAR<div style="font-size:10px;font-weight:700;opacity:.7;letter-spacing:.4px;text-transform:none;margin-top:3px;">Show QR to bartender</div>';
+              barBtn.style.cssText='width:100%;padding:18px 14px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-family:var(--ff);font-size:15px;font-weight:900;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;margin-bottom:10px;box-shadow:0 4px 14px rgba(242,199,68,.25);';
+              barBtn.innerHTML='🍺 I\'M AT THE BAR<div style="font-size:10px;font-weight:700;opacity:.7;letter-spacing:.4px;text-transform:none;margin-top:3px;">Show QR to bartender</div>';
               barBtn.onclick=function(){
                 chOv.remove();
                 // 🆕 2026-06-02 v3.180 (Khushi BUG) — explicit bar choice → set
@@ -1671,10 +1664,10 @@ function renderWalletPage(bookingRef){
                 _showBartenderQR(true);
               };
               chMd.appendChild(barBtn);
-              //  AT TABLE button → ping captain
+              // 🍽 AT TABLE button → ping captain
               var tblBtn=document.createElement('button');
-              tblBtn.style.cssText='width:100%;padding:18px 14px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-family:var(--ff);font-size:15px;font-weight:900;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;margin-bottom:10px;box-shadow:3px 3px 0 #000;';
-              tblBtn.innerHTML=' I\'M AT MY TABLE<div style="font-size:10px;font-weight:700;opacity:.85;letter-spacing:.4px;text-transform:none;margin-top:3px;">Captain will come to you</div>';
+              tblBtn.style.cssText='width:100%;padding:18px 14px;border-radius:8px;background:#23A094;border:2px solid #000;color:#fff;font-family:var(--ff);font-size:15px;font-weight:900;letter-spacing:.8px;cursor:pointer;text-transform:uppercase;margin-bottom:10px;box-shadow:3px 3px 0 #000;';
+              tblBtn.innerHTML='🍽 I\'M AT MY TABLE<div style="font-size:10px;font-weight:700;opacity:.85;letter-spacing:.4px;text-transform:none;margin-top:3px;">Captain will come to you</div>';
               tblBtn.onclick=function(){
                 tblBtn.disabled=true;
                 tblBtn.innerHTML='Calling captain...';
@@ -1697,9 +1690,9 @@ function renderWalletPage(bookingRef){
                   }
                 }).then(function(){
                   chMd.innerHTML=
-                     '<div style="font-size:54px;margin-bottom:10px;line-height:1;"></div>'
-                    +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
-                    +'<div style="font-size:13px;color:#aaa;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#000;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#666;font-size:11px;">Sit tight, enjoy the music </span></div>';
+                     '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🔔</div>'
+                    +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#23A094;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
+                    +'<div style="font-size:13px;color:#aaa;line-height:1.6;margin-bottom:18px;">Your captain has been pinged and will be at <strong style="color:#000;">'+sanitize(_linkedTblId||'your table')+'</strong> shortly.<br><span style="color:#666;font-size:11px;">Sit tight, enjoy the music 🎶</span></div>';
                   var ok=document.createElement('button');
                   ok.style.cssText='width:100%;padding:13px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;letter-spacing:.6px;cursor:pointer;text-transform:uppercase;font-family:var(--ff);';
                   ok.textContent='Got it ✓';
@@ -1708,7 +1701,7 @@ function renderWalletPage(bookingRef){
                 }).catch(function(err){
                   // Fallback — show bartender QR + a small hint
                   chOv.remove();
-                  showToast(' Could not reach captain — show QR to bartender or wave for service.','err',5000);
+                  showToast('⚠️ Could not reach captain — show QR to bartender or wave for service.','err',5000);
                   _showBartenderQR();
                 });
               };
@@ -1731,7 +1724,7 @@ function renderWalletPage(bookingRef){
               .catch(function(){});
           }
         }).catch(function(e){
-          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'️  Place Order':' Place Order';
+          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
           showToast('Failed: '+e.message,'err',3000);
         });
       };
@@ -1790,17 +1783,17 @@ function renderWalletPage(bookingRef){
         var grand=bd?bd.grandTotal:tt;
 
         var hdr=document.createElement('div');
-        hdr.style.cssText='background:#fff;border:2px solid #000;border-radius:12px;padding:18px;font-family:var(--ff);';
+        hdr.style.cssText='background:#FFD700;border:2px solid #b89545;border-radius:8px;padding:18px 18px 16px;box-shadow:3px 3px 0 #000;color:#1a1408;font-family:var(--ff);';
 
         // Header row: YOUR TAB · ₹total
         var headHtml=''
           +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;border-bottom:2px dashed #8a6a1f;padding-bottom:10px;">'
-          +'<span style="font-size:14px;font-weight:900;color:#5c3f0a;letter-spacing:2px;"> YOUR TAB</span>'
+          +'<span style="font-size:14px;font-weight:900;color:#5c3f0a;letter-spacing:2px;">📋 YOUR TAB</span>'
           +'<span style="font-size:22px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+grand+'</span>'
           +'</div>';
 
         var statusC={'preparing':'#a85800','activated':'#0a7a3c','served':'#0a7a3c','paid':'#0a7a3c'};
-        var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':' Served','paid':' Paid'};
+        var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':'✅ Served','paid':'💳 Paid'};
 
         var roundsHtml=tabRounds.map(function(r,idx){
           var sc=statusC[r.status]||'#5c3f0a';
@@ -1865,38 +1858,36 @@ function renderWalletPage(bookingRef){
         var overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;font-family:var(--ff);';
         var card=document.createElement('div');
-        card.style.cssText='background:#FFFFFF;border:2px solid #000;border-radius:8px;max-width:460px;width:100%;max-height:92vh;overflow:auto;box-shadow:3px 3px 0 rgba(0,0,0,.15);color:#000;';
-        var rowHtml=function(label,val,bold){
-          return '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:'+(bold?16:14)+'px;font-weight:'+(bold?900:600)+';color:'+(bold?'#000000':'#3D3D3D')+';"><span>'+label+'</span><span style="font-variant-numeric:tabular-nums;">'+val+'</span></div>';
-        };
-        var itemsHtml=allItems.map(function(it){
-          return '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:14px;color:#000000;">'
-            +'<span style="flex:1;padding-right:8px;">'+sanitize(it.qty+' × '+it.n)+'</span>'
-            +'<span style="font-variant-numeric:tabular-nums;font-weight:700;">₹'+Math.round((it.p||0)*(it.qty||0))+'</span></div>';
+        card.style.cssText='background:#FFFFFF;border:2px solid #000;border-radius:12px;max-width:480px;width:100%;max-height:92vh;overflow:auto;color:#000;';
+        var itemsRows=allItems.map(function(it,idx){
+          var bg=idx%2===0?'#fff':'#F4F4F0';
+          return '<tr style="background:'+bg+';"><td style="padding:8px 12px;font-size:13px;color:#3D3D3D;width:40px;">'+it.qty+'</td><td style="padding:8px 12px;font-size:13px;color:#000;">'+sanitize(it.n)+'</td><td style="padding:8px 12px;font-size:13px;font-weight:700;color:#000;text-align:right;font-variant-numeric:tabular-nums;">&#x20B9;'+Math.round((it.p||0)*(it.qty||0))+'</td></tr>';
         }).join('');
         var meta=''
-          +(cv.tableId?'<div><b style="color:#000000;">TABLE:</b> '+sanitize(cv.tableId)+(cv.floorLabel?' · '+sanitize(cv.floorLabel):'')+'</div>':'')
-          +'<div><b style="color:#000000;">GUEST:</b> '+sanitize(cv.customerName||'—')+'</div>';
+          +(cv.tableId?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:2px;"><b style="color:#000;">TABLE:</b> '+sanitize(cv.tableId)+(cv.floorLabel?' &middot; '+sanitize(cv.floorLabel):'')+'</div>':'')
+          +'<div style="font-size:12px;color:#3D3D3D;"><b style="color:#000;">GUEST:</b> '+sanitize(cv.customerName||'—')+'</div>';
         card.innerHTML=''
           +'<div style="padding:16px 18px;border-bottom:2px solid #000;">'
-          +'<div style="font-size:12px;color:#3D3D3D;font-weight:700;letter-spacing:1px;margin-bottom:4px;"> BILL PREVIEW · NOT YET PRINTED</div>'
-          +'<div style="font-size:22px;font-weight:900;color:#000;font-family:ui-sans-serif,system-ui,-apple-system,\'Segoe UI\',Roboto,sans-serif;">HOUSE OF DOPAMINE</div>'
-          +'<div style="font-size:11px;color:#B0B0B0;margin-top:2px;">'+sanitize(cv.floorLabel||'')+'</div>'
+          +'<div style="font-size:10px;color:#3D3D3D;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">BILL PREVIEW</div>'
+          +'<div style="font-size:22px;font-weight:900;color:#000;font-family:var(--ff);">HOUSE OF DOPAMINE</div>'
+          +'<div style="font-size:11px;color:#3D3D3D;margin-top:2px;">'+sanitize(cv.floorLabel||'')+'</div>'
           +'</div>'
-          +'<div style="padding:12px 18px;border-bottom:1px dashed rgba(0,0,0,.1);font-size:13px;color:#3D3D3D;">'+meta+'</div>'
-          +'<div style="padding:12px 18px;border-bottom:1px dashed rgba(0,0,0,.1);">'
-          +'<div style="font-size:12px;color:#3D3D3D;font-weight:700;letter-spacing:1px;margin-bottom:8px;">ITEMS</div>'
-          +itemsHtml+'</div>'
-          +'<div style="padding:12px 18px;border-bottom:1px dashed rgba(0,0,0,.1);">'
-          +rowHtml('Subtotal','₹'+Math.round((bd.foodSubtotal||0)+(bd.alcSubtotal||0)+(bd.nonAlcSubtotal||0)))
-          +rowHtml('Service Charge (10%)','₹'+(bd.serviceCharge||0).toFixed(0))
-          +rowHtml('CGST','₹'+((bd.gst||0)/2).toFixed(2))
-          +rowHtml('SGST','₹'+((bd.gst||0)/2).toFixed(2))
-          +'<div style="height:1px;background:#000;margin:8px 0;"></div>'
-          +rowHtml('GRAND TOTAL','₹'+Math.round(bd.grandTotal),true)
+          +'<div style="padding:12px 18px;border-bottom:1px dashed rgba(0,0,0,.1);">'+meta+'</div>'
+          +'<div style="padding:12px 0;">'
+          +'<table style="width:100%;border-collapse:collapse;font-family:var(--ff);">'
+          +'<thead><tr style="border-bottom:2px solid #000;"><th style="padding:8px 12px;font-size:10px;font-weight:800;color:#3D3D3D;text-align:left;letter-spacing:1px;text-transform:uppercase;width:40px;">Qty</th><th style="padding:8px 12px;font-size:10px;font-weight:800;color:#3D3D3D;text-align:left;letter-spacing:1px;text-transform:uppercase;">Item</th><th style="padding:8px 12px;font-size:10px;font-weight:800;color:#3D3D3D;text-align:right;letter-spacing:1px;text-transform:uppercase;">Amount</th></tr></thead>'
+          +'<tbody>'+itemsRows+'</tbody>'
+          +'</table></div>'
+          +'<div style="padding:12px 18px;border-top:2px solid #000;">'
+          +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>Subtotal</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+Math.round((bd.foodSubtotal||0)+(bd.alcSubtotal||0)+(bd.nonAlcSubtotal||0))+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>Service Charge (10%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+(bd.serviceCharge||0).toFixed(0)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>CGST (2.5%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+((bd.gst||0)/2).toFixed(2)+'</span></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>SGST (2.5%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+((bd.gst||0)/2).toFixed(2)+'</span></div>'
+          +'<div style="height:2px;background:#000;margin:10px 0;"></div>'
+          +'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:16px;font-weight:900;color:#000;"><span>GRAND TOTAL</span><span style="font-variant-numeric:tabular-nums;">&#x20B9;'+Math.round(bd.grandTotal)+'</span></div>'
           +'</div>'
           +'<div style="padding:14px;">'
-          +'<button id="hod-bill-close-btn" type="button" style="width:100%;padding:14px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:800;letter-spacing:.5px;cursor:pointer;text-transform:uppercase;font-family:var(--ff);">✗ CLOSE</button>'
+          +'<button id="hod-bill-close-btn" type="button" style="width:100%;padding:14px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:800;letter-spacing:.5px;cursor:pointer;text-transform:uppercase;font-family:var(--ff);">CLOSE</button>'
           +'</div>';
         overlay.appendChild(card);
         function _close(){if(overlay.parentNode)overlay.parentNode.removeChild(overlay);}
@@ -1932,7 +1923,7 @@ function renderWalletPage(bookingRef){
         });
 
         bHtml+='</div>'
-          +'<div style="display:flex;justify-content:space-between;border-top:2px solid rgba(0,0,0,.15);padding-top:14px;margin-bottom:6px;">'
+          +'<div style="display:flex;justify-content:space-between;border-top:2px solid rgba(242,199,68,.3);padding-top:14px;margin-bottom:6px;">'
           +'<span style="font-size:16px;font-weight:900;">TOTAL</span>'
           +'<span style="font-size:22px;font-weight:900;color:#000;">₹'+tt+'</span></div>';
 
@@ -1950,7 +1941,7 @@ function renderWalletPage(bookingRef){
           _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Service charge (10%)</span><span>\u20B9'+_coBd.serviceCharge.toFixed(0)+'</span></div>';
           _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>GST (5%)</span><span>\u20B9'+_coBd.gst.toFixed(0)+'</span></div>';
           if(Math.abs(_coBd.roundOff||0)>=0.01) _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Round off</span><span>'+(_coBd.roundOff>=0?'+':'')+'\u20B9'+Math.abs(_coBd.roundOff).toFixed(2)+'</span></div>';
-          _coRows+='<div style="display:flex;justify-content:space-between;padding:6px 0 2px;border-top:1px solid rgba(0,0,0,.1);margin-top:6px;color:#000;font-weight:800;"><span>Grand total</span><span>\u20B9'+_coBd.grandTotal+'</span></div>';
+          _coRows+='<div style="display:flex;justify-content:space-between;padding:6px 0 2px;border-top:1px solid rgba(242,199,68,.2);margin-top:6px;color:#000;font-weight:800;"><span>Grand total</span><span>\u20B9'+_coBd.grandTotal+'</span></div>';
           bHtml+='<details style="margin-bottom:18px;border:2px solid #000;border-radius:8px;background:#fff;">'
             +'<summary style="display:flex;justify-content:space-between;align-items:center;list-style:none;cursor:pointer;padding:10px 14px;font-size:11px;color:rgba(0,0,0,.6);font-style:italic;">'
             +'<span>Inclusive of all taxes</span><span style="opacity:.7;">\u25BE view breakdown</span>'
@@ -2001,24 +1992,24 @@ function renderWalletPage(bookingRef){
             // Re-show the SETTLED banner so customer sees the wallet badge
             // at the top before scrolling into the feedback form.
             var _walletNote=document.createElement('div');
-            _walletNote.style.cssText='width:100%;padding:16px 16px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;text-align:center;font-family:var(--ff);margin:18px 0 0;line-height:1.55;';
-            _walletNote.innerHTML='<div style="font-size:11px;color:#000;font-weight:900;letter-spacing:1.2px;margin-bottom:6px;"> WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+' \u00B7 BILL \u20B9'+tt+'</div>'
+            _walletNote.style.cssText='width:100%;padding:16px 16px;border-radius:8px;background:rgba(34,197,94,.14);border:1.5px solid rgba(34,197,94,.45);color:#000;text-align:center;font-family:var(--ff);margin:18px 0 0;line-height:1.55;';
+            _walletNote.innerHTML='<div style="font-size:11px;color:#22C55E;font-weight:900;letter-spacing:1.2px;margin-bottom:6px;">\uD83C\uDFAB WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+' \u00B7 BILL \u20B9'+tt+'</div>'
               +'<div style="font-size:12px;color:rgba(0,0,0,.75);font-weight:600;letter-spacing:.3px;">Captain will deduct the bill from your wallet on arrival.</div>';
             inner.appendChild(_walletNote);
             showCaptainFeedback(inner, tt, false);
           }catch(_e){
             // Fallback to legacy infoBox so we never strand the customer.
             var infoBox=document.createElement('div');
-            infoBox.style.cssText='width:100%;padding:18px 16px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:14px;font-weight:700;text-align:center;font-family:var(--ff);margin:18px 0;line-height:1.55;';
-            infoBox.innerHTML='<div style="font-size:24px;margin-bottom:6px;"></div>'
-              +'<div style="font-size:12px;color:#000;font-weight:900;letter-spacing:1.2px;margin-bottom:8px;">WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+'</div>'
+            infoBox.style.cssText='width:100%;padding:18px 16px;border-radius:8px;background:rgba(34,197,94,.14);border:1.5px solid rgba(34,197,94,.45);color:#000;font-size:14px;font-weight:700;text-align:center;font-family:var(--ff);margin:18px 0;line-height:1.55;';
+            infoBox.innerHTML='<div style="font-size:24px;margin-bottom:6px;">\uD83C\uDFAB</div>'
+              +'<div style="font-size:12px;color:#22C55E;font-weight:900;letter-spacing:1.2px;margin-bottom:8px;">WALLET BALANCE \u20B9'+_walletBal.toLocaleString('en-IN')+'</div>'
               +'<div style="font-size:15px;font-weight:900;color:#000;">CAPTAIN WILL BE WITH YOU SHORTLY TO SETTLE THE BILL</div>'
               +'<div style="font-size:11px;color:rgba(0,0,0,.7);font-weight:600;margin-top:8px;letter-spacing:.4px;">Bill amount \u20B9'+tt+' will be deducted from your wallet.</div>';
             inner.appendChild(infoBox);
             var _fbBack=document.createElement('a');
             _fbBack.href='https://hodclub.in';
             _fbBack.style.cssText='display:block;width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(255,255,255,.14);color:#000;font-family:var(--ff);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;margin-top:10px;';
-            _fbBack.textContent=' Back to Events';
+            _fbBack.textContent='\uD83C\uDFE0 Back to Events';
             inner.appendChild(_fbBack);
           }
           return;
@@ -2026,12 +2017,12 @@ function renderWalletPage(bookingRef){
 
         var poBtn=document.createElement('button');
         poBtn.style.cssText='width:100%;padding:16px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:10px;';
-        poBtn.innerHTML='  Pay Online  —  ₹'+tt;
+        poBtn.innerHTML='💳  Pay Online  —  ₹'+tt;
         poBtn.onclick=function(){
           if(poBtn.disabled)return;
           poBtn.disabled=true;poBtn.textContent='Opening payment...';
           // ── 2026-05-13 round 9 (Khushi spec): Pay Online → flip captain
-          // BILL DUE chip to green  PAID ONLINE.
+          // BILL DUE chip to green ✅ PAID ONLINE.
           // Safety order is critical:
           //   1. Razorpay handler fires ONLY when Razorpay confirms the
           //      charge with a payment_id (success). On dismiss / failure
@@ -2043,7 +2034,7 @@ function renderWalletPage(bookingRef){
           //      the customer a non-dismissable Payment-ID screen they
           //      MUST show to the captain. We also drop a best-effort
           //      pendingPaymentNotices/{ref} marker so a later flow can
-          //      surface a  "customer claims paid" hint if needed.
+          //      surface a ⚠️ "customer claims paid" hint if needed.
           //   3. On payment.failed event we re-enable the button.
           function _writePaidOnline(pid){
             if(!firestore||!cv.ref) return Promise.reject(new Error('no_firestore_or_ref'));
@@ -2081,10 +2072,10 @@ function renderWalletPage(bookingRef){
             // so customer can show it to the captain in person.
             sheet.innerHTML=
               '<div style="text-align:center;padding:20px 6px;">'
-              +'<div style="font-size:48px;margin-bottom:14px;"></div>'
+              +'<div style="font-size:48px;margin-bottom:14px;">⚠️</div>'
               +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:10px;font-family:var(--ff);">Payment Received — Show This To Your Captain</div>'
               +'<div style="font-size:13px;color:#aaa;margin-bottom:18px;line-height:1.5;font-family:var(--ff);">Razorpay confirmed your payment but we couldn\'t notify your table. Please show this Payment ID to your captain — they will mark your bill paid manually.</div>'
-              +'<div style="background:rgba(0,0,0,.05);border:1.5px dashed rgba(0,0,0,.15);border-radius:8px;padding:18px;margin-bottom:18px;">'
+              +'<div style="background:rgba(242,199,68,.12);border:1.5px dashed rgba(242,199,68,.5);border-radius:8px;padding:18px;margin-bottom:18px;">'
               +'<div style="font-size:10px;font-weight:800;color:#000;letter-spacing:1.5px;margin-bottom:8px;">PAYMENT ID</div>'
               +'<div style="font-size:18px;font-weight:900;color:#000;font-family:monospace;letter-spacing:1px;word-break:break-all;">'+sanitize(pid||'(missing)')+'</div>'
               +'<div style="font-size:11px;color:#3D3D3D;margin-top:10px;font-family:var(--ff);">Amount: \u20b9'+tt+' \u00b7 '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})+'</div>'
@@ -2105,7 +2096,7 @@ function renderWalletPage(bookingRef){
             } catch(_){}
           }
           ensureRazorpay(function(_rzReady){
-          if(!_rzReady){ poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); return; }
+          if(!_rzReady){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); return; }
           try{
           var rz=new Razorpay({
             key:RAZORPAY_KEY,amount:tt*100,currency:'INR',
@@ -2118,8 +2109,8 @@ function renderWalletPage(bookingRef){
               if(!pid){
                 // Defensive: handler fired without a payment id. Treat as
                 // failure — keep BILL DUE intact, do NOT flip to paid.
-                alert(' Payment status unclear. Please try again or use Pay at Table.');
-                poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  \u20b9'+tt;
+                alert('\u274c Payment status unclear. Please try again or use Pay at Table.');
+                poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
                 return;
               }
               _writePaidOnline(pid).then(function(){
@@ -2146,24 +2137,24 @@ function renderWalletPage(bookingRef){
                 } catch(_){}
               });
             },
-            modal:{ondismiss:function(){poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  ₹'+tt;}}
+            modal:{ondismiss:function(){poBtn.disabled=false;poBtn.innerHTML='💳  Pay Online  —  ₹'+tt;}}
           });
           if(rz&&typeof rz.on==='function'){
             rz.on('payment.failed',function(r){
               var msg=(r&&r.error&&(r.error.description||r.error.reason))||'Unknown error';
-              alert(' Payment failed: '+msg+'\nPlease try again or use Pay at Table.');
-              poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  \u20b9'+tt;
+              alert('\u274c Payment failed: '+msg+'\nPlease try again or use Pay at Table.');
+              poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
             });
           }
           rz.open();
-          }catch(_e){ poBtn.disabled=false;poBtn.innerHTML='  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); }
+          }catch(_e){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); }
           });
         };
         sheet.appendChild(poBtn);
 
         var ptBtn=document.createElement('button');
         ptBtn.style.cssText='width:100%;padding:15px;border-radius:8px;background:rgba(0,0,0,.05);border:1.5px solid rgba(0,0,0,.15);color:#000;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--ff);margin-bottom:10px;';
-        ptBtn.innerHTML='  Pay at Table  —  Cash / Card / UPI';
+        ptBtn.innerHTML='🙋  Pay at Table  —  Cash / Card / UPI';
         ptBtn.onclick=function(){
           if(ptBtn.disabled)return;
           ptBtn.disabled=true;ptBtn.textContent='Notifying captain...';
@@ -2208,7 +2199,7 @@ function renderWalletPage(bookingRef){
         var priceHtml = hasDisc
           ? '<span style="text-decoration:line-through;color:rgba(0,0,0,.4);margin-right:6px;font-weight:600;font-family:var(--ff);">\u20b9'+item.p+'</span>'
             +'<span style="color:#000;font-weight:900;font-family:var(--ff);">\u20b9'+eff+'</span>'
-            +(ov && ov.discountReason ? '<span style="color:#3D3D3D;font-size:10px;margin-left:6px;font-weight:600;">\u00b7 '+sanitize(ov.discountReason)+'</span>' : '')
+            +(ov && ov.discountReason ? '<span style="color:rgba(242,199,68,.75);font-size:10px;margin-left:6px;font-weight:600;">\u00b7 '+sanitize(ov.discountReason)+'</span>' : '')
           : '<span style="color:#000;font-weight:900;font-family:var(--ff);">\u20b9'+item.p+'</span>';
         row.innerHTML='<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;font-size:14px;font-weight:700;color:#000;letter-spacing:.2px;">'+vegDot+'<span style="text-transform:uppercase;letter-spacing:.4px;">'+sanitize(item.n)+'</span></div>'
           +'<div style="font-size:14px;font-family:var(--ff);font-weight:800;margin-top:4px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
@@ -2376,7 +2367,7 @@ function renderWalletPage(bookingRef){
               if (r.status === 'rejected') console.warn('[waiterCall] surface '+(i+1)+' failed', r.reason);
             });
             if (anyOk) {
-              callBtn.style.background='#F4F4F0';
+              callBtn.style.background='rgba(0,200,100,.18)';
               callBtn.style.borderRadius='8px';
               callBtn.style.padding='4px 8px';
               callLbl.textContent='✓ Captain notified';
@@ -2435,7 +2426,7 @@ function renderWalletPage(bookingRef){
           acknowledgedAt:null,
           acknowledgedBy:null
         }).then(function(){
-          callBtn.style.background='#F4F4F0';
+          callBtn.style.background='rgba(0,200,100,.18)';
           callLbl.textContent='✓ Captain notified';
           setTimeout(function(){
             callBtn.style.background='transparent';
@@ -2465,7 +2456,7 @@ function renderWalletPage(bookingRef){
       +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;">Your Bill</div>'
       +'<div style="font-size:12px;color:#3D3D3D;margin-top:4px;">'+sanitize(cv.name||'')+(cv.tableId?' · '+sanitize(cv.tableId):'')+' </div></div>';
     var billDiv=document.createElement('div');
-    billDiv.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:16px;margin-bottom:20px;';
+    billDiv.style.cssText='background:rgba(0,0,0,.03);border:2px solid #000;border-radius:8px;padding:16px;margin-bottom:20px;';
     tabRounds.forEach(function(rd,i){
       var rh=document.createElement('div');
       rh.style.cssText='font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.5px;text-transform:uppercase;padding:6px 0 4px;'+(i>0?'border-top:1px solid rgba(0,0,0,.06);margin-top:6px;':'');
@@ -2482,7 +2473,7 @@ function renderWalletPage(bookingRef){
       billDiv.appendChild(rs);
     });
     var gtDiv=document.createElement('div');
-    gtDiv.style.cssText='display:flex;justify-content:space-between;border-top:1.5px solid rgba(0,0,0,.15);margin-top:10px;padding-top:12px;font-size:18px;font-weight:900;';
+    gtDiv.style.cssText='display:flex;justify-content:space-between;border-top:1.5px solid rgba(242,199,68,.3);margin-top:10px;padding-top:12px;font-size:18px;font-weight:900;';
     gtDiv.innerHTML='<span>Total</span><span style="color:#000;">Rs '+tabRunningTotal+'</span>';
     billDiv.appendChild(gtDiv);sheet.appendChild(billDiv);
     var payBtn=document.createElement('button');
@@ -2529,7 +2520,7 @@ function renderWalletPage(bookingRef){
     // 2026-05-13 round 9 fix: when this is a tab checkout (cart already
     // emptied into rounds), getCartTotal() returns 0. Fall back to the
     // running tab amount passed in via _pay.amount, otherwise the
-    // "Payment Done!" screen shows " ₹0 paid online" — confusing the
+    // "Payment Done!" screen shows "✅ ₹0 paid online" — confusing the
     // customer even though the captain side correctly shows the real
     // amount stamped via _writePaidOnline.
     var _cartTotal=getCartTotal();
@@ -2575,10 +2566,10 @@ function renderWalletPage(bookingRef){
         inner.innerHTML='';
         var conf=document.createElement('div');conf.style.cssText='padding:40px 20px;text-align:center;';
         var _isOnline=_pay&&_pay.mode==='online';
-        conf.innerHTML='<div style="font-size:48px;margin-bottom:12px;">'+(_isOnline?'':'')+'</div>'
+        conf.innerHTML='<div style="font-size:48px;margin-bottom:12px;">'+(_isOnline?'💳':'🙋')+'</div>'
           +'<div style="font-family:var(--ff);font-size:24px;font-weight:900;color:#000;margin-bottom:8px;">'+(_isOnline?'Payment Done!':'Order Placed!')+'</div>'
-          +'<div style="background:#fff;border:2px solid #000;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;">'
-          +(_isOnline?' ₹'+orderData.total+' paid online · ID: '+(_pay.paymentId||'').slice(-8):'💵 Pay ₹'+orderData.total+' to your waiter on arrival')+'</div>'
+          +'<div style="background:rgba(242,199,68,.08);border:2px solid #000;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;">'
+          +(_isOnline?'✅ ₹'+orderData.total+' paid online · ID: '+(_pay.paymentId||'').slice(-8):'💵 Pay ₹'+orderData.total+' to your waiter on arrival')+'</div>'
           +'<div style="font-size:12px;color:#3D3D3D;margin-bottom:12px;">Show QR below to your waiter</div>'
           +'<div id="conf-qr-wrap" style="width:120px;height:120px;background:#fff;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;"></div>'
           +'<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:16px;margin-bottom:20px;text-align:left;">';
@@ -2599,7 +2590,7 @@ function renderWalletPage(bookingRef){
             ? _hodFlattenRounds(_pay.rounds)
             : items.slice();
           var vb=document.createElement('button');
-          vb.style.cssText='display:block;margin:14px auto 0;padding:11px 20px;border-radius:8px;background:#F4F4F0;border:2px solid #000;color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.6px;text-transform:uppercase;';
+          vb.style.cssText='display:block;margin:14px auto 0;padding:11px 20px;border-radius:8px;background:rgba(242,199,68,.15);border:2px solid #000;color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.6px;text-transform:uppercase;';
           vb.textContent='📄 View Bill';
           vb.onclick=function(){
             showHodBillModal(_billItems, {
@@ -2686,10 +2677,10 @@ function renderWalletPage(bookingRef){
                   try{ localStorage.setItem(visitKey,'1'); }catch(e){}
                   _seenLiveDocThisSession=true;
                   inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                    +'<div style="font-size:54px;margin-bottom:14px;"></div>'
+                    +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
                     +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:10px;">Thank you for visiting!</div>'
                     +'<div style="font-size:14px;color:#3D3D3D;line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
-                    +'<div style="font-family:monospace;font-size:13px;color:#3D3D3D;margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
+                    +'<div style="font-family:monospace;font-size:13px;color:rgba(242,199,68,.55);margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
                     +'<div style="margin-top:24px;font-size:12px;color:#888;">See you again soon ✨</div>'
                   +'</div>';
                   try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
@@ -2711,10 +2702,10 @@ function renderWalletPage(bookingRef){
                 if(_seenLiveDocThisSession) return;
                 // Still empty — render thank-you state.
                 inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                  +'<div style="font-size:54px;margin-bottom:14px;"></div>'
+                  +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
                   +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:10px;">Thank you for visiting!</div>'
                   +'<div style="font-size:14px;color:#3D3D3D;line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
-                  +'<div style="font-family:monospace;font-size:13px;color:#3D3D3D;margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
+                  +'<div style="font-family:monospace;font-size:13px;color:rgba(242,199,68,.55);margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
                   +'<div style="margin-top:24px;font-size:12px;color:#888;">See you again soon ✨</div>'
                 +'</div>';
                 try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
@@ -2726,10 +2717,10 @@ function renderWalletPage(bookingRef){
             if(commitToThankYou){
               // Post-release / session-ended state — Khushi spec 2026-05-13.
               inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                +'<div style="font-size:54px;margin-bottom:14px;"></div>'
+                +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
                 +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:10px;">Thank you for visiting!</div>'
                 +'<div style="font-size:14px;color:#3D3D3D;line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
-                +'<div style="font-family:monospace;font-size:13px;color:#3D3D3D;margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
+                +'<div style="font-family:monospace;font-size:13px;color:rgba(242,199,68,.55);margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
                 +'<div style="margin-top:24px;font-size:12px;color:#888;">See you again soon ✨</div>'
               +'</div>';
               // Drop a feedback prompt under the thank-you so we still
@@ -2737,7 +2728,7 @@ function renderWalletPage(bookingRef){
               try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
             } else {
               inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                +'<div style="font-size:48px;margin-bottom:12px;"></div>'
+                +'<div style="font-size:48px;margin-bottom:12px;">🪑</div>'
                 +'<div style="font-size:16px;font-weight:800;color:#000;margin-bottom:8px;">Table Reservation</div>'
                 +'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;">Your table will be set up when you arrive at HOD.<br>Show your booking reference at the entrance.</div>'
                 +'<div style="font-family:monospace;font-size:16px;color:#000;margin-top:12px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
@@ -2766,7 +2757,7 @@ function renderWalletPage(bookingRef){
             source:td.source||'',
             isAggregator:!!(td.source&&td.source!=='inhouse')||bookingRef.startsWith('AGG-'),
             // 🔴 2026-05-13 (Khushi) — payment fields piped through so the
-            // " Bill Settled · View Bill" banner can render the moment
+            // "✅ Bill Settled · View Bill" banner can render the moment
             // the captain marks paid (offline) or a wallet pay-online
             // stamp lands. Without this, the customer wouldn't see any
             // confirmation until the table is released.
@@ -2811,7 +2802,7 @@ function renderWalletPage(bookingRef){
                   glDiv.style.cssText='padding:20px;max-width:480px;margin:0 auto;';
                   glDiv.innerHTML=
                     '<div style="text-align:center;margin-bottom:24px;">'
-                    +'<div style="font-size:48px;margin-bottom:12px;"></div>'
+                    +'<div style="font-size:48px;margin-bottom:12px;">📋</div>'
                     +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:6px;">Guest List Confirmed</div>'
                     +'<div style="font-size:13px;color:#3D3D3D;">'+(ev3?sanitize(ev3.title):'HOD Event')+'</div>'
                     +'</div>'
@@ -2819,20 +2810,20 @@ function renderWalletPage(bookingRef){
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Guest</span><span style="font-weight:700;font-size:13px;">'+sanitize(gl.name||'')+'</span></div>'
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Type</span><span style="font-weight:700;font-size:13px;">'+(gl.type||'stag').toUpperCase()+'</span></div>'
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Date</span><span style="font-weight:700;font-size:13px;">'+(ev3?ev3.date:'Tonight')+'</span></div>'
-                    +'<div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#3D3D3D;font-size:12px;">Entry</span><span style="font-weight:700;font-size:13px;color:#000;">FREE before 9 PM</span></div>'
+                    +'<div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#3D3D3D;font-size:12px;">Entry</span><span style="font-weight:700;font-size:13px;color:#00C864;">FREE before 9 PM</span></div>'
                     +'</div>'
                     +'<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:20px 16px;margin-bottom:16px;text-align:center;">'
                     /* 🔴 2026-05-21 (Khushi LIVE-BUG) — wrapper bg MUST be #fff.
                        qrcodejs doesn't render a quiet zone, so the dark navy bg
                        made the QR unscannable on every phone. Padded white frame
                        gives the ~4-module quiet zone every scanner requires. */
-                    +'<div id="gl-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#fff;border:8px solid #000;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.1);"></div>'
+                    +'<div id="gl-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#fff;border:8px solid #000;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 14px rgba(242,199,68,.15);"></div>'
                     +'<div style="font-size:13px;font-weight:800;color:#000;margin-bottom:4px;">Show this QR at the door</div>'
                     +'<div style="font-family:monospace;font-size:14px;color:#000;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
                     +'</div>'
-                    +'<div style="background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:18px 20px;text-align:center;">'
-                    +'<div style="font-size:24px;margin-bottom:10px;"></div>'
-                    +'<div style="font-size:14px;font-weight:800;color:#000;margin-bottom:6px;">You\'re on the list!</div>'
+                    +'<div style="background:rgba(0,200,100,.06);border:2px solid #23A094;border-radius:8px;padding:18px 20px;text-align:center;">'
+                    +'<div style="font-size:24px;margin-bottom:10px;">✅</div>'
+                    +'<div style="font-size:14px;font-weight:800;color:#00C864;margin-bottom:6px;">You\'re on the list!</div>'
                     +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Show your QR at the entrance. Free entry before 9 PM.<br>After 9 PM, a cover charge may apply at the door.</div>'
                     +'</div>';
                   inner.appendChild(glDiv);
@@ -2893,7 +2884,7 @@ function renderWalletPage(bookingRef){
                 ticketDiv.style.cssText='padding:20px;max-width:480px;margin:0 auto;';
                 ticketDiv.innerHTML=
                   '<div style="text-align:center;margin-bottom:24px;">'+
-                    '<div style="font-size:48px;margin-bottom:12px;">️</div>'+
+                    '<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'+
                     '<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:6px;">Your HOD Ticket</div>'+
                     '<div style="font-size:13px;color:#3D3D3D;">'+sanitize(bk.eventTitle||bk.event||'HOD Event')+'</div>'+
                   '</div>'+
@@ -2912,14 +2903,14 @@ function renderWalletPage(bookingRef){
                        qrcodejs doesn't render a quiet zone, so the dark navy bg
                        made the QR unscannable on every phone. Padded white frame
                        gives the ~4-module quiet zone every scanner requires. */
-                    '<div id="ticket-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#fff;border:8px solid #000;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.1);"></div>'+
+                    '<div id="ticket-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#fff;border:8px solid #000;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 14px rgba(242,199,68,.15);"></div>'+
                     '<div style="font-size:13px;font-weight:800;color:#000;margin-bottom:4px;">Show this QR at the door</div>'+
                     '<div style="font-family:monospace;font-size:14px;color:#000;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'+
                   '</div>';
                 // Wallet activation message
                 ticketDiv.innerHTML+=
-                  '<div style="background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:18px 20px;text-align:center;">'+
-                    '<div style="font-size:24px;margin-bottom:10px;"></div>'+
+                  '<div style="background:rgba(242,199,68,.06);border:2px solid #000;border-radius:8px;padding:18px 20px;text-align:center;">'+
+                    '<div style="font-size:24px;margin-bottom:10px;">⏳</div>'+
                     '<div style="font-size:14px;font-weight:800;color:#000;margin-bottom:6px;">Your wallet activates at HOD</div>'+
                     '<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">When you arrive, show your QR at the entrance. Our door staff will check you in and activate your cover wallet.<br><br>Your cover balance will be loaded and you can start ordering drinks & food!</div>'+
                   '</div>';
@@ -2927,7 +2918,7 @@ function renderWalletPage(bookingRef){
                 setTimeout(function(){generateLocalQR('ticket-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef));},200);
               } else {
                 inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'+
-                  '<div style="font-size:48px;margin-bottom:12px;">️</div>'+
+                  '<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'+
                   '<div style="font-size:16px;font-weight:800;color:#000;margin-bottom:8px;">Ticket: '+sanitize(bookingRef)+'</div>'+
                   '<div style="font-size:13px;color:#3D3D3D;line-height:1.7;">Your wallet will be activated when you arrive at HOD.<br>Show your booking reference at the entrance.</div>'+
                 '</div>';
@@ -3016,7 +3007,7 @@ function renderCustomerWallet(bookingRef){
       wrap.innerHTML='';
       if(snap.empty){
         var pendingDiv=document.createElement('div');
-        pendingDiv.style.cssText='padding:12px 16px;border-radius:8px;background:#F4F4F0;border:1px solid rgba(0,0,0,.15);font-size:12px;color:#3D3D3D;text-align:center;';
+        pendingDiv.style.cssText='padding:12px 16px;border-radius:8px;background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.15);font-size:12px;color:#3D3D3D;text-align:center;';
         pendingDiv.textContent='Cover wallet not activated yet. Show QR at door.';
         wrap.appendChild(pendingDiv);return;
       }
@@ -3032,20 +3023,22 @@ function renderCustomerWallet(bookingRef){
       var pct=total>0?Math.round((used/total)*100):0;
 
       var walletCard=document.createElement('div');
-      walletCard.style.cssText='background:#fff;border:2px solid #000;border-radius:12px;padding:20px;';
-      walletCard.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">'
-        +'<div><div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">COVER WALLET</div>'
-        +'<div style="font-family:var(--ff);font-size:36px;font-weight:900;color:'+(isExpired?'#FF5733':'#000')+';">₹'+bal.toLocaleString('en-IN')+'</div>'
-        +'<div style="font-size:11px;color:#3D3D3D;margin-top:2px;">'+(isExpired?'Expired':bal>0?'Remaining balance':'Empty')+'</div></div>'
-        +'<div style="text-align:right;"><div style="font-size:10px;color:#3D3D3D;font-weight:700;">USED</div><div style="font-size:16px;font-weight:800;color:#000;">₹'+used.toLocaleString('en-IN')+'</div></div>'
+      walletCard.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:20px;';
+      walletCard.innerHTML='<div style="font-size:10px;font-weight:800;letter-spacing:2px;color:rgba(255,144,232,.7);text-transform:uppercase;margin-bottom:12px;">💰 Cover Wallet</div>'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;">'
+        +'<div><div style="font-size:11px;color:#3D3D3D;">Remaining</div>'
+        +'<div style="font-family:var(--ff);font-size:36px;font-weight:900;color:'+(isExpired?'#FF5733':bal>0?'#FF90E8':'#3D3D3D')+';">₹'+bal.toLocaleString('en-IN')+'</div></div>'
+        +'<div style="text-align:right;"><div style="font-size:10px;color:#3D3D3D;">Used</div><div style="font-size:18px;font-weight:800;color:#3D3D3D;">₹'+used.toLocaleString('en-IN')+'</div></div>'
         +'</div>'
-        +'<div style="height:6px;background:#F4F4F0;border-radius:3px;overflow:hidden;margin-bottom:10px;">'
+        // Progress bar
+        +'<div style="height:6px;background:rgba(0,0,0,.15);border-radius:3px;overflow:hidden;margin-bottom:8px;">'
         +'<div style="height:100%;width:'+pct+'%;background:#FF90E8;border-radius:3px;transition:width .4s;"></div></div>'
-        +'<div style="display:flex;justify-content:space-between;font-size:10px;color:#3D3D3D;font-weight:600;">'
+        +'<div style="display:flex;justify-content:space-between;font-size:10px;color:#3D3D3D;">'
         +'<span>₹'+used.toLocaleString('en-IN')+' used</span>'
-        +'<span>₹'+total.toLocaleString('en-IN')+' total</span>'
+        +'<span>₹'+total.toLocaleString('en-IN')+' total cover</span>'
         +'</div>'
-        +(isExpired?'<div style="margin-top:10px;font-size:11px;color:#FF5733;font-weight:700;text-align:center;background:#F4F4F0;padding:6px;border-radius:6px;">Cover expired — event has ended</div>':'');
+        +(isExpired?'<div style="margin-top:10px;font-size:11px;color:#FF5733;font-weight:700;text-align:center;">Cover expired — event has ended</div>':'')
+        +'<div style="margin-top:10px;font-size:10px;color:rgba(255,144,232,.5);text-align:center;">Valid for food & drinks tonight only · Show QR to waiter</div>';
 
       // Transaction history
       if(cv.transactions&&cv.transactions.length){
@@ -3086,7 +3079,7 @@ function renderTopUp(bookingId, diffAmt){
   var card=document.createElement('div');
   card.style.cssText='margin-top:70px;width:100%;max-width:380px;background:#fff;border:2px solid #000;border-radius:18px;padding:28px;';
   card.innerHTML='<div style="text-align:center;margin-bottom:20px;">'
-    +'<div style="font-size:40px;margin-bottom:10px;"></div>'
+    +'<div style="font-size:40px;margin-bottom:10px;">💰</div>'
     +'<div style="font-size:16px;font-weight:900;color:#000;">Top Up Your Cover</div>'
     +'<div style="font-size:12px;color:#3D3D3D;margin-top:4px;">Add more balance to continue enjoying HOD</div>'
     +'</div>';
@@ -3133,15 +3126,15 @@ function renderTopUpContent(card, cv, diffAmt){
 
       if(isLockedAmt){
         // Diff payment context — clearly show what they owe
-        balDiv.style.background='#fff';
-        balDiv.style.border='2px solid #000';
-        balDiv.innerHTML='<div style="font-size:10px;color:#3D3D3D;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Cover Charge Due</div>'
-          +'<div style="font-family:var(--ff);font-size:32px;font-weight:900;color:#000;margin-bottom:4px;">₹'+diffAmt.toLocaleString('en-IN')+'</div>'
+        balDiv.style.background='rgba(245,158,11,.08)';
+        balDiv.style.border='1px solid rgba(245,158,11,.3)';
+        balDiv.innerHTML='<div style="font-size:10px;color:#F59E0B;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">💰 Cover Charge Due</div>'
+          +'<div style="font-family:var(--ff);font-size:32px;font-weight:900;color:#F59E0B;margin-bottom:4px;">₹'+diffAmt.toLocaleString('en-IN')+'</div>'
           +'<div style="font-size:12px;color:#3D3D3D;">'+sanitize(cv.name||'')+'  ·  Pay this to activate your ₹'+bal.toLocaleString('en-IN')+' cover wallet</div>';
       } else {
         // Balance exhausted — show current balance (₹0)
-        balDiv.style.background='#fff';
-        balDiv.style.border='2px solid #000';
+        balDiv.style.background='#F4F4F0';
+        balDiv.style.border='1px solid rgba(255,144,232,.2)';
         balDiv.innerHTML='<div style="font-size:10px;color:#3D3D3D;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Current Balance</div>'
           +'<div style="font-family:var(--ff);font-size:28px;font-weight:900;color:#000;margin-bottom:4px;">₹'+bal.toLocaleString('en-IN')+'</div>'
           +'<div style="font-size:12px;color:#3D3D3D;">'+sanitize(cv.name||'')+'</div>';
@@ -3173,13 +3166,13 @@ function renderTopUpContent(card, cv, diffAmt){
         }
         [500,1000,1500,2000].forEach(function(amt){
           var btn=document.createElement('div');
-          btn.style.cssText='padding:12px;border-radius:8px;border:2px solid #000;background:'+(amt===selectedAmt?'#FF90E8':'#fff')+';text-align:center;cursor:pointer;transition:all .15s;';
-          btn.innerHTML='<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;">₹'+amt+'</div>';
+          btn.style.cssText='padding:12px;border-radius:8px;border:1.5px solid '+(amt===selectedAmt?'rgba(255,144,232,.6)':'rgba(0,0,0,.1)')+';background:'+(amt===selectedAmt?'#F4F4F0':'transparent')+';text-align:center;cursor:pointer;transition:all .15s;';
+          btn.innerHTML='<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:'+(amt===selectedAmt?'#FF90E8':'#3D3D3D')+';">₹'+amt+'</div>';
           btn.onclick=function(){
             selectedAmt=amt;
             _clearChipHighlight();
-            btn.style.borderColor='#000';btn.style.background='#FF90E8';
-            btn.querySelector('div').style.color='#000';
+            btn.style.borderColor='rgba(255,144,232,.6)';btn.style.background='#F4F4F0';
+            btn.querySelector('div').style.color='#FF90E8';
             // Clear the custom-amount input so it doesn't show a stale typed value.
             if(_customAmtInput) _customAmtInput.value='';
             if(payBtn) payBtn.textContent='Pay ₹'+selectedAmt.toLocaleString('en-IN')+' →';
@@ -3199,21 +3192,21 @@ function renderTopUpContent(card, cv, diffAmt){
         customWrap.style.cssText='margin:4px 0 16px;';
         customWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:#3D3D3D;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Or enter your own amount</div>';
         var customRow=document.createElement('div');
-        customRow.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:2px solid #000;';
-        customRow.innerHTML='<span style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;">₹</span>';
+        customRow.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;border:1.5px solid rgba(0,0,0,.1);background:rgba(0,0,0,.03);';
+        customRow.innerHTML='<span style="font-family:var(--ff);font-size:18px;font-weight:900;color:#3D3D3D;">₹</span>';
         var _customAmtInput=document.createElement('input');
-        _customAmtInput.type='text';_customAmtInput.inputMode='numeric';_customAmtInput.setAttribute('pattern','[0-9]*');
-        _customAmtInput.placeholder='Or type any amount';
-        _customAmtInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:20px;font-weight:900;width:100%;';
+        _customAmtInput.type='number';_customAmtInput.min='1';_customAmtInput.max='50000';_customAmtInput.step='1';
+        _customAmtInput.placeholder='Enter amount (min ₹1)';
+        _customAmtInput.style.cssText='flex:1;background:transparent;border:2px solid #000;outline:none;color:#000;font-family:var(--ff);font-size:18px;font-weight:900;width:100%;';
         _customAmtInput.oninput=function(){
           var v=parseInt(_customAmtInput.value,10);
           if(isNaN(v)||v<1){
             // Invalid / too low → keep chip selection as fallback so payBtn never sends ₹0.
-            customRow.style.borderColor='#FF5733';
+            customRow.style.borderColor='rgba(239,68,68,.4)';
             return;
           }
           if(v>50000){_customAmtInput.value='50000';v=50000;}
-          customRow.style.borderColor='#000';
+          customRow.style.borderColor='rgba(255,144,232,.6)';
           selectedAmt=v;
           _clearChipHighlight();
           if(payBtn) payBtn.textContent='Pay ₹'+v.toLocaleString('en-IN')+' →';
@@ -3224,7 +3217,7 @@ function renderTopUpContent(card, cv, diffAmt){
       }
 
       var payBtn=document.createElement('button');
-      payBtn.style.cssText='width:100%;padding:16px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;';
+      payBtn.style.cssText='width:100%;padding:16px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);';
       payBtn.textContent=isLockedAmt?'Pay ₹'+diffAmt.toLocaleString('en-IN')+' →':'Pay & Top Up →';
       payBtn.onclick=function(){
         payBtn.disabled=true;payBtn.textContent='Opening payment…';
@@ -3240,15 +3233,15 @@ function renderTopUpContent(card, cv, diffAmt){
           payBtn:payBtn,
           onSuccess:function(newBal){
             card.innerHTML='<div style="text-align:center;padding:30px 20px;">'
-              +'<div style="font-size:56px;margin-bottom:14px;"></div>'
-              +'<div style="font-size:20px;font-weight:900;color:#000;margin-bottom:8px;">'+(isLockedAmt?'Cover Activated!':'Top-up Successful!')+'</div>'
+              +'<div style="font-size:56px;margin-bottom:14px;">✅</div>'
+              +'<div style="font-size:20px;font-weight:900;color:#00C864;margin-bottom:8px;">'+(isLockedAmt?'Cover Activated!':'Top-up Successful!')+'</div>'
               +'<div style="font-family:var(--ff);font-size:36px;font-weight:900;color:#000;margin-bottom:8px;">₹'+(newBal||0).toLocaleString('en-IN')+'</div>'
-              +'<div style="font-size:13px;color:#3D3D3D;">'+(isLockedAmt?'Your cover wallet is ready · Head to the bar!':'New cover balance · Go enjoy HOD! ')+'</div>'
+              +'<div style="font-size:13px;color:#3D3D3D;">'+(isLockedAmt?'Your cover wallet is ready · Head to the bar!':'New cover balance · Go enjoy HOD! 🎧')+'</div>'
               +'</div>';
           },
           onError:function(msg){
             _resetBtn();
-            alert(' '+msg);
+            alert('⚠️ '+msg);
           },
           onClose:_resetBtn
         });
