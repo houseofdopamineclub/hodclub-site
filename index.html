@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.205";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-03)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.207";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-06)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -3802,7 +3802,7 @@ function saveBooking(paymentId){
   }
 
   var booking={
-    id:uid(),ref:ref,eventId:ev.id,eventTitle:ev.title,
+    id:(paymentId&&paymentId.indexOf('pay_')===0)?paymentId:uid(),ref:ref,eventId:ev.id,eventTitle:ev.title,
     name:sanitize(bd.name),email:sanitize(bd.email),phone:sanitize(bd.phone),
     qty:bd.qty,entryType:bd.entryType||'',tableType:bd.tableType||'',
     pricePerTicket:bd.entryPrice||0,tablePrice:tableTotal,
@@ -5570,16 +5570,21 @@ doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bk
         conf.appendChild(doneBtn);bookPanel.appendChild(conf);
       }).catch(function(e){
         if(_paidOnline){
-          // 🛟 Money was taken but the reservation write failed — NEVER show a
-          // scary "failed" message to a guest who just paid. Show the payment
-          // id + tell them to screenshot and show it at the door. Fail-open.
+          // 🛟 Money was taken but the client reservation write didn't complete
+          // (phone drop, or the server safety-net booked the slot first). NEVER
+          // show a scary "failed" message to a guest who just paid. The server
+          // booking-rescue webhook has the booking AND now sends the WhatsApp +
+          // email confirmation, so reassure the guest it's on its way. The
+          // payment id is shown small, as a support reference (not "the secret").
           try{ var _bd0=document.getElementById('tbl-backdrop'); if(_bd0)_bd0.remove(); }catch(_){}
           try{ if(bookPanel._hodSlotInterval){ clearInterval(bookPanel._hodSlotInterval); bookPanel._hodSlotInterval=null; } }catch(_){}
           bookPanel.innerHTML='<div style="background:rgba(244,244,240,.98);border:2px solid #000;border-radius:24px 24px 0 0;padding:32px 28px 48px;text-align:center;box-shadow:0 -20px 60px rgba(0,0,0,.9);">'
-            +'<div style="font-size:48px;margin-bottom:10px;">✅</div>'
-            +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:10px;">Payment Received</div>'
-            +'<div style="color:#3D3D3D;font-size:13px;line-height:1.6;margin-bottom:16px;">Your ₹'+(_coverAmt||0).toLocaleString('en-IN')+' is confirmed. Please screenshot this and show it at the entrance — our team will seat you.</div>'
-            +'<div style="font-family:monospace;font-size:18px;font-weight:900;color:#000;letter-spacing:2px;word-break:break-all;">'+sanitize(_payId||'')+'</div></div>';
+            +'<div style="font-size:52px;margin-bottom:12px;">✅</div>'
+            +'<div style="font-family:var(--ff);font-size:24px;font-weight:900;color:#000;margin-bottom:10px;">Booking Confirmed!</div>'
+            +'<div style="color:#3D3D3D;font-size:14px;line-height:1.65;margin-bottom:16px;">Your table is booked and your ₹'+(_coverAmt||0).toLocaleString('en-IN')+' cover is paid &amp; <span style="color:#23A094;font-weight:800;">100% redeemable on food &amp; drinks</span>.<br>A confirmation is on its way to your <b>WhatsApp</b> and <b>email</b>. Just give your name at the entrance — our team has your booking.</div>'
+            +'<div style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:10px 12px;margin-top:6px;">'
+            +'<div style="font-size:10px;color:#6B6B6B;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Payment reference (for support)</div>'
+            +'<div style="font-family:monospace;font-size:13px;font-weight:700;color:#3D3D3D;letter-spacing:1px;word-break:break-all;">'+sanitize(_payId||'')+'</div></div></div>';
           return;
         }
         errD.textContent=e.message||'Booking failed. Try again.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;
