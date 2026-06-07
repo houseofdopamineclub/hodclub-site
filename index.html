@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.212";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-07)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.213";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-07)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -6020,7 +6020,7 @@ function showCaptainFeedback(container, total, alreadyPaid){
   if(!container) return;
   var card=document.createElement('div');
   card.style.cssText='padding:36px 22px 18px;text-align:center;color:#000;font-family:var(--ff);';
-  var amt=(typeof total==='number'&&total>0) ? '<div style="font-size:13px;color:#888;margin-top:6px;">'+(alreadyPaid?'Paid':'Order Total')+' · ₹'+total.toLocaleString('en-IN')+'</div>' : '';
+  var amt=(typeof total==='number'&&total>0) ? '<div style="font-size:13px;font-weight:700;color:#000;margin-top:6px;">'+(alreadyPaid?'Paid':'Order Total')+' · ₹'+total.toLocaleString('en-IN')+'</div>' : '';
   // 2026-05-13 round 9 fix: honour the alreadyPaid flag passed in from
   // the Pay Online success path. Without this, online-paid customers
   // saw "Captain on the way · They will be at your table shortly to
@@ -6032,9 +6032,9 @@ function showCaptainFeedback(container, total, alreadyPaid){
   var icon = alreadyPaid ? '🙏' : '✨';
   card.innerHTML='<div style="font-size:48px;margin-bottom:14px;">'+icon+'</div>'
     +'<div style="font-size:20px;font-weight:800;color:#000;font-family:var(--ff);margin-bottom:8px;">'+heading+'</div>'
-    +'<div style="font-size:14px;color:#aaa;line-height:1.5;max-width:320px;margin:0 auto;">'+sub+'</div>'
+    +'<div style="font-size:14px;color:#3D3D3D;line-height:1.5;max-width:320px;margin:0 auto;">'+sub+'</div>'
     +amt
-    +'<div style="margin-top:18px;font-size:12px;color:#666;">Thank you for visiting House of Dopamine</div>';
+    +'<div style="margin-top:18px;font-size:12px;font-weight:600;color:#000;">Thank you for visiting House of Dopamine</div>';
   container.appendChild(card);
   try{ renderHodFeedbackForm(container, total); }catch(e){ /* never break the confirmation */ }
 }
@@ -6090,7 +6090,7 @@ function renderHodFeedbackForm(container, total){
   wrap.innerHTML=''
     +'<div id="hod-fb-heading">'
     +  '<div style="font-family:var(--ff);font-size:17px;font-weight:800;color:#000;margin-bottom:4px;">How was your evening?</div>'
-    +  '<div style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.5;">Rate each — takes 10 seconds. Helps us serve you better.</div>'
+    +  '<div style="font-size:12px;color:#3D3D3D;margin-bottom:12px;line-height:1.5;">Rate each — takes 10 seconds. Helps us serve you better.</div>'
     +'</div>'
     +'<div id="hod-fb-grid" style="margin-bottom:12px;">'+rowsHtml+'</div>'
     +'<textarea id="hod-fb-note" placeholder="One line about your experience (optional)" style="width:100%;min-height:54px;padding:10px 12px;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:8px;color:#000;font-family:var(--ff);font-size:13px;resize:none;outline:none;box-sizing:border-box;margin-bottom:12px;"></textarea>'
@@ -6108,8 +6108,8 @@ function renderHodFeedbackForm(container, total){
     var stars=rowEl.querySelectorAll('span');
     stars.forEach(function(s){
       var v=parseInt(s.getAttribute('data-r'),10);
-      if(v<=n){ s.style.opacity='1'; s.style.color='#FF90E8'; }
-      else    { s.style.opacity='.3'; s.style.color='#fff'; }
+      if(v<=n){ s.style.opacity='1'; s.style.color='#000'; }
+      else    { s.style.opacity='1'; s.style.color='rgba(0,0,0,.2)'; }
     });
   }
   function refreshSubmit(){
@@ -6175,7 +6175,7 @@ function renderHodFeedbackForm(container, total){
         result.innerHTML=''
           +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
           +'<div style="font-family:var(--ff);font-size:16px;font-weight:800;color:#000;margin-bottom:6px;">Glad you loved it!</div>'
-          +'<div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:14px;">If you love HOD, take 30 seconds to rate us on Google.</div>'
+          +'<div style="font-size:12px;color:#3D3D3D;line-height:1.5;margin-bottom:14px;">If you love HOD, take 30 seconds to rate us on Google.</div>'
           +'<a id="hod-fb-google" href="https://g.page/r/CczYuUNkvmDgEBM/review" target="_blank" rel="noopener" style="display:inline-block;padding:12px 22px;background:#fff;color:#1a73e8;border-radius:8px;font-family:var(--ff);font-size:13px;font-weight:900;letter-spacing:.4px;text-decoration:none;border:1px solid #dadce0;box-shadow:0 2px 6px rgba(0,0,0,.25);">⭐ Rate us on Google</a>';
         // After Google tab opens → flip the card to the Thank-You state with
         // VIEW BILL + BACK TO EVENTS. We don't auto-redirect; customer
@@ -6187,7 +6187,7 @@ function renderHodFeedbackForm(container, total){
         var postRateHtml=''
           +'<div style="font-size:32px;margin-bottom:6px;">🙏</div>'
           +'<div style="font-family:var(--ff);font-size:16px;font-weight:800;color:#000;margin-bottom:6px;">Thank you!</div>'
-          +'<div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:14px;">Your rating means the world to us. See you at the next event.</div>'
+          +'<div style="font-size:12px;color:#3D3D3D;line-height:1.5;margin-bottom:14px;">Your rating means the world to us. See you at the next event.</div>'
           +'<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">'
           +  '<a href="https://hodclub.in" style="flex:1;min-width:130px;padding:11px 14px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(255,255,255,.14);color:#000;font-family:var(--ff);font-size:12px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;text-align:center;">🏠 Back to Events</a>'
           +'</div>';

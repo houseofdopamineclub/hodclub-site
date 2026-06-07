@@ -1354,7 +1354,7 @@ function renderWalletPage(bookingRef){
             var _modalCustomInput=document.createElement('input');
             _modalCustomInput.type='number';_modalCustomInput.min='1';_modalCustomInput.max='50000';_modalCustomInput.step='1';
             _modalCustomInput.value=String(_selRcAmt);
-            _modalCustomInput.style.cssText='flex:1;background:transparent;border:2px solid #000;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
+            _modalCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
             _modalCustomInput.oninput=function(){
               var v=parseInt(_modalCustomInput.value,10);
               if(isNaN(v)||v<1){_modalCustomRow.style.borderColor='rgba(239,68,68,.4)';return;}
