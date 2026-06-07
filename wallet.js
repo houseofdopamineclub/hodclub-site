@@ -1481,7 +1481,7 @@ function renderWalletPage(bookingRef){
             tbMd.innerHTML=
               '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🍽️</div>'
               +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:8px;letter-spacing:.3px;">Order Placed!</div>'
-              +'<div style="font-size:14px;color:#aaa;line-height:1.55;margin-bottom:18px;">Your captain has been notified and will be with you shortly to confirm.</div>'
+              +'<div style="font-size:14px;color:#000;line-height:1.55;margin-bottom:18px;">Your captain has been notified and will be with you shortly to confirm.</div>'
               +'<div style="background:rgba(242,199,68,.06);border:2px solid #000;border-radius:12px;padding:12px 14px;margin-bottom:18px;">'
                 +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.2px;margin-bottom:6px;">YOUR ORDER</div>'
                 +'<div style="font-size:13px;color:#000;font-weight:700;line-height:1.5;">'+sanitize(placedItems)+'</div>'

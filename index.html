@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.207";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-06)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.211";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-07)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -63,6 +63,15 @@ try{document.addEventListener("DOMContentLoaded",function(){var b=document.creat
 </script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<!-- ⚡ 2026-06-06 — warm up the TLS/DNS handshakes for the hosts the page hits on
+     boot (Firebase SDK CDN + Firestore/Auth APIs + QR/OneSignal CDNs) so the
+     now-deferred scripts and first Firestore read start sooner on mobile data. -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin/>
+<link rel="dns-prefetch" href="https://firestore.googleapis.com"/>
+<link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com"/>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com"/>
+<link rel="dns-prefetch" href="https://cdn.onesignal.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -469,10 +478,25 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
 .sk-line.tiny{width:40%;height:10px}
 .sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;padding:0 20px 40px}
 
+/* ⚡ 2026-06-06 — Instant splash (paints in <50ms instead of a blank white
+   screen) so customers no longer feel the site "keeps loading" while the
+   now-deferred Firebase SDK downloads. Fail-open: auto-dismisses on boot or a
+   4.5s timeout, whichever is first. */
+#hod-splash{position:fixed;inset:0;z-index:2147483646;background:#F4F4F0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .35s ease,visibility .35s ease;}
+#hod-splash.gone{opacity:0;visibility:hidden;pointer-events:none;}
+#hod-splash .hs-logo{width:74px;height:74px;background:#fff;border:2px solid #000;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:34px;box-shadow:5px 5px 0 rgba(0,0,0,.14);animation:hsBob .9s ease-in-out infinite alternate;}
+#hod-splash .hs-name{font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;font-weight:800;letter-spacing:3px;color:#000;text-transform:uppercase;}
+#hod-splash .hs-sub{font-size:10px;letter-spacing:2px;color:#888;text-transform:uppercase;font-family:ui-sans-serif,system-ui,sans-serif;}
+#hod-splash .hs-bar{width:120px;height:3px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden;}
+#hod-splash .hs-bar::after{content:'';display:block;height:100%;width:40%;background:#FF90E8;border-radius:2px;animation:hsSlide 1.1s ease-in-out infinite alternate;}
+@keyframes hsBob{from{transform:translateY(0)}to{transform:translateY(-6px)}}
+@keyframes hsSlide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
 </style>
 
-<!-- QRCode.js — local QR generation (no external API dependency) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- QRCode.js — local QR generation. ⚡ 2026-06-06 — `defer`ed so it no longer
+     blocks first paint; it still finishes by DOMContentLoaded, long before any
+     guest reaches a booking-confirmation QR. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- 🔴 2026-05-13 (Khushi) — EmailJS SDK removed. Customers were getting
      the OLD Gmail/EmailJS template (template_wtp5oik) when ZeptoMail
      errored or timed out. ZeptoMail (cloud-fn sendBookingEmail) is now
@@ -505,13 +529,17 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
     _rzpLoadPromise.then(function(ok){ if(cb)cb(ok); });
   };
 })();</script>
-<!-- Firebase SDK v9 compat -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" crossorigin="anonymous"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
+<!-- Firebase SDK v9 compat. ⚡ 2026-06-06 — `defer`ed so these ~400KB of SDK no
+     longer render-block the first paint (the cause of the blank "keeps loading"
+     screen). `defer` preserves execution order and runs them before
+     DOMContentLoaded, where _hodBootFirebase() re-initialises Firestore and
+     re-renders so deep links (?wallet=, ?verify=) hydrate immediately. -->
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
 <!-- 🆕 2026-05-28 v3.137 — L1 App Check (reCAPTCHA Enterprise). Compat CDN. -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js" crossorigin="anonymous"></script>
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js" crossorigin="anonymous"></script>
 <!-- PWA Meta Tags -->
 <meta name="theme-color" content="#FF90E8"/>
 <meta name="mobile-web-app-capable" content="yes"/>
@@ -549,6 +577,24 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
   </script>
 </head>
 <body>
+<!-- ⚡ 2026-06-06 — Instant branded splash. Sits above everything and is removed
+     the moment the first render() runs (or after a 4.5s fail-open timeout) so the
+     customer never stares at a blank white page while the deferred SDK loads. -->
+<div id="hod-splash" role="status" aria-label="Loading HOD">
+  <div class="hs-logo">🎧</div>
+  <div class="hs-name">House of Dopamine</div>
+  <div class="hs-bar"></div>
+  <div class="hs-sub">Loading…</div>
+</div>
+<script>
+(function(){
+  function hide(){var s=document.getElementById('hod-splash');if(!s)return;s.classList.add('gone');setTimeout(function(){try{s.parentNode&&s.parentNode.removeChild(s);}catch(_e){}},450);}
+  window._hodHideSplash=hide;
+  // Fail-open: never trap the user behind the splash, even if boot stalls.
+  setTimeout(hide,4500);
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(hide,250);});
+})();
+</script>
 <div class="particles" id="particles"></div>
 <div class="noise"></div>
 <div class="scan"></div>
@@ -1232,10 +1278,22 @@ function initFirebase(){
       // stall ~30s on phones / venue wifi / proxied networks before falling back to
       // long-polling — this is the customer ticket-wallet "takes 30s to load" bug
       // (one-shot get() reads are fast; only the wallet's onSnapshot listener stalls).
-      // experimentalAutoDetectLongPolling keeps fast WebChannel where it works and
-      // auto-switches to long-polling when the stream is being buffered. Money logic
-      // untouched. Must be set before any Firestore read.
-      try{ firestore.settings({ experimentalAutoDetectLongPolling:true, merge:true }); console.info('✅ Firestore long-polling auto-detect ON'); }catch(_e){ console.warn('Firestore settings skipped:', _e&&_e.message); }
+      //
+      // ⚡ 2026-06-07 v3.210 — auto-detect WASN'T enough: the wallet link is opened
+      // INSIDE WhatsApp's in-app browser (a webview that almost always blocks the
+      // fast WebChannel stream), and on a COLD deep-link the wallet's onSnapshot is
+      // the very FIRST Firestore read — so auto-detect spends 10-15s *detecting*
+      // that WebChannel is buffered before it falls back. That detection latency IS
+      // the "QR takes 10-15s to load" the customer sees. Forcing long-polling skips
+      // the detection entirely → the first read goes straight to the reliable
+      // channel → the QR paints in ~1-2s. Trade-off: marginally more overhead on a
+      // perfect open-Chrome network, but this venue's traffic is almost entirely
+      // WhatsApp/Instagram webviews where long-polling is the correct transport.
+      // Money logic untouched. Must be set before any Firestore read.
+      // NOTE: no `merge:true` here — it is not a valid Firestore settings field
+      // and stricter SDK builds can throw on it, which the catch below would
+      // silently swallow → the long-polling fix would never apply.
+      try{ firestore.settings({ experimentalForceLongPolling:true }); console.info('✅ Firestore FORCE long-polling ON (webview-safe)'); }catch(_e){ console.warn('Firestore settings skipped:', _e&&_e.message); }
       firebase.auth().onAuthStateChanged(function(user){
         S._fbUser = user || null;
       });
@@ -1252,11 +1310,23 @@ function initFirebase(){
     }
   }catch(e){console.warn('Firebase init error:',e);}
 }
-// Try immediately, then again after window load
-initFirebase();
-window.addEventListener('load', function(){
-  if(DB_MODE==='local') initFirebase();
-});
+// ⚡ 2026-06-06 — Firebase SDK <script>s are now `defer`ed (non-render-blocking),
+// so this immediate call runs BEFORE the SDK has executed and harmlessly falls
+// into localStorage mode on first paint. _hodBootFirebase() then (re)initialises
+// the instant the deferred SDK is ready (DOMContentLoaded) — much earlier than
+// window.load (which waits for all images) — and re-renders so deep links
+// (?wallet=, ?verify=) hydrate from Firestore as soon as it is live. window.load
+// stays as a belt-and-braces fallback. All paths are idempotent (initFirebase
+// no-ops once DB_MODE==='firebase').
+function _hodBootFirebase(){
+  if(DB_MODE!=='firebase'){
+    initFirebase();
+    if(DB_MODE==='firebase'){ try{ render(); }catch(_e){} }
+  }
+}
+initFirebase(); // may be local on first run if the deferred SDK hasn't executed yet
+document.addEventListener('DOMContentLoaded', _hodBootFirebase);
+window.addEventListener('load', _hodBootFirebase);
 
 // ── 🔴 2026-05-09 — POS Admin → Menu live OOS + discount overrides.
 // Map keyed by slug(item.n). Used by buildMenu() + buildMenu2() to:
@@ -5502,6 +5572,43 @@ function renderTableFloorPlan(){
         // 🔴 2026-05-26 — booking succeeded, kill the slot-refresh interval
         // before we wipe the panel so it doesn't keep ticking against null inputs.
         try{ if(bookPanel._hodSlotInterval){ clearInterval(bookPanel._hodSlotInterval); bookPanel._hodSlotInterval=null; } }catch(_){}
+        // 🔔 2026-06-06 (Khushi: "online-paid bookings don't send WhatsApp/email,
+        // but Reserve-Now-Pay-Later does") — FIRE THE NOTIFY FIRST, before any
+        // confirmation-screen rendering. Previously the email + WhatsApp sends
+        // lived AFTER the ~30 lines of confirm-screen markup; any render throw on
+        // the (more fragile) online path jumped to .catch() and the customer was
+        // never notified even though the booking + payment succeeded. Sending
+        // here — the moment the slot write resolves — guarantees the guest is
+        // notified whenever the booking actually landed, independent of render.
+        // Wrapped so a notify error can never break the confirm screen either.
+        try {
+          if(email){
+            _HOD_sendMail({
+              to_email:email,to_name:name,ref:ref2,
+              event_title:table.id+' · '+_HOD_TABLES[activeFloor].label,
+              event_date:bookDate,event_time:'Arrival: '+arrival,
+              event_venue:'HOD '+_HOD_TABLES[activeFloor].label+' — Koramangala, 7th Block',
+              entry_type:'Table · '+table.id+' · '+_HOD_TABLES[activeFloor].label,
+              qty:ps+' guest'+(ps>1?'s':''),
+              total:(_coverAmt>0?(_paidOnline?('Paid ₹'+_coverAmt.toLocaleString('en-IN')+' (redeemable)'):('Pay ₹'+_coverAmt.toLocaleString('en-IN')+' at venue')):'Pay at venue'),phone:phone,
+              club_name:'HOD — House of Dopamine',
+              club_phone:'+91 96864 44906',
+              club_address:'Koramangala 7th Block, Bengaluru',
+              wallet_link:'https://hodclub.in/?wallet='+ref2,
+              qr_url:'https://hodclub.in/?verify='+ref2
+            });
+          }
+        } catch (_tblMailErr) { console.warn('[HOD] table email send failed', _tblMailErr); }
+        // approved `table_confirmed` template. Params:
+        // [name, dateNice, arrivalTime, tableLabel, floorLabel, partySize, link]
+        try {
+          var _tDateNice = (typeof fmtDate==='function') ? fmtDate(bookDate) : bookDate;
+          _HOD_sendWhatsAppTemplate(phone, 'table_confirmed', [
+            name, _tDateNice, (arrival||'FROM NOW'),
+            table.id, _HOD_TABLES[activeFloor].label,
+            String(ps), 'https://hodclub.in/?wallet='+ref2
+          ]);
+        } catch (_tblWaErr) { console.warn('[HOD] table WA send failed', _tblWaErr); }
         // Show cinematic confirmation
         bookPanel.innerHTML='';
         var conf=document.createElement('div');
@@ -5539,34 +5646,10 @@ function renderTableFloorPlan(){
         setTimeout(function(){generateLocalQR('tbl-conf-qr-'+ref2,'https://hodclub.in/?wallet='+ref2);},200);
         var doneBtn=document.createElement('button');
         doneBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-weight:800;font-size:14px;cursor:pointer;font-family:var(--ff);';
-                // Email confirmation via Cloud Fn (ZeptoMail only — no fallback)
-        if(email){
-          _HOD_sendMail({
-            to_email:email,to_name:name,ref:ref2,
-            event_title:table.id+' · '+_HOD_TABLES[activeFloor].label,
-            event_date:bookDate,event_time:'Arrival: '+arrival,
-            event_venue:'HOD '+_HOD_TABLES[activeFloor].label+' — Koramangala, 7th Block',
-            entry_type:'Table · '+table.id+' · '+_HOD_TABLES[activeFloor].label,
-            qty:ps+' guest'+(ps>1?'s':''),
-            total:(_coverAmt>0?(_paidOnline?('Paid ₹'+_coverAmt.toLocaleString('en-IN')+' (redeemable)'):('Pay ₹'+_coverAmt.toLocaleString('en-IN')+' at venue')):'Pay at venue'),phone:phone,
-            club_name:'HOD — House of Dopamine',
-            club_phone:'+91 96864 44906',
-            club_address:'Koramangala 7th Block, Bengaluru',
-            wallet_link:'https://hodclub.in/?wallet='+ref2,
-            qr_url:'https://hodclub.in/?verify='+ref2
-          });
-        }
-        // 🔴 2026-05-21 (Khushi) — switched to new approved `table_confirmed`.
-        // Params: [name, dateNice, arrivalTime, tableLabel, floorLabel, partySize, link]
-        try {
-          var _tDateNice = (typeof fmtDate==='function') ? fmtDate(bookDate) : bookDate;
-          _HOD_sendWhatsAppTemplate(phone, 'table_confirmed', [
-            name, _tDateNice, (arrival||'FROM NOW'),
-            table.id, _HOD_TABLES[activeFloor].label,
-            String(ps), 'https://hodclub.in/?wallet='+ref2
-          ]);
-        } catch (_tblWaErr) { console.warn('[HOD] table WA send failed', _tblWaErr); }
-doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bks);};
+        // (Customer notify — email + WhatsApp — already fired at the TOP of this
+        //  .then, the moment the slot write resolved, so a render error can no
+        //  longer prevent the guest's confirmation. See note above.)
+        doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bks);};
         conf.appendChild(doneBtn);bookPanel.appendChild(conf);
       }).catch(function(e){
         if(_paidOnline){
@@ -5578,13 +5661,16 @@ doneBtn.textContent='Done';doneBtn.onclick=function(){hidePanel();renderFloor(bk
           // payment id is shown small, as a support reference (not "the secret").
           try{ var _bd0=document.getElementById('tbl-backdrop'); if(_bd0)_bd0.remove(); }catch(_){}
           try{ if(bookPanel._hodSlotInterval){ clearInterval(bookPanel._hodSlotInterval); bookPanel._hodSlotInterval=null; } }catch(_){}
-          bookPanel.innerHTML='<div style="background:rgba(244,244,240,.98);border:2px solid #000;border-radius:24px 24px 0 0;padding:32px 28px 48px;text-align:center;box-shadow:0 -20px 60px rgba(0,0,0,.9);">'
+          bookPanel.innerHTML='<div style="background:rgba(244,244,240,.98);border:2px solid #000;border-radius:24px 24px 0 0;padding:32px 28px 40px;text-align:center;box-shadow:0 -20px 60px rgba(0,0,0,.9);">'
             +'<div style="font-size:52px;margin-bottom:12px;">✅</div>'
             +'<div style="font-family:var(--ff);font-size:24px;font-weight:900;color:#000;margin-bottom:10px;">Booking Confirmed!</div>'
             +'<div style="color:#3D3D3D;font-size:14px;line-height:1.65;margin-bottom:16px;">Your table is booked and your ₹'+(_coverAmt||0).toLocaleString('en-IN')+' cover is paid &amp; <span style="color:#23A094;font-weight:800;">100% redeemable on food &amp; drinks</span>.<br>A confirmation is on its way to your <b>WhatsApp</b> and <b>email</b>. Just give your name at the entrance — our team has your booking.</div>'
-            +'<div style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:10px 12px;margin-top:6px;">'
+            +'<div style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:10px 12px;margin-top:6px;margin-bottom:18px;">'
             +'<div style="font-size:10px;color:#6B6B6B;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">Payment reference (for support)</div>'
-            +'<div style="font-family:monospace;font-size:13px;font-weight:700;color:#3D3D3D;letter-spacing:1px;word-break:break-all;">'+sanitize(_payId||'')+'</div></div></div>';
+            +'<div style="font-family:monospace;font-size:13px;font-weight:700;color:#3D3D3D;letter-spacing:1px;word-break:break-all;">'+sanitize(_payId||'')+'</div></div>'
+            +'<button id="hod-rescue-done" style="width:100%;padding:14px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-weight:800;font-size:14px;cursor:pointer;font-family:var(--ff);">Done</button>'
+            +'</div>';
+          try{ var _rd=document.getElementById('hod-rescue-done'); if(_rd){ _rd.onclick=function(){ try{hidePanel();}catch(_){} try{renderFloor(bks);}catch(_){} }; } }catch(_){}
           return;
         }
         errD.textContent=e.message||'Booking failed. Try again.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;
@@ -6150,6 +6236,9 @@ if(_db.events&&_db.events.length){
   try{S._cachedEventsJson=JSON.stringify(_db.events);}catch(_e){}
 }
 render();
+// ⚡ 2026-06-06 — first paint is up; drop the splash now (fail-open timeout in the
+// <body> splash script is the backstop if this line is ever skipped).
+try{ window._hodHideSplash && window._hodHideSplash(); }catch(_e){}
 </script>
 </body>
 </html>
