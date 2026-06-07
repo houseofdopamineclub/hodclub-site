@@ -188,39 +188,13 @@ function renderWalletPage(bookingRef){
       inner.appendChild(coverBanner);
     }
 
-    // 🔴 2026-05-13 (Khushi) — "✅ Bill Settled · View Bill" banner.
-    // Shown the moment captain stamps paymentStatus:'paid' on the
-    // tableReservation (offline cash/card mark-paid) OR when the
-    // wallet's own paid_online stamp lands. The customer can tap
-    // "View Bill" to see the full GST invoice (matches the captain's
-    // thermal print). Stays visible until the captain releases the
-    // table (after which the "Thank you for visiting" screen kicks in
-    // — that path also gets a View Bill button, see below).
-    if(cv.isTableBooking && cv.paymentStatus==='paid'){
-      var paidBanner=document.createElement('div');
-      paidBanner.style.cssText='background:rgba(34,197,94,.10);border:1.5px solid rgba(34,197,94,.45);border-radius:8px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
-      var pmTxt=(cv.paymentMethod==='paid_online'||cv.paymentMethod==='online')?'Paid Online':((cv.paymentMethod||'').toUpperCase()||'Settled');
-      var amtTxt=cv.amountPaid?(' · ₹'+Number(cv.amountPaid).toLocaleString('en-IN')):'';
-      paidBanner.innerHTML='<div style="font-size:24px;">✅</div>'
-        +'<div style="flex:1;min-width:140px;">'
-        +  '<div style="font-size:13px;font-weight:900;color:#22C55E;letter-spacing:.4px;">Bill Settled</div>'
-        +  '<div style="font-size:11px;color:rgba(0,0,0,.7);margin-top:2px;">'+sanitize(pmTxt)+sanitize(amtTxt)+'</div>'
-        +'</div>'
-        +'<button id="hod-paid-viewbill" style="padding:9px 14px;border-radius:9px;background:rgba(242,199,68,.15);border:2px solid #000;color:#000;font-size:12px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;">📄 View Bill</button>';
-      inner.appendChild(paidBanner);
-      var _vbBtn=document.getElementById('hod-paid-viewbill');
-      if(_vbBtn) _vbBtn.onclick=function(){
-        var billItems=_hodFlattenRounds(cv.tabRounds||[]);
-        showHodBillModal(billItems, {
-          customerName:cv.name||'',
-          tableId:cv.tableId||'',
-          paymentMode:cv.paymentMethod||'',
-          paymentId:cv.paymentId||'',
-          amountPaid:cv.amountPaid||0,
-          settledAt:cv.paidAt||null
-        });
-      };
-    }
+    // 🆕 2026-06-07 (Khushi) — TOP "✅ Bill Settled · View Bill" banner REMOVED.
+    // It rendered on cv.paymentStatus==='paid', but an online TABLE booking
+    // carries paymentStatus:'paid' from the PREPAID COVER deposit while the
+    // FOOD TAB is still OPEN — so the banner wrongly announced "Bill Settled"
+    // on a live, unsettled table. The customer can still open their full GST
+    // invoice any time via the "📄 VIEW BILL" button inside the YOUR TAB card
+    // (renderRoundsHistory below), so no bill access is lost by removing this.
 
     // Expiry check — date-based or expiresAt.
     // 🆕 2026-05-27 v3.65 (Khushi LIVE-NIGHT) — was using calendar UTC date
@@ -359,8 +333,8 @@ function renderWalletPage(bookingRef){
       tblCard.style.cssText='background:rgba(16,185,129,.08);border:1.5px solid rgba(16,185,129,.45);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:12px;';
       tblCard.innerHTML='<span style="font-size:24px;line-height:1;">\ud83e\ude91</span>'
         +'<div style="text-align:left;">'
-        +  '<div style="font-family:var(--ff);font-size:10px;font-weight:800;color:rgba(255,255,255,.6);letter-spacing:1.6px;text-transform:uppercase;margin-bottom:2px;">Your Table</div>'
-        +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#23A094;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(255,255,255,.55);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
+        +  '<div style="font-family:var(--ff);font-size:10px;font-weight:800;color:#0f766e;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:2px;">Your Table</div>'
+        +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#23A094;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(0,0,0,.5);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
         +'</div>';
       inner.appendChild(tblCard);
     }
@@ -881,7 +855,7 @@ function renderWalletPage(bookingRef){
         songCard.style.cssText='background:rgba(255,51,102,.15);border:2px solid rgba(255,51,102,.35);border-radius:8px;padding:20px;margin:20px 0;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(255,51,102,.08);';
         songCard.innerHTML='<div style="text-align:center;margin-bottom:12px;"><span style="font-size:32px;">🎵</span></div>'
           +'<div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:-.3px;">Request a Song</div>'
-          +'<div style="text-align:center;font-size:13px;color:rgba(255,255,255,.6);margin-bottom:16px;line-height:1.4;">Search any song in the world — we\'ll play it for you tonight!</div>'
+          +'<div style="text-align:center;font-size:13px;color:rgba(0,0,0,.6);margin-bottom:16px;line-height:1.4;">Search any song in the world — we\'ll play it for you tonight!</div>'
           +'<div style="text-align:center;"><div style="display:inline-flex;gap:8px;align-items:center;padding:10px 24px;background:#FF5733;border-radius:8px;font-size:14px;font-weight:700;color:#000;">Pick Your Song →</div></div>'
           +'<div style="display:flex;justify-content:center;gap:16px;margin-top:14px;">'
           +'<div style="font-size:10px;color:rgba(0,0,0,.4);text-transform:uppercase;letter-spacing:1px;">Free</div>'
