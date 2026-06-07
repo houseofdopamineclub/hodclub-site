@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.208-perf";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-06)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.207";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-06)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -62,27 +62,8 @@ try{document.addEventListener("DOMContentLoaded",function(){var b=document.creat
 })();
 </script>
 
-<!-- ⚡ PERF v3.208: dns-prefetch all external origins in parallel -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://www.gstatic.com" crossorigin/>
-<link rel="dns-prefetch" href="https://firestore.googleapis.com"/>
-<link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com"/>
-<link rel="dns-prefetch" href="https://cdn.onesignal.com"/>
-<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-
-<!-- ⚡ PERF: Instant splash + wallet skeleton — pure CSS, zero JS needed -->
-<style>
-/* ── Splash screen */
-#hod-splash{position:fixed;inset:0;z-index:99999;background:#F4F4F0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .3s ease,visibility .3s ease;}
-#hod-splash.gone{opacity:0;visibility:hidden;pointer-events:none;}
-#hod-splash-logo{width:68px;height:68px;background:#fff;border:2px solid #000;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:4px 4px 0 rgba(0,0,0,.12);animation:splashBob .9s ease-in-out infinite alternate;}
-#hod-splash-name{font-size:12px;font-weight:800;letter-spacing:3px;color:#000;text-transform:uppercase;font-family:ui-sans-serif,system-ui,sans-serif;}
-#hod-splash-sub{font-size:9px;letter-spacing:2px;color:#888;text-transform:uppercase;font-family:ui-sans-serif,system-ui,sans-serif;}
-#hod-splash-bar{width:100px;height:3px;background:rgba(0,0,0,.08);border-radius:2px;overflow:hidden;}
-#hod-splash-bar::after{content:'';display:block;height:100%;width:40%;background:#FF90E8;border-radius:2px;animation:splashSlide 1s ease-in-out infinite alternate;}
-@keyframes splashBob{from{transform:translateY(0)}to{transform:translateY(-5px)}}
-@keyframes splashSlide{from{transform:translateX(-100%)}to{transform:translateX(260%)}}</style>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -490,24 +471,8 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
 
 </style>
 
-<!-- ⚡ PERF: QRCode.js lazy-loaded — only fetched when QR actually needed -->
-<script>
-(function(){
-  var _loaded=false,_loading=false,_queue=[];
-  window.ensureQRCode=function(cb){
-    if(_loaded){if(cb)cb();return;}
-    if(cb)_queue.push(cb);
-    if(_loading)return;
-    _loading=true;
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-    s.async=true;
-    s.onload=function(){_loaded=true;_loading=false;_queue.forEach(function(f){try{f();}catch(e){}});_queue=[];};
-    s.onerror=function(){_loading=false;_queue.forEach(function(f){try{f();}catch(e){}});_queue=[];};
-    document.head.appendChild(s);
-  };
-})();
-</script>
+<!-- QRCode.js — local QR generation (no external API dependency) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- 🔴 2026-05-13 (Khushi) — EmailJS SDK removed. Customers were getting
      the OLD Gmail/EmailJS template (template_wtp5oik) when ZeptoMail
      errored or timed out. ZeptoMail (cloud-fn sendBookingEmail) is now
@@ -540,13 +505,13 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
     _rzpLoadPromise.then(function(ok){ if(cb)cb(ok); });
   };
 })();</script>
-<!-- ⚡ PERF: Firebase deferred — HTML + skeleton paint first, Firebase loads in background -->
-<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" crossorigin="anonymous"></script>
-<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
-<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
-<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
+<!-- Firebase SDK v9 compat -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js" crossorigin="anonymous"></script>
 <!-- 🆕 2026-05-28 v3.137 — L1 App Check (reCAPTCHA Enterprise). Compat CDN. -->
-<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js" crossorigin="anonymous"></script>
 <!-- PWA Meta Tags -->
 <meta name="theme-color" content="#FF90E8"/>
 <meta name="mobile-web-app-capable" content="yes"/>
@@ -584,30 +549,6 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
   </script>
 </head>
 <body>
-<!-- ⚡ PERF: Splash renders in <50ms, zero JS dependency -->
-<div id="hod-splash" role="status" aria-label="Loading HOD">
-  <div id="hod-splash-logo">🎧</div>
-  <div id="hod-splash-name">House of Dopamine</div>
-  <div id="hod-splash-sub">Koramangala · Bengaluru</div>
-  <div id="hod-splash-bar"></div>
-</div>
-<!-- ⚡ PERF: If this is a wallet link, kick off wallet.js download IMMEDIATELY
-     — parallel with Firebase, not after it. Cuts wallet load by ~3-5 seconds. -->
-<script>
-(function(){
-  try{
-    var _p=new URLSearchParams(window.location.search);
-    if(_p.get('wallet')||_p.get('verify')||_p.get('topup')){
-      var _s=document.createElement('script');
-      _s.src='wallet.js';
-      _s.async=true;
-      _s.onload=function(){window._HOD_WALLET_LOADED=true;window._HOD_WALLET_LOADING=false;};
-      document.head.appendChild(_s);
-      window._HOD_WALLET_LOADING=true;
-    }
-  }catch(_e){}
-})();
-</script>
 <div class="particles" id="particles"></div>
 <div class="noise"></div>
 <div class="scan"></div>
@@ -6196,46 +6137,19 @@ function renderHodFeedbackForm(container, total){
   };
 }
 
-// ⚡ PERF v3.208: Splash hide helper
-function _hodHideSplash(){
-  try{
-    var sp=document.getElementById('hod-splash');
-    if(sp){sp.classList.add('gone');setTimeout(function(){try{sp.remove();}catch(_){}},350);}
-  }catch(_){}
-}
-
-// ⚡ PERF v3.208: Seed localStorage cache for returning visitors (instant events)
+// Initial paint. The events-listener only re-renders when view==='home',
+// so without this call deep links (?wallet=, ?topup=, ?page=privacy) stay blank.
+// (Restored from pre-strip backup — was accidentally removed during deep-strip 2026-05-07.)
+//
+// SPEED FIX: Seed cached events from localStorage BEFORE first render.
+// Returning visitors see events INSTANTLY (no "Loading..." spinner).
+// Firestore refreshes in background and silently updates if data changed.
 var _db=getDB();
 if(_db.events&&_db.events.length){
   S._cachedEvents=_db.events;
   try{S._cachedEventsJson=JSON.stringify(_db.events);}catch(_e){}
 }
-
-// ⚡ PERF v3.208: Wait for deferred Firebase scripts, then render + hide splash.
-// Firebase has defer so it executes after HTML — we poll (max 5s) before giving up.
-// On wallet pages: wallet.js is already pre-fetching in parallel (see body preload above),
-// so by the time Firebase is ready, wallet.js is likely already loaded too.
-(function(){
-  var _t=0;
-  function _waitAndRender(){
-    if(typeof window.firebase!=='undefined'&&typeof window.firebase.firestore!=='undefined'){
-      render();
-      _hodHideSplash();
-    }else if(_t<5000){
-      _t+=40;
-      setTimeout(_waitAndRender,40);
-    }else{
-      // Timeout — render anyway with whatever is available
-      render();
-      _hodHideSplash();
-    }
-  }
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',_waitAndRender);
-  }else{
-    _waitAndRender();
-  }
-})();
+render();
 </script>
 </body>
 </html>
