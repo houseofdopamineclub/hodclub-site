@@ -163,7 +163,7 @@ function renderWalletPage(bookingRef){
         +'<span>🕐 <b style="color:#000;">'+sanitize(cv.arrivalTime||'')+'</b></span>'
         +'<span>👥 <b style="color:#000;">'+sanitize(String(cv.partySize||0))+'</b> guests</span>'
         +'</div>'
-        +(bal<=0?'<div style="margin-top:8px;font-size:11px;color:rgba(242,199,68,.7);">💰 Pre-order below — pay via cash, card or UPI at your table.</div>':'')
+        +(bal<=0?'<div style="margin-top:8px;font-size:12px;font-weight:700;color:#000;background:#FFE0F6;border:2px solid #000;border-radius:8px;padding:7px 10px;box-shadow:2px 2px 0 #000;">💰 Pre-order below — pay via cash, card or UPI at your table.</div>':'')
         ;
       inner.appendChild(tbBanner);
     } else {
@@ -179,12 +179,15 @@ function renderWalletPage(bookingRef){
       coverBanner.style.cssText='background:#fff;border:2px solid #000;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:8px 8px 0 0;padding:14px 16px;margin-bottom:0;';
       // 🔴 2026-05-13 v2 (Khushi) — small balance chip removed; balance now
       // displayed prominently in its own BALANCE card above the QR (below).
-      coverBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">'+_coverHeader+'</div>'
-        +'<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#3D3D3D;">'
-        +  '<span><b style="color:#000;">'+sanitize(name)+'</b></span>'
-        +  (activated>0?'<span><b style="color:#000;">\u20b9'+used.toLocaleString('en-IN')+'</b> used / \u20b9'+activated.toLocaleString('en-IN')+' total</span>':'')
+      coverBanner.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">'
+        +'<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;">'+_coverHeader+'</div>'
+        +((cv.date||cv.eventDate)?'<div style="flex-shrink:0;font-size:10px;font-weight:800;color:#000;background:#FF90E8;border:2px solid #000;border-radius:6px;padding:3px 8px;letter-spacing:.5px;box-shadow:2px 2px 0 #000;white-space:nowrap;">'+sanitize(cv.date||cv.eventDate)+'</div>':'')
         +'</div>'
-        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;">⏳ Your cover will be activated at HOD when you arrive.</div>':'');
+        +'<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:13px;color:#3D3D3D;">'
+        +  '<span><b style="color:#000;font-size:14px;">'+sanitize(name)+'</b></span>'
+        +  (activated>0?'<span style="display:inline-flex;align-items:baseline;gap:6px;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 12px;box-shadow:3px 3px 0 #000;"><b style="color:#000;font-size:16px;">\u20b9'+used.toLocaleString('en-IN')+'</b><span style="color:#3D3D3D;font-weight:600;font-size:12px;">used /</span><b style="color:#16A34A;font-size:18px;">\u20b9'+activated.toLocaleString('en-IN')+'</b><span style="color:#3D3D3D;font-weight:600;font-size:12px;">total</span></span>':'')
+        +'</div>'
+        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#000;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;box-shadow:2px 2px 0 #000;">⏳ Your cover will be activated at HOD when you arrive.</div>':'');
       inner.appendChild(coverBanner);
     }
 
@@ -228,7 +231,7 @@ function renderWalletPage(bookingRef){
       waitDiv.style.cssText='padding:0;';
       // QR code
       var qrWait=document.createElement('div');
-      qrWait.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:20px 16px;margin-bottom:16px;text-align:center;';
+      qrWait.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:20px 16px;margin-bottom:16px;text-align:center;box-shadow:3px 3px 0 #000;';
       var qrWaitWrap=document.createElement('div');qrWaitWrap.id='wallet-qr-wait';
       qrWaitWrap.style.cssText='width:140px;height:140px;margin:0 auto 12px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
       qrWait.appendChild(qrWaitWrap);
@@ -239,7 +242,7 @@ function renderWalletPage(bookingRef){
       generateLocalQR('wallet-qr-wait','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
       // Waiting message
       var waitMsg=document.createElement('div');
-      waitMsg.style.cssText='background:rgba(242,199,68,.06);border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;';
+      waitMsg.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;box-shadow:3px 3px 0 #000;';
       waitMsg.innerHTML='<div style="font-size:40px;margin-bottom:12px;">🪑</div>'
         +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:8px;">We\'re preparing your table!</div>'
         +(cv.tableId?'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:16px;">Your table <strong style="color:#000;">'+sanitize(cv.tableId)+'</strong>'+(cv.floorLabel?' on <strong style="color:#000;">'+sanitize(cv.floorLabel)+'</strong>':'')+' is being set up for you.</div>':'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:16px;">Your table is being set up. Show your reservation QR to your captain on arrival.</div>')
@@ -248,7 +251,7 @@ function renderWalletPage(bookingRef){
         +'<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Arrival</div><div style="font-size:13px;font-weight:800;color:#000;">'+sanitize(cv.arrivalTime||'—')+'</div></div>'
         +'<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Guests</div><div style="font-size:13px;font-weight:800;color:#000;">'+(cv.partySize||0)+'</div></div>'
         +'</div>'
-        +'<div style="background:rgba(35,160,148,.06);border:1px solid rgba(35,160,148,.2);border-radius:8px;padding:12px 16px;font-size:12px;color:rgba(35,160,148,.8);line-height:1.6;">ℹ️ The menu will unlock once you arrive and your captain confirms your presence. You\'ll be able to browse and pre-order right from your phone!</div>';
+        +'<div style="background:rgba(35,160,148,.10);border:2px solid #000;border-radius:8px;padding:12px 16px;font-size:12px;font-weight:600;color:#000;line-height:1.6;box-shadow:3px 3px 0 #23A094;">ℹ️ The menu will unlock once you arrive and your captain confirms your presence. You\'ll be able to browse and pre-order right from your phone!</div>';
       waitDiv.appendChild(waitMsg);
       inner.appendChild(waitDiv);
       return;
@@ -258,10 +261,10 @@ function renderWalletPage(bookingRef){
       // Show recharge banner — menu continues below
       var emptyBanner=document.createElement('div');
       // 🔴 2026-05-13 v2 (Khushi) — recolor purple → red/yellow/white theme.
-      emptyBanner.style.cssText='background:rgba(239,68,68,.06);border:1.5px solid rgba(239,68,68,.3);border-radius:8px;padding:20px;margin-bottom:16px;text-align:center;';
+      emptyBanner.style.cssText='background:#FFE0F6;border:2px solid #000;border-radius:8px;padding:20px;margin-bottom:16px;text-align:center;box-shadow:3px 3px 0 #000;';
       emptyBanner.innerHTML='<div style="font-size:28px;margin-bottom:8px;">⚡</div>'
-        +'<div style="font-size:15px;font-weight:900;color:#FF5733;margin-bottom:6px;">Load your wallet to start ordering</div>'
-        +'<div style="font-size:12px;color:#3D3D3D;line-height:1.6;margin-bottom:14px;">Enter an amount below and pay online, or show your QR above to the bartender — they can recharge for you too.</div>';
+        +'<div style="font-size:15px;font-weight:900;color:#000;margin-bottom:6px;">Load your wallet to start ordering</div>'
+        +'<div style="font-size:12px;color:#000;line-height:1.6;margin-bottom:14px;">Enter an amount below and pay online, or show your QR above to the bartender — they can recharge for you too.</div>';
       var _rcAmt=0;
       // ── 2026-05-11 (Khushi feature) — CUSTOM AMOUNT INPUT on empty-wallet banner.
       // 🆕 2026-06-03 v3.205 (Khushi) — quick-amount chips (₹500/999/1499/1999)
@@ -330,11 +333,11 @@ function renderWalletPage(bookingRef){
     var _walTblFloor = cv.linkedFloorLabel || cv.floorLabel || '';
     if(_walTblId){
       var tblCard=document.createElement('div');
-      tblCard.style.cssText='background:rgba(16,185,129,.08);border:1.5px solid rgba(16,185,129,.45);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:12px;';
+      tblCard.style.cssText='background:rgba(16,185,129,.12);border:2px solid #000;border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:3px 3px 0 #23A094;';
       tblCard.innerHTML='<span style="font-size:24px;line-height:1;">\ud83e\ude91</span>'
         +'<div style="text-align:left;">'
-        +  '<div style="font-family:var(--ff);font-size:10px;font-weight:800;color:#0f766e;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:2px;">Your Table</div>'
-        +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#23A094;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(0,0,0,.5);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
+        +  '<div style="font-family:var(--ff);font-size:10px;font-weight:800;color:#000;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:2px;">Your Table</div>'
+        +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(0,0,0,.6);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
         +'</div>';
       inner.appendChild(tblCard);
     }
@@ -367,7 +370,7 @@ function renderWalletPage(bookingRef){
     // (the captain just glances at it before scanning). Shrunk the card +
     // QR + text considerably so the menu sits closer to the top.
     var _isTbl=cv.isTableBooking;
-    qrSec.style.cssText='background:#fff;border:2px solid #000;border-top:none;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:0;padding:'+(_isTbl?'12px 14px':'18px 16px')+';margin-bottom:0;text-align:center;';
+    qrSec.style.cssText=_isTbl?'background:#fff;border:2px solid #000;border-radius:8px;padding:14px;margin-bottom:14px;text-align:center;box-shadow:3px 3px 0 #000;':'background:#fff;border:2px solid #000;border-top:none;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:0;padding:18px 16px;margin-bottom:0;text-align:center;';
     var qrWrap=document.createElement('div');qrWrap.id='wallet-qr-wrap';
     var _qrPx=_isTbl?100:140;
     qrWrap.style.cssText='width:'+_qrPx+'px;height:'+_qrPx+'px;margin:0 auto '+(_isTbl?'8px':'14px')+';background:#fff;border-radius:'+(_isTbl?'8px':'14px')+';display:flex;align-items:center;justify-content:center;overflow:hidden;';
@@ -395,7 +398,7 @@ function renderWalletPage(bookingRef){
     // For event tickets — show bartender instruction then the menu below
     if(!cv.isTableBooking){
       var evInfo=document.createElement('div');
-      evInfo.style.cssText='background:#F4F4F0;border:2px solid #000;border-top:none;border-radius:0 0 8px 8px;padding:14px 16px;margin-bottom:16px;text-align:center;font-size:12px;color:#3D3D3D;line-height:1.6;';
+      evInfo.style.cssText='background:#FFE0F6;border:2px solid #000;border-top:none;border-radius:0 0 8px 8px;padding:14px 16px;margin-bottom:16px;text-align:center;font-size:12px;color:#000;line-height:1.6;box-shadow:3px 3px 0 #000;';
       if(bal>0){
         // 🔴 2026-05-20 (Khushi) — ONE prominent BOLD "show QR to bartender"
         // message. Previous version repeated the same instruction 3x across
@@ -416,14 +419,14 @@ function renderWalletPage(bookingRef){
             +  '<div style="margin-bottom:6px;"><strong style="color:#000;">At table '+sanitize(_walTblId)+'</strong> — browse menu below, captain serves you.</div>'
             +  '<div><strong style="color:#000;">At the bar</strong> — show QR above to bartender.</div>'
             +'</div>'
-            +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;margin-top:8px;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
+            +'<div style="font-size:11px;color:#000;line-height:1.5;margin-top:8px;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
         } else {
         evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">SHOW QR TO BARTENDER TO ORDER</div>'
-          +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
+          +'<div style="font-size:11px;color:#000;line-height:1.5;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
         }
       } else {
         evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">RECHARGE TO ORDER</div>'
-          +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;">Recharge above, or ask bartender — they accept cash, UPI or card.</div>';
+          +'<div style="font-size:11px;color:#000;line-height:1.5;">Recharge above, or ask bartender — they accept cash, UPI or card.</div>';
       }
       inner.appendChild(evInfo);
     }
@@ -434,7 +437,7 @@ function renderWalletPage(bookingRef){
     // pre-order instruction is kept.
     if(cv.isTableBooking){
       var info=document.createElement('div');
-      info.style.cssText='background:rgba(35,160,148,.06);border:1px solid rgba(35,160,148,.2);border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:rgba(35,160,148,.8);';
+      info.style.cssText='background:rgba(35,160,148,.10);border:2px solid #000;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;font-weight:600;color:#000;line-height:1.6;box-shadow:3px 3px 0 #23A094;';
       info.innerHTML='\u2139\ufe0f Browse the menu below, select what you want, and tap <strong>Submit Pre-Order</strong>. Your waiter will scan your QR and activate your order at the table.';
       inner.appendChild(info);
     }
@@ -835,7 +838,7 @@ function renderWalletPage(bookingRef){
 
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
-      checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#FF5733;border:1px solid rgba(0,0,0,.08);color:#000;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:700;letter-spacing:.5px;box-shadow:0 4px 14px rgba(184,50,39,.28),inset 0 1px 0 rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;gap:10px;';
+      checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#23A094;border:2px solid #000;color:#fff;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:800;letter-spacing:.5px;box-shadow:4px 4px 0 #000;display:flex;align-items:center;justify-content:center;gap:10px;';
       checkoutBtn.innerHTML='<span style="font-size:18px;">🧾</span><span>Done Ordering? Settle Your Bill</span>';
       checkoutWrap.appendChild(checkoutBtn);
       // (Tax-hint pill moved up under Running Tab — see taxHintTop above.)
@@ -886,7 +889,7 @@ function renderWalletPage(bookingRef){
         if(placeBtn){placeBtn.style.opacity=ct>0?'1':'.45';}
         var hasTab=(tt+ct)>0;
         if(checkoutBtn){
-          checkoutBtn.style.color=hasTab?'#000':'#3D3D3D';
+          checkoutBtn.style.color='#fff';
           checkoutBtn.style.borderColor=hasTab?'rgba(0,0,0,.3)':'rgba(0,0,0,.12)';
         }
       }
@@ -940,22 +943,22 @@ function renderWalletPage(bookingRef){
           } catch(_eBar) { try { console.warn('[park-bar] write threw',_eBar); } catch(_){} }
           // "show this to the bartender" screen
           var _bsOv=document.createElement('div');
-          _bsOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(10px);animation:fadeIn .25s ease;overflow-y:auto;';
+          _bsOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10001;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px 60px;backdrop-filter:blur(10px);animation:fadeIn .25s ease;overflow-y:auto;';
           var _bsMd=document.createElement('div');
-          _bsMd.style.cssText='background:#F4F4F0;border:2px solid rgba(255,144,232,.55);border-radius:8px;padding:24px 22px;width:100%;max-width:400px;box-shadow:0 24px 80px rgba(0,0,0,.85),0 0 60px rgba(255,144,232,.25);';
+          _bsMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:24px 22px;width:100%;max-width:400px;box-shadow:6px 6px 0 #FF90E8;position:relative;';
           var _bsHdr='<div style="text-align:center;margin-bottom:18px;">'
             +'<div style="font-size:48px;margin-bottom:6px;">🍸</div>'
             +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;letter-spacing:.4px;line-height:1.15;margin-bottom:4px;">SHOW THIS TO THE BARTENDER</div>'
-            +'<div style="font-size:12px;color:#aaa;line-height:1.5;">They\'ll place your order on the POS.</div>'
+            +'<div style="font-size:12px;color:#3D3D3D;line-height:1.5;">They\'ll place your order on the POS.</div>'
             +'</div>';
           var _refTxt=sanitize(cv.ref||cv.bookingId||'');
           var _bsRef='<div style="background:#FF90E8;border:2px solid #000;border-radius:12px;padding:12px 14px;margin-bottom:14px;text-align:center;">'
-            +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.5px;margin-bottom:4px;">WALLET / BOOKING REF</div>'
+            +'<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.5px;margin-bottom:4px;">WALLET / BOOKING REF</div>'
             +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;letter-spacing:1.5px;">'+_refTxt+'</div>'
-            +(cv.tableId?'<div style="font-size:12px;color:#aaa;margin-top:4px;">Table '+sanitize(cv.tableId)+(cv.floorLabel?' · '+sanitize(cv.floorLabel):'')+'</div>':'')
+            +(cv.tableId?'<div style="font-size:12px;color:#3D3D3D;margin-top:4px;">Table '+sanitize(cv.tableId)+(cv.floorLabel?' · '+sanitize(cv.floorLabel):'')+'</div>':'')
             +'</div>';
           var _bsItemsHtml='<div style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:12px 14px;margin-bottom:14px;">'
-            +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.5px;margin-bottom:8px;text-align:center;">YOUR ORDER</div>';
+            +'<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.5px;margin-bottom:8px;text-align:center;">YOUR ORDER</div>';
           _items.forEach(function(it){
             _bsItemsHtml+='<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:14px;border-bottom:1px dashed rgba(0,0,0,.06);">'
               +'<span style="color:#000;font-weight:600;">'+it.qty+'× '+sanitize(it.n)+'</span>'
@@ -966,10 +969,10 @@ function renderWalletPage(bookingRef){
             +'<span style="color:#000;">TOTAL</span><span style="color:#000;">₹'+ct.toLocaleString('en-IN')+'</span>'
             +'</div></div>';
           var _bsBal='<div style="background:rgba(34,197,94,.08);border:1.5px solid rgba(34,197,94,.4);border-radius:12px;padding:10px 14px;margin-bottom:14px;text-align:center;">'
-            +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.5px;margin-bottom:2px;">WALLET BALANCE</div>'
-            +'<div style="font-size:22px;font-weight:900;color:#22C55E;font-variant-numeric:tabular-nums;">₹'+bal.toLocaleString('en-IN')+'</div>'
+            +'<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.5px;margin-bottom:2px;">WALLET BALANCE</div>'
+            +'<div style="font-size:22px;font-weight:900;color:#15803D;font-variant-numeric:tabular-nums;">₹'+bal.toLocaleString('en-IN')+'</div>'
             +'</div>';
-          var _bsHint='<div style="font-size:11px;color:#888;line-height:1.5;text-align:center;margin-bottom:14px;">Bartender will deduct from your wallet using the ref above.</div>';
+          var _bsHint='<div style="font-size:11px;color:#3D3D3D;line-height:1.5;text-align:center;margin-bottom:14px;">Bartender will deduct from your wallet using the ref above.</div>';
           // 🆕 2026-06-03 v3.203 (Khushi): QR inside the "show this to the bartender"
           // popup so the bartender can SCAN the wallet (same ?verify= link as the
           // main wallet QR) instead of keying in the ref by hand.
@@ -979,9 +982,15 @@ function renderWalletPage(bookingRef){
             +'</div>';
           _bsMd.innerHTML=_bsHdr+_bsQR+_bsRef+_bsItemsHtml+_bsBal+_bsHint;
           generateLocalQR('bs-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
+          var _bsCloseX=document.createElement('button');
+          _bsCloseX.setAttribute('aria-label','Close');
+          _bsCloseX.innerHTML='✕';
+          _bsCloseX.style.cssText='position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:8px;background:#fff;border:2px solid #000;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:var(--ff);line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:2px 2px 0 #000;z-index:2;';
+          _bsCloseX.onclick=function(){_bsOv.remove();};
+          _bsMd.appendChild(_bsCloseX);
           var _bsBackBtn=document.createElement('button');
-          _bsBackBtn.style.cssText='width:100%;padding:13px;border-radius:12px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.15);color:#aaa;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
-          _bsBackBtn.textContent='← Back to menu';
+          _bsBackBtn.style.cssText='width:100%;padding:15px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;box-shadow:4px 4px 0 #000;';
+          _bsBackBtn.textContent='← Back to Menu';
           _bsBackBtn.onclick=function(){_bsOv.remove();};
           _bsMd.appendChild(_bsBackBtn);
           _bsOv.appendChild(_bsMd);
@@ -1331,12 +1340,10 @@ function renderWalletPage(bookingRef){
             // NO ⚠️, NO red. Minimal copy. Quick-recharge preset chips REMOVED.
             // Two ways to add funds: PAY ONLINE (Razorpay) OR RECHARGE AT BAR
             // (parks the order so the bartender sees it on scan/search).
-            _md.style.cssText='background:#fff;border:2px solid #23A094;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;';
+            _md.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;box-shadow:6px 6px 0 #23A094;';
             var _shortfall=ct+pendingTotal-bal;
-            _md.innerHTML='<div style="background:rgba(0,200,100,.10);border:2px solid #23A094;border-radius:8px;padding:18px 16px;margin-bottom:18px;">'
-              +'<div style="font-size:19px;font-weight:900;color:#00C864;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
-              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;">Tap the recharge button below.</div>'
-              +'</div>';
+            _md.innerHTML='<div style="font-size:20px;font-weight:900;color:#16A34A;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
+              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">Tap the recharge button below.</div>';
             // Amount to recharge — defaults to the EXACT shortfall (editable).
             var _selRcAmt=Math.max(1,_shortfall);
             var _modalCustomWrap=document.createElement('div');
@@ -1467,6 +1474,7 @@ function renderWalletPage(bookingRef){
             }
           } catch (_e) {}
           var placedItems=Object.values(cart).map(function(it){return it.qty+'× '+it.n;}).join(', ');
+          var placedItemsArr=Object.values(cart).map(function(it){return {n:it.n,qty:it.qty,p:it.p};});
           cart={};
           updateCartBar();
           renderRoundsHistory();
@@ -1537,20 +1545,20 @@ function renderWalletPage(bookingRef){
               +  '<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;letter-spacing:1px;">HOUSE OF DOPAMINE</div>'
               +  '<div style="font-size:10px;color:#3D3D3D;margin-top:2px;letter-spacing:.6px;">ORDER PLACED · '+_staffLabel+'</div>'
               +'</div>'
-              +'<div style="text-align:center;font-size:16px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:600;">Show this QR to your <strong style="color:#E8C97A;">'+_staffWord+'</strong> to prepare your order</div>'
-              +'<div id="order-qr-popup" style="width:160px;height:160px;margin:0 auto 12px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'
+              +'<div style="text-align:center;font-size:16px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:600;">Show this QR to your <strong style="background:#FF90E8;color:#000;padding:1px 7px;border-radius:5px;border:1.5px solid #000;">'+_staffWord+'</strong> to prepare your order</div>'
+              +'<div style="background:#fff;border:2px solid #000;border-radius:14px;padding:14px;margin:0 auto 12px;width:max-content;box-shadow:4px 4px 0 #000;"><div id="order-qr-popup" style="width:160px;height:160px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div></div>'
               +'<div style="text-align:center;font-family:monospace;font-size:12px;color:#000;letter-spacing:2px;margin-bottom:12px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>'
-              +'<div style="border-top:1px dashed rgba(0,0,0,.15);border-bottom:1px dashed rgba(0,0,0,.15);padding:10px 0;margin-bottom:10px;">'
-              +  '<div style="font-size:10px;color:#3D3D3D;letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px;">Your Order</div>'
-              +  '<div style="font-size:13px;color:#000;font-weight:700;line-height:1.5;">'+sanitize(placedItems)+'</div>'
+              +'<div style="padding:4px 0 6px;margin-bottom:10px;">'
+              +  '<div style="font-size:10px;color:#3D3D3D;letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;text-align:center;font-weight:800;">Your Order</div>'
+              +  placedItemsArr.map(function(it){return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:9px 12px;margin-bottom:8px;box-shadow:3px 3px 0 #000;"><span style="font-size:13px;color:#000;font-weight:700;">'+it.qty+'× '+sanitize(it.n)+'</span><span style="font-size:13px;color:#000;font-weight:800;white-space:nowrap;">\u20b9'+((it.p||0)*(it.qty||0)).toLocaleString('en-IN')+'</span></div>';}).join('')
               +'</div>'
               +'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0 10px;">'
               +  '<span style="font-size:13px;font-weight:900;color:#000;">Total</span>'
               +  '<span style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;font-variant-numeric:tabular-nums;">\u20b9'+ct.toLocaleString('en-IN')+'</span>'
               +'</div>'
-              +'<div style="text-align:center;font-size:14px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:700;">'+(_isTbl?'Captain':'Bartender')+' will scan, confirm and <strong style="color:#E8C97A;">deduct</strong> from your wallet automatically</div>';
+              +'<div style="text-align:center;font-size:14px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:700;">'+(_isTbl?'Captain':'Bartender')+' will scan, confirm and <strong style="background:#FF90E8;color:#000;padding:1px 7px;border-radius:5px;border:1.5px solid #000;">deduct</strong> from your wallet automatically</div>';
             var closeBtn=document.createElement('button');
-            closeBtn.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(242,199,68,.15);border:2px solid #000;color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.6px;text-transform:uppercase;';
+            closeBtn.style.cssText='width:100%;padding:14px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.6px;text-transform:uppercase;box-shadow:4px 4px 0 #000;';
             closeBtn.textContent='Got it ✓';
             closeBtn.onclick=function(){overlay.remove();};
             modal.appendChild(closeBtn);
@@ -1837,9 +1845,17 @@ function renderWalletPage(bookingRef){
           var bg=idx%2===0?'#fff':'#F4F4F0';
           return '<tr style="background:'+bg+';"><td style="padding:8px 12px;font-size:13px;color:#3D3D3D;width:40px;">'+it.qty+'</td><td style="padding:8px 12px;font-size:13px;color:#000;">'+sanitize(it.n)+'</td><td style="padding:8px 12px;font-size:13px;font-weight:700;color:#000;text-align:right;font-variant-numeric:tabular-nums;">&#x20B9;'+Math.round((it.p||0)*(it.qty||0))+'</td></tr>';
         }).join('');
+        var _bpName=cv.customerName||cv.name||'—';
+        var _bpPhone=cv.phone||cv.customerPhone||'';
+        var _bpRef=cv.ref||cv.bookingId||'';
+        var _bpWhen=[cv.date||cv.eventDate||'',cv.arrivalTime||''].filter(Boolean).join(' · ');
         var meta=''
-          +(cv.tableId?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:2px;"><b style="color:#000;">TABLE:</b> '+sanitize(cv.tableId)+(cv.floorLabel?' &middot; '+sanitize(cv.floorLabel):'')+'</div>':'')
-          +'<div style="font-size:12px;color:#3D3D3D;"><b style="color:#000;">GUEST:</b> '+sanitize(cv.customerName||'—')+'</div>';
+          +(cv.tableId?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">TABLE:</b> '+sanitize(cv.tableId)+(cv.floorLabel?' &middot; '+sanitize(cv.floorLabel):'')+'</div>':'')
+          +'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">GUEST:</b> '+sanitize(_bpName)+'</div>'
+          +(_bpPhone?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">PHONE:</b> '+sanitize(_bpPhone)+'</div>':'')
+          +(cv.partySize?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">GUESTS:</b> '+sanitize(String(cv.partySize))+'</div>':'')
+          +(_bpWhen?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">WHEN:</b> '+sanitize(_bpWhen)+'</div>':'')
+          +(_bpRef?'<div style="font-size:12px;color:#3D3D3D;"><b style="color:#000;">REF:</b> '+sanitize(_bpRef)+'</div>':'');
         card.innerHTML=''
           +'<div style="padding:16px 18px;border-bottom:2px solid #000;">'
           +'<div style="font-size:10px;color:#3D3D3D;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">BILL PREVIEW</div>'
