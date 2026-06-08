@@ -431,7 +431,7 @@ function renderWalletPage(bookingRef){
           // no ref, we fall through to the safe bar-only copy (popup also
           // falls back to bartender QR), keeping the message and routing aligned.
           evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">ORDERING OPTIONS</div>'
-            +'<div style="font-size:11px;color:#3D3D3D;line-height:1.6;text-align:left;max-width:300px;margin:0 auto;">'
+            +'<div style="font-size:11px;color:#3D3D3D;line-height:1.6;text-align:center;max-width:300px;margin:0 auto;">'
             +  '<div style="margin-bottom:6px;"><strong style="color:#000;">At table '+sanitize(_walTblId)+'</strong> — browse menu below, captain serves you.</div>'
             +  '<div><strong style="color:#000;">At the bar</strong> — show QR above to bartender.</div>'
             +'</div>'
@@ -1896,7 +1896,14 @@ function renderWalletPage(bookingRef){
         var statusC={'preparing':'#a85800','activated':'#0a7a3c','served':'#0a7a3c','paid':'#0a7a3c'};
         var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':'✅ Served','paid':'💳 Paid'};
 
-        var roundsHtml=tabRounds.map(function(r,idx){
+        // 🆕 2026-06-08 v3.253 (Khushi) — render rounds in true CHRONOLOGICAL order
+        // (by placedAt) and RENUMBER the display label 1..N. The stored roundNum is
+        // unreliable: bar / table / captain / bartender each compute it off a
+        // DIFFERENT array (tabRounds.length+1) so the numbers COLLIDE ("Round 3"
+        // twice) and GAP ("missing Round 2"). placedAt is the only reliable order,
+        // so we sort by it and number sequentially — R1 bar → R2 bar → R3 table → …
+        var _sortedRounds=tabRounds.slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
+        var roundsHtml=_sortedRounds.map(function(r,idx){
           var sc=statusC[r.status]||'#5c3f0a';
           var sl=statusL[r.status]||r.status;
           var rBd=null;
@@ -1911,11 +1918,11 @@ function renderWalletPage(bookingRef){
               +'<span style="flex:1;padding-right:8px;">'+sanitize(it.qty+'× '+it.n)+'</span>'
               +'<span style="color:#3a2a08;font-variant-numeric:tabular-nums;font-weight:700;">₹'+(it.p*it.qty)+'</span></div>';
           }).join('');
-          var sep=idx<tabRounds.length-1?'border-bottom:1.5px dashed #8a6a1f;':'';
+          var sep=idx<_sortedRounds.length-1?'border-bottom:1.5px dashed #8a6a1f;':'';
           return '<div style="padding:10px 0 12px;'+sep+'">'
             +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">'
             +'<span style="display:flex;flex-direction:column;gap:5px;min-width:0;">'
-            +'<span style="font-size:17px;font-weight:900;color:#5c3f0a;letter-spacing:.5px;">● Round '+r.roundNum+'</span>'
+            +'<span style="font-size:17px;font-weight:900;color:#5c3f0a;letter-spacing:.5px;">● Round '+(idx+1)+'</span>'
             +(_locBadge?('<span style="display:flex;">'+_locBadge+'</span>'):'')
             +'</span>'
             +'<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
@@ -1976,11 +1983,18 @@ function renderWalletPage(bookingRef){
         // header row (Round N + badge) followed by its items. Falls back to a flat
         // list only for the legacy case where no rounds carry items.
         var _zebra=0;
-        var itemsRows=tabRounds.map(function(r){
+        // 🆕 2026-06-08 v3.253 (Khushi) — chronological order + sequential renumber
+        // (see renderRoundsHistory). Sort by placedAt; label each rendered round with
+        // a running counter (skips empty rounds) so the bill reads R1, R2, R3 … with
+        // no dup/gap, instead of the unreliable stored roundNum.
+        var _billRounds=tabRounds.slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
+        var _billNo=0;
+        var itemsRows=_billRounds.map(function(r){
           var _rItems=(r.items||[]);
           if(!_rItems.length) return '';
+          _billNo++;
           var _badge=hodRoundLocBadge(r);
-          var _hdr='<tr style="background:#fff;"><td colspan="3" style="padding:10px 12px 4px;border-top:1px dashed rgba(0,0,0,.12);"><span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:11px;font-weight:900;color:#000;letter-spacing:.5px;">ROUND '+sanitize(String(r.roundNum||''))+'</span>'+(_badge||'')+'</span></td></tr>';
+          var _hdr='<tr style="background:#fff;"><td colspan="3" style="padding:10px 12px 4px;border-top:1px dashed rgba(0,0,0,.12);"><span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:11px;font-weight:900;color:#000;letter-spacing:.5px;">ROUND '+_billNo+'</span>'+(_badge||'')+'</span></td></tr>';
           var _rows=_rItems.map(function(it){
             var bg=(_zebra++%2===0)?'#fff':'#F4F4F0';
             return '<tr style="background:'+bg+';"><td style="padding:8px 12px;font-size:13px;color:#3D3D3D;width:40px;">'+it.qty+'</td><td style="padding:8px 12px;font-size:13px;color:#000;">'+sanitize(it.n)+'</td><td style="padding:8px 12px;font-size:13px;font-weight:700;color:#000;text-align:right;font-variant-numeric:tabular-nums;">&#x20B9;'+Math.round((it.p||0)*(it.qty||0))+'</td></tr>';
@@ -2053,9 +2067,12 @@ function renderWalletPage(bookingRef){
           +'</div>'
           +'<div style="border-top:1px solid rgba(0,0,0,.08);padding-top:14px;margin-bottom:16px;">';
 
-        tabRounds.forEach(function(r){
+        // 🆕 2026-06-08 v3.253 (Khushi) — chronological order + sequential renumber
+        // (see renderRoundsHistory) so the SETTLE breakdown matches YOUR TAB + VIEW BILL.
+        var _coRounds=(tabRounds||[]).slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
+        _coRounds.forEach(function(r,ci){
           bHtml+='<div style="margin-bottom:14px;">'
-            +'<div style="font-size:10px;font-weight:800;color:#000;margin-bottom:6px;letter-spacing:.5px;">ROUND '+r.roundNum+'</div>';
+            +'<div style="font-size:10px;font-weight:800;color:#000;margin-bottom:6px;letter-spacing:.5px;">ROUND '+(ci+1)+'</div>';
           r.items.forEach(function(it){
             bHtml+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">'
               +'<span>'+it.qty+'× '+sanitize(it.n)+'</span>'
@@ -3122,7 +3139,9 @@ function renderWalletPage(bookingRef){
                 var _seen={}, _k=function(r){return String((r&&r.placedAt)||'')+'|'+String((r&&r.roundNum)||'')+'|'+String((r&&r.roundTotal)||'');};
                 _merged.forEach(function(r){_seen[_k(r)]=true;});
                 td.tabRounds.forEach(function(r){var kk=_k(r); if(!_seen[kk]){_seen[kk]=true; _merged.push(r);}});
-                _merged.sort(function(a,b){var an=Number((a&&a.roundNum)||0),bn=Number((b&&b.roundNum)||0); if(an!==bn)return an-bn; return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
+                // 🆕 2026-06-08 v3.253 — sort CHRONOLOGICALLY by placedAt (roundNum is
+                // unreliable across writers; the display renumbers 1..N from this order).
+                _merged.sort(function(a,b){var at=String((a&&a.placedAt)||''),bt=String((b&&b.placedAt)||''); if(at!==bt)return at.localeCompare(bt); return Number((a&&a.roundNum)||0)-Number((b&&b.roundNum)||0);});
                 cv.tabRounds=_merged;
                 cv.tabTotal=_merged.reduce(function(s,r){return s+(Number(r&&r.roundTotal)||0);},0);
               } else if(td && td.tabTotal && !cv.tabTotal){ cv.tabTotal=td.tabTotal; }
