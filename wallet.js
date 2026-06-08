@@ -185,7 +185,11 @@ function renderWalletPage(bookingRef){
         +'</div>'
         +'<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:13px;color:#3D3D3D;">'
         +  '<span><b style="color:#000;font-size:14px;">'+sanitize(name)+'</b></span>'
-        +  (activated>0?'<span style="display:inline-flex;align-items:baseline;gap:6px;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 12px;box-shadow:3px 3px 0 #000;"><b style="color:#000;font-size:16px;">\u20b9'+used.toLocaleString('en-IN')+'</b><span style="color:#3D3D3D;font-weight:600;font-size:12px;">used /</span><b style="color:#16A34A;font-size:18px;">\u20b9'+activated.toLocaleString('en-IN')+'</b><span style="color:#3D3D3D;font-weight:600;font-size:12px;">total</span></span>':'')
+        // 🆕 2026-06-08 v3.218 (Khushi) — the "₹X used / ₹Y total" cover badge is
+        // REMOVED here. It surfaced cv.coverUsed which could drift from the real
+        // bill (showed 1680 while the bar bill + VIEW BILL were 1650), confusing
+        // the guest with two different totals. The wallet balance card below + the
+        // RUNNING TAB (now anchored to the computed breakdown) are the single source.
         +'</div>'
         +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#000;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;box-shadow:2px 2px 0 #000;">⏳ Your cover will be activated at HOD when you arrive.</div>':'');
       inner.appendChild(coverBanner);
@@ -738,7 +742,10 @@ function renderWalletPage(bookingRef){
           // Also include unplaced cart items so the breakdown matches what
           // the customer is about to confirm.
           Object.values(cart).forEach(function(it){allItems.push(it);});
-          var bd=hodComputeBreakdown(allItems);
+          // 🆕 2026-06-08 v3.218 (Khushi) — pass the SAME discount/SC args as the
+          // RUNNING TAB header + VIEW BILL so the expandable breakdown's Grand total
+          // always matches the header (no two different totals on discounted bills).
+          var bd=hodComputeBreakdown(allItems, Number(cv.billDiscountPct||0), (cv.billScOn!==false));
           var rows='';
           if(bd.foodSubtotal>0) rows+='<div style="display:flex;justify-content:space-between;"><span>Food subtotal</span><span>\u20B9'+bd.foodSubtotal.toFixed(0)+'</span></div>';
           if(bd.alcSubtotal>0)  rows+='<div style="display:flex;justify-content:space-between;"><span>Liquor subtotal</span><span>\u20B9'+bd.alcSubtotal.toFixed(0)+'</span></div>';
@@ -884,13 +891,11 @@ function renderWalletPage(bookingRef){
         var te=document.getElementById('tab-running-total');
         var il=document.getElementById('tab-item-line');
         if(el)el.textContent='₹'+ct;
-        // 🆕 2026-06-08 v3.217 (Khushi) — RUNNING TAB placed total must EQUAL the
-        // cover card "₹X used" number so the guest never sees two different totals.
-        // cv.coverUsed is the ACTUAL amount redeemed from the wallet (the real money
-        // charged — already discount/SC-aware), so anchoring to it both matches the
-        // top card AND stays correct for a bar discount. We still compute the
-        // discount/SC-aware breakdown as a FALLBACK for when nothing has been
-        // redeemed yet (coverUsed 0 — e.g. table-mode pre-settle). "+ THIS ROUND"
+        // 🆕 2026-06-08 v3.218 (Khushi) — RUNNING TAB placed total now ALWAYS uses
+        // the discount/SC-aware computed breakdown (placedGrand) so it equals the
+        // bar bill + VIEW BILL grand total exactly. The prior v3.217 anchor to
+        // cv.coverUsed drifted (showed ₹1680 while the real bill was ₹1650) and is
+        // removed along with the "₹X used / total" cover badge. "+ THIS ROUND"
         // below still shows the live cart at menu price.
         var placedGrand;
         try{
@@ -898,7 +903,7 @@ function renderWalletPage(bookingRef){
           tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_allPlaced.push(i);});});
           placedGrand=_allPlaced.length?hodComputeBreakdown(_allPlaced, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;
         }catch(_e){placedGrand=tt;}
-        var _placedDisplay=(Number(cv.coverUsed)>0)?Number(cv.coverUsed):placedGrand;
+        var _placedDisplay=placedGrand;
         if(te)te.textContent=(_placedDisplay>0||ct>0)?'₹'+(_placedDisplay+ct)+' total':'₹'+ct;
         renderCartSummary();
         if(placeBtn){placeBtn.style.opacity=ct>0?'1':'.45';}
@@ -1160,7 +1165,7 @@ function renderWalletPage(bookingRef){
             } catch(_){ return false; }
           };
           var _evalTableDoc=function(tr,sourceLabel){
-            if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); return; }
+            if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); try { _unlockBarReleased('table dead-status: '+(tr.status||'?')); } catch(_){} return; }
             var phN=_normP(tr.customerPhone||tr.phone);
             // Strict phone check ONLY when both sides have digits; protects
             // against re-seated tables without locking out customers whose
@@ -1177,10 +1182,24 @@ function renderWalletPage(bookingRef){
               try { if (typeof _lockBarForOpenTab === 'function') _lockBarForOpenTab('captain table rounds open'); } catch(_){}
             }
           };
-          var _runQueryFallback=function(){
+          var _runQueryFallback=function(linkWasMissing){
             firestore.collection('tableReservations').where('linkedCoverRef','==',cv.ref).get().then(function(snap){
               clearTimeout(_staleTO);
               if (snap.empty) {
+                // 🆕 2026-06-08 (Khushi) — if this cover HAD a linkedTableRef but
+                // its table doc is GONE (direct lookup returned !exists) AND no
+                // other reservation is linked to this wallet, the table was
+                // RELEASED. releaseTable DELETES the tableReservations doc, so a
+                // missing-link + empty-query is definitive proof the table session
+                // ended. Mark the table button stale (→ "go to the bar" nudge) AND
+                // UNLOCK the bar so the guest can redeem any remaining balance there
+                // (no captain tab left to settle → no double-spend risk).
+                if (linkWasMissing) {
+                  try { console.warn('[picker] linked table released (doc gone + no re-link) — table stale, bar unlocked'); } catch(_){}
+                  _markStale('table released — doc deleted');
+                  try { _unlockBarReleased('table released'); } catch(_){}
+                  return;
+                }
                 // No doc was ever linked to this wallet via the
                 // where-field. Can't prove staleness either way — FAIL
                 // OPEN. (Better to accidentally serve one re-seated
@@ -1219,16 +1238,16 @@ function renderWalletPage(bookingRef){
               // PRIMARY path — direct doc lookup
               firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
                 clearTimeout(_staleTO);
-                if (!d.exists) { _runQueryFallback(); return; }
+                if (!d.exists) { _runQueryFallback(true); return; }
                 _evalTableDoc(d.data()||{},'doc');
               }).catch(function(e){
                 clearTimeout(_staleTO);
                 try { console.warn('[picker] direct lookup failed, falling back to query:', e && e.message); } catch(_){}
-                _runQueryFallback();
+                _runQueryFallback(false);
               });
             } else {
               // No linkedTableRef on cover — use legacy where-query path
-              _runQueryFallback();
+              _runQueryFallback(false);
             }
           } catch(_eStale) {
             clearTimeout(_staleTO);
@@ -1277,6 +1296,27 @@ function renderWalletPage(bookingRef){
             _barBtn.onclick=function(){
               try { showToast('Ask your captain to settle the table bill first','warn',2500); } catch(_){}
             };
+          };
+          // 🆕 2026-06-08 (Khushi) — reverse a bar lock when the table turns out to
+          // be RELEASED (table doc deleted, detected by the async lookup above). The
+          // sync check below may optimistically lock the bar from an open table-mode
+          // round still on the cover; once we know the table is gone there is no
+          // captain tab left to settle, so we unlock the bar and let the guest spend
+          // any remaining wallet balance there. Runs async (after the sync lock), so
+          // it cleanly restores the button. No-op if the bar was never locked.
+          var _unlockBarReleased=function(reason){
+            try {
+              _barBtn._locked=false;
+              try { console.warn('[picker] bar unlocked (table released):', reason||''); } catch(_){}
+              if (_tabHint && _tabHint.parentNode) { _tabHint.parentNode.removeChild(_tabHint); }
+              _tabHint=null;
+              _barBtn.style.background='rgba(123,47,190,.15)';
+              _barBtn.style.color='#000';
+              _barBtn.style.cursor='pointer';
+              _barBtn.style.border='1.5px solid rgba(123,47,190,.5)';
+              _barBtn.innerHTML='<span style="font-size:22px;">🍸</span><span>I\'M AT THE BAR</span>';
+              _barBtn.onclick=function(){ _lpOv.remove(); _parkOrderForBartender('customer_self_order_bar'); };
+            } catch(_){}
           };
           // Sync check (cv.tabRounds — covers customer-self-order rounds).
           // 🆕 2026-06-02 v3.184c (Khushi CORE FIX) — a guest already IN BAR mode
@@ -1808,6 +1848,18 @@ function renderWalletPage(bookingRef){
           var rBd=null;
           try{rBd=hodComputeBreakdown(r.items||[]);}catch(_e){rBd=null;}
           var rTotal=rBd?rBd.grandTotal:(r.roundTotal||0);
+          // 🆕 2026-06-08 (Khushi) — per-round location badge so the guest sees
+          // WHERE each round was placed. Bar self-orders carry a 'bar' source
+          // ('customer_self_order_bar' / 'recharge_at_bar'); table self-orders carry
+          // 'customer_self_order'. Legacy rounds with no source show NO badge rather
+          // than risk a wrong label.
+          var _rSrc=String((r&&r.source)||'').toLowerCase();
+          var _locBadge='';
+          if(_rSrc.indexOf('bar')!==-1){
+            _locBadge='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
+          }else if(_rSrc==='customer_self_order'){
+            _locBadge='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍽️ At your table</span>';
+          }
           var ilist=(r.items||[]).map(function(it){
             return '<div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0;color:#1a1408;font-weight:600;">'
               +'<span style="flex:1;padding-right:8px;">'+sanitize(it.qty+'× '+it.n)+'</span>'
@@ -1815,9 +1867,12 @@ function renderWalletPage(bookingRef){
           }).join('');
           var sep=idx<tabRounds.length-1?'border-bottom:1.5px dashed #8a6a1f;':'';
           return '<div style="padding:10px 0 12px;'+sep+'">'
-            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+            +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">'
+            +'<span style="display:flex;flex-direction:column;gap:5px;min-width:0;">'
             +'<span style="font-size:17px;font-weight:900;color:#5c3f0a;letter-spacing:.5px;">● Round '+r.roundNum+'</span>'
-            +'<span style="display:flex;align-items:center;gap:8px;">'
+            +(_locBadge?('<span style="display:flex;">'+_locBadge+'</span>'):'')
+            +'</span>'
+            +'<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
             +'<span style="font-size:11px;font-weight:800;color:'+sc+';background:rgba(255,255,255,.55);padding:3px 9px;border-radius:12px;letter-spacing:.4px;">'+sl+'</span>'
             +'<span style="font-size:17px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+rTotal+'</span>'
             +'</span></div>'
