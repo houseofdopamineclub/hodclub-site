@@ -1050,10 +1050,63 @@ function renderWalletPage(bookingRef){
         // bookings it's confusing + lets them pick AT BAR and miss captain
         // service. Force `_loc='table'` so the picker is bypassed and the
         // captain-ping branch runs straight away.
+        // 🆕 2026-06-08 v3.254 (Khushi) — BILL-SETTLED GUARD. Once the captain taps
+        // SETTLE BILL (markTablePaid stamps paymentStatus:'paid' + paymentMode/
+        // paidAt on the tableReservations doc), this table tab is CLOSED — the
+        // guest must NOT add another captain/table round on the same wallet (that
+        // round had no Settle Bill button on the POS → uncollected = money leak).
+        // A prepaid cover ALSO carries paymentStatus:'paid' from the DEPOSIT, so
+        // we REQUIRE paymentMode||paidAt (only markTablePaid writes those) to avoid
+        // a false-positive on a live, unsettled table. Product decision (Khushi
+        // 2026-06-08): block TABLE orders only; the BAR stays OPEN so any leftover
+        // wallet balance is still spendable there.
+        var _tableBillIsSettled=function(d){
+          return !!d && d.paymentStatus==='paid' && (!!d.paymentMode || !!d.paidAt);
+        };
+        var _showBillSettledPopup=function(){
+          try {
+            var _sOv=document.createElement('div');
+            _sOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:10002;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn .25s ease;';
+            var _sMd=document.createElement('div');
+            _sMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:28px 24px 22px;width:100%;max-width:380px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(34,160,148,.18);';
+            var _leftover=(typeof bal==='number' && bal>0)?bal:0;
+            _sMd.innerHTML=''
+              +'<div style="font-size:48px;margin-bottom:10px;line-height:1;">✅</div>'
+              +'<div style="font-family:var(--ff);font-size:21px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">Your bill\u2019s been settled</div>'
+              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:'+(_leftover?'14px':'18px')+';">This table\u2019s tab is closed. To order again, please ask your <b style="color:#000;">captain</b> to set you up at a new table.</div>'
+              +(_leftover?('<div style="background:rgba(34,160,148,.08);border:1.5px solid rgba(34,160,148,.4);border-radius:12px;padding:10px 14px;margin-bottom:16px;"><div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.2px;margin-bottom:2px;">WALLET BALANCE LEFT</div><div style="font-size:20px;font-weight:900;color:#15803D;font-variant-numeric:tabular-nums;">\u20b9'+_leftover.toLocaleString('en-IN')+'</div><div style="font-size:11px;color:#3D3D3D;margin-top:4px;line-height:1.4;">You can still use this at the \ud83c\udf78 bar \u2014 show your QR to the bartender.</div></div>'):'');
+            var _sBar=document.createElement('button');
+            _sBar.style.cssText='width:100%;padding:16px;border-radius:8px;background:rgba(123,47,190,.15);border:2px solid #7B2FBE;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
+            _sBar.innerHTML='<span style="font-size:22px;">\ud83c\udf78</span><span>SHOW QR TO BARTENDER</span>';
+            _sBar.onclick=function(){ try{_sOv.remove();}catch(_){} try{ _parkOrderForBartender('customer_self_order_bar'); }catch(_){} };
+            _sMd.appendChild(_sBar);
+            var _sCancel=document.createElement('button');
+            _sCancel.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.14);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
+            _sCancel.textContent='Close';
+            _sCancel.onclick=function(){ try{_sOv.remove();}catch(_){} };
+            _sMd.appendChild(_sCancel);
+            _sOv.appendChild(_sMd);
+            _sOv.onclick=function(e){ if(e.target===_sOv) _sOv.remove(); };
+            document.body.appendChild(_sOv);
+          } catch(_e){ try{ showToast('This table\u2019s bill is settled \u2014 please ask your captain for a new table.','warn',4000); }catch(_){} }
+        };
         var _refIsTable = !!(bookingRef && (bookingRef.indexOf('HODTAB')===0 || bookingRef.indexOf('TBL-')===0 || bookingRef.indexOf('AGG-')===0));
         if (_refIsTable && !placeBtn._loc) {
-          placeBtn._loc = 'table';
-          try { placeBtn.onclick(); } finally { placeBtn._loc = null; }
+          // PURE table bookings SKIP the picker — so the settled guard runs HERE.
+          // If the captain already settled the bill, block + show the settled popup;
+          // otherwise proceed straight to the captain/table flow. Fail-open on any
+          // read error or when the table doc can't be resolved.
+          var _proceedTable=function(){ placeBtn._loc = 'table'; try { placeBtn.onclick(); } finally { placeBtn._loc = null; } };
+          if (firestore && cv.linkedTableRef) {
+            firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
+              if (d.exists && _tableBillIsSettled(d.data()||{})) { _showBillSettledPopup(); }
+              else { _proceedTable(); }
+            }).catch(function(){ _proceedTable(); });
+          } else if (_tableBillIsSettled(cv)) {
+            _showBillSettledPopup();
+          } else {
+            _proceedTable();
+          }
           return;
         }
         if ((cv.isTableBooking || cv.linkedTableRef || cv.tableId) && (cv.coverActivated||0) > 0 && !placeBtn._loc){
@@ -1190,6 +1243,10 @@ function renderWalletPage(bookingRef){
           };
           var _evalTableDoc=function(tr,sourceLabel){
             if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); try { _unlockBarReleased('table dead-status: '+(tr.status||'?')); } catch(_){} try { _showSessionEndedPopup('table dead-status: '+(tr.status||'?')); } catch(_){} return; }
+            // 🆕 2026-06-08 v3.254 (Khushi) — bill SETTLED (paid via markTablePaid) but
+            // table not yet released. Replace the picker with the settled popup (which
+            // keeps the bar open for any leftover balance). Block the table order.
+            if (_tableBillIsSettled(tr)) { try { _lpOv.remove(); } catch(_){} try { _showBillSettledPopup(); } catch(_){} return; }
             var phN=_normP(tr.customerPhone||tr.phone);
             // Strict phone check ONLY when both sides have digits; protects
             // against re-seated tables without locking out customers whose
@@ -1233,16 +1290,20 @@ function renderWalletPage(bookingRef){
                 _markFresh(); return;
               }
               // Walk results; if any non-dead row matches identity → fresh.
-              var fresh=false, lastReason='all linked reservations look dead', _anyOpenRounds=false;
+              var fresh=false, lastReason='all linked reservations look dead', _anyOpenRounds=false, _settled=false;
               snap.forEach(function(d){
                 var tr=d.data()||{};
                 if (_isDeadStatus(tr.status)) { lastReason='all linked reservations dead'; return; }
                 var phN=_normP(tr.customerPhone||tr.phone);
                 if (_cvPhoneN && phN && phN!==_cvPhoneN) { lastReason='phone mismatch — re-seated to …'+phN.slice(-4); return; }
                 fresh=true;
+                // 🆕 2026-06-08 v3.254 — a matching row whose bill is SETTLED blocks
+                // the table order (bar stays open via the settled popup).
+                if (_tableBillIsSettled(tr)) _settled=true;
                 // 🆕 v3.5 — track open captain rounds across any matching row
                 if (_hasOpenRoundsFn(tr.tabRounds)) _anyOpenRounds=true;
               });
+              if (_settled) { try { _lpOv.remove(); } catch(_){} try { _showBillSettledPopup(); } catch(_){} return; }
               if (fresh) {
                 _markFresh();
                 if (_anyOpenRounds) {
