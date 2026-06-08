@@ -884,10 +884,20 @@ function renderWalletPage(bookingRef){
         var te=document.getElementById('tab-running-total');
         var il=document.getElementById('tab-item-line');
         if(el)el.textContent='₹'+ct;
-        if(te)te.textContent=tt>0?'₹'+(tt+ct)+' total':'₹'+ct;
+        // 🆕 2026-06-08 — RUNNING TAB grand must match the YOUR TAB card + the bar.
+        // The already-placed rounds are recomputed through the SAME discount/SC-aware
+        // breakdown renderRoundsHistory uses, so a 5% bar discount reads ₹1398 (not the
+        // ₹1469 menu-price sum). "+ THIS ROUND" below still shows the cart at menu price.
+        var placedGrand;
+        try{
+          var _allPlaced=[];
+          tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_allPlaced.push(i);});});
+          placedGrand=_allPlaced.length?hodComputeBreakdown(_allPlaced, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;
+        }catch(_e){placedGrand=tt;}
+        if(te)te.textContent=(placedGrand>0)?'₹'+(placedGrand+ct)+' total':'₹'+ct;
         renderCartSummary();
         if(placeBtn){placeBtn.style.opacity=ct>0?'1':'.45';}
-        var hasTab=(tt+ct)>0;
+        var hasTab=(placedGrand+ct)>0;
         if(checkoutBtn){
           checkoutBtn.style.color='#fff';
           checkoutBtn.style.borderColor=hasTab?'rgba(0,0,0,.3)':'rgba(0,0,0,.12)';
@@ -1896,6 +1906,15 @@ function renderWalletPage(bookingRef){
 
       // ── Checkout modal
       function showCheckoutModal(tt){
+        // 🆕 2026-06-08 — the SETTLE total + Pay Online charge must match the bar +
+        // YOUR TAB: recompute the whole placed tab through the SAME discount/SC-aware
+        // breakdown so a 5% bar discount is honoured at settle (₹1398, not ₹1469) and
+        // the guest is never charged the un-discounted menu price.
+        try{
+          var _stAll=[];
+          (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){_stAll.push(i);});});
+          if(_stAll.length){tt=hodComputeBreakdown(_stAll, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal;}
+        }catch(_eDt){}
         var overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
         var sheet=document.createElement('div');
@@ -1929,12 +1948,15 @@ function renderWalletPage(bookingRef){
         // customers can see SC + GST split before paying.
         var _coAll=[];
         (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){_coAll.push(i);});});
-        var _coBd;try{_coBd=hodComputeBreakdown(_coAll);}catch(e){_coBd=null;}
+        // 🆕 2026-06-08 — breakdown honours the bartender's persisted discount/SC so
+        // the rows reconcile to the discounted grand (matches VIEW BILL + the bar).
+        var _coBd;try{_coBd=hodComputeBreakdown(_coAll, Number(cv.billDiscountPct||0), (cv.billScOn!==false));}catch(e){_coBd=null;}
         if(_coBd){
           var _coRows='';
           if(_coBd.foodSubtotal>0)    _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Food subtotal</span><span>\u20B9'+_coBd.foodSubtotal.toFixed(0)+'</span></div>';
           if(_coBd.alcSubtotal>0)     _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Liquor subtotal</span><span>\u20B9'+_coBd.alcSubtotal.toFixed(0)+'</span></div>';
           if(_coBd.nonAlcSubtotal>0)  _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Beverages subtotal</span><span>\u20B9'+_coBd.nonAlcSubtotal.toFixed(0)+'</span></div>';
+          if((_coBd.discount||0)>0)   _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;color:#16A34A;font-weight:800;"><span>DISCOUNT ('+_coBd.discountPct+'%)</span><span>\u2212\u20B9'+Math.round(_coBd.discount)+'</span></div>';
           _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Service charge (10%)</span><span>\u20B9'+_coBd.serviceCharge.toFixed(0)+'</span></div>';
           _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>GST (5%)</span><span>\u20B9'+_coBd.gst.toFixed(0)+'</span></div>';
           if(Math.abs(_coBd.roundOff||0)>=0.01) _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Round off</span><span>'+(_coBd.roundOff>=0?'+':'')+'\u20B9'+Math.abs(_coBd.roundOff).toFixed(2)+'</span></div>';
