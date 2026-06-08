@@ -139,6 +139,18 @@ function renderWalletPage(bookingRef){
   // Inclusive grand total (food+drink+SC+GST). Customer sees ONLY this number — never the breakdown.
   function getCartTotal(){return hodComputeBreakdown(Object.values(cart)).grandTotal;}
 
+  // 🆕 2026-06-08 (Khushi) — SHARED per-round location badge. Bar self-orders
+  // carry a 'bar' source ('customer_self_order_bar' / 'recharge_at_bar'); table
+  // self-orders carry 'customer_self_order'. Legacy rounds with no source get NO
+  // badge (never a wrong label). Used by BOTH the YOUR TAB list and the VIEW BILL
+  // modal so EVERY round clearly shows where it was placed, no matter the mode.
+  function hodRoundLocBadge(r){
+    var s=String((r&&r.source)||'').toLowerCase();
+    if(s.indexOf('bar')!==-1) return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
+    if(s==='customer_self_order') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍽️ At your table</span>';
+    return '';
+  }
+
   function renderWalletContent(cv){
     inner.innerHTML='';
     var bal=cv.coverBalance||0;
@@ -1045,6 +1057,18 @@ function renderWalletPage(bookingRef){
           return;
         }
         if ((cv.isTableBooking || cv.linkedTableRef || cv.tableId) && (cv.coverActivated||0) > 0 && !placeBtn._loc){
+          // 🆕 2026-06-08 (Khushi) — once the table session has ENDED (released), the
+          // guest should never see the "Where are you?" picker again — every further
+          // round goes straight to the bartender. We persist a per-booking ack flag
+          // the moment a DEFINITIVE release is detected (see _showSessionEndedPopup);
+          // if it's set, skip the picker entirely and park the order for the bar.
+          var _endedAckKey='hod_tbl_ended_'+(cv.ref||cv.bookingId||'');
+          var _endedAck=false; try{_endedAck=!!localStorage.getItem(_endedAckKey);}catch(_e0){}
+          if(_endedAck){
+            placeBtn._loc=null;
+            try{ _parkOrderForBartender('customer_self_order_bar'); }catch(_e1){}
+            return;
+          }
           var _lpOv=document.createElement('div');
           _lpOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn .25s ease;';
           var _lpMd=document.createElement('div');
@@ -1165,7 +1189,7 @@ function renderWalletPage(bookingRef){
             } catch(_){ return false; }
           };
           var _evalTableDoc=function(tr,sourceLabel){
-            if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); try { _unlockBarReleased('table dead-status: '+(tr.status||'?')); } catch(_){} return; }
+            if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); try { _unlockBarReleased('table dead-status: '+(tr.status||'?')); } catch(_){} try { _showSessionEndedPopup('table dead-status: '+(tr.status||'?')); } catch(_){} return; }
             var phN=_normP(tr.customerPhone||tr.phone);
             // Strict phone check ONLY when both sides have digits; protects
             // against re-seated tables without locking out customers whose
@@ -1198,6 +1222,7 @@ function renderWalletPage(bookingRef){
                   try { console.warn('[picker] linked table released (doc gone + no re-link) — table stale, bar unlocked'); } catch(_){}
                   _markStale('table released — doc deleted');
                   try { _unlockBarReleased('table released'); } catch(_){}
+                  try { _showSessionEndedPopup('table released — doc deleted'); } catch(_){}
                   return;
                 }
                 // No doc was ever linked to this wallet via the
@@ -1316,6 +1341,35 @@ function renderWalletPage(bookingRef){
               _barBtn.style.border='1.5px solid rgba(123,47,190,.5)';
               _barBtn.innerHTML='<span style="font-size:22px;">🍸</span><span>I\'M AT THE BAR</span>';
               _barBtn.onclick=function(){ _lpOv.remove(); _parkOrderForBartender('customer_self_order_bar'); };
+            } catch(_){}
+          };
+          // 🆕 2026-06-08 (Khushi) — ONE-TIME "table session ended" popup. The moment
+          // a DEFINITIVE release is detected (table doc deleted, or a dead status), we
+          // REPLACE the picker with a clean, friendly message and a single "SHOW QR TO
+          // BARTENDER" action — no more confusing greyed table button next to a locked
+          // bar. We also persist the per-booking ack flag so EVERY later order taps
+          // straight through to the bartender (the picker is skipped entirely). Only
+          // called from definitive-release paths — never from a phone-mismatch or a
+          // read timeout (those stay fail-open / grey, never trapping a live guest).
+          var _showSessionEndedPopup=function(reason){
+            try {
+              if (_lpOv._ended) return; _lpOv._ended=true;
+              try { localStorage.setItem(_endedAckKey,'1'); } catch(_){}
+              try { console.warn('[picker] session ended popup:', reason||''); } catch(_){}
+              _lpMd.innerHTML=''
+                +'<div style="font-size:46px;margin-bottom:10px;line-height:1;">🍸</div>'
+                +'<div style="font-family:var(--ff);font-size:21px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">Your table session has ended</div>'
+                +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">No problem — your wallet still works at the <b style="color:#000;">bar</b>.<br>Just show your QR to the bartender to place your order.</div>';
+              var _goBar=document.createElement('button');
+              _goBar.style.cssText='width:100%;padding:18px;border-radius:8px;background:rgba(123,47,190,.15);border:2px solid #7B2FBE;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
+              _goBar.innerHTML='<span style="font-size:22px;">🍸</span><span>SHOW QR TO BARTENDER</span>';
+              _goBar.onclick=function(){ try{_lpOv.remove();}catch(_){} _parkOrderForBartender('customer_self_order_bar'); };
+              _lpMd.appendChild(_goBar);
+              var _cc=document.createElement('button');
+              _cc.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.14);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
+              _cc.textContent='Cancel';
+              _cc.onclick=function(){ try{_lpOv.remove();}catch(_){} };
+              _lpMd.appendChild(_cc);
             } catch(_){}
           };
           // Sync check (cv.tabRounds — covers customer-self-order rounds).
@@ -1849,17 +1903,9 @@ function renderWalletPage(bookingRef){
           try{rBd=hodComputeBreakdown(r.items||[]);}catch(_e){rBd=null;}
           var rTotal=rBd?rBd.grandTotal:(r.roundTotal||0);
           // 🆕 2026-06-08 (Khushi) — per-round location badge so the guest sees
-          // WHERE each round was placed. Bar self-orders carry a 'bar' source
-          // ('customer_self_order_bar' / 'recharge_at_bar'); table self-orders carry
-          // 'customer_self_order'. Legacy rounds with no source show NO badge rather
-          // than risk a wrong label.
-          var _rSrc=String((r&&r.source)||'').toLowerCase();
-          var _locBadge='';
-          if(_rSrc.indexOf('bar')!==-1){
-            _locBadge='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
-          }else if(_rSrc==='customer_self_order'){
-            _locBadge='<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍽️ At your table</span>';
-          }
+          // WHERE each round was placed. Now from the shared hodRoundLocBadge helper
+          // (same logic the VIEW BILL modal uses), so YOUR TAB + the bill always agree.
+          var _locBadge=hodRoundLocBadge(r);
           var ilist=(r.items||[]).map(function(it){
             return '<div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0;color:#1a1408;font-weight:600;">'
               +'<span style="flex:1;padding-right:8px;">'+sanitize(it.qty+'× '+it.n)+'</span>'
@@ -1924,9 +1970,22 @@ function renderWalletPage(bookingRef){
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;font-family:var(--ff);';
         var card=document.createElement('div');
         card.style.cssText='background:#FFFFFF;border:2px solid #000;border-radius:12px;max-width:480px;width:100%;max-height:92vh;overflow:auto;color:#000;';
-        var itemsRows=allItems.map(function(it,idx){
-          var bg=idx%2===0?'#fff':'#F4F4F0';
-          return '<tr style="background:'+bg+';"><td style="padding:8px 12px;font-size:13px;color:#3D3D3D;width:40px;">'+it.qty+'</td><td style="padding:8px 12px;font-size:13px;color:#000;">'+sanitize(it.n)+'</td><td style="padding:8px 12px;font-size:13px;font-weight:700;color:#000;text-align:right;font-variant-numeric:tabular-nums;">&#x20B9;'+Math.round((it.p||0)*(it.qty||0))+'</td></tr>';
+        // 🆕 2026-06-08 (Khushi) — group the bill by ROUND with a per-round
+        // location badge (🍸 bar / 🍽️ table) so the customer always sees EVERY
+        // round AND where it was placed, no matter the mode. Each round renders a
+        // header row (Round N + badge) followed by its items. Falls back to a flat
+        // list only for the legacy case where no rounds carry items.
+        var _zebra=0;
+        var itemsRows=tabRounds.map(function(r){
+          var _rItems=(r.items||[]);
+          if(!_rItems.length) return '';
+          var _badge=hodRoundLocBadge(r);
+          var _hdr='<tr style="background:#fff;"><td colspan="3" style="padding:10px 12px 4px;border-top:1px dashed rgba(0,0,0,.12);"><span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:11px;font-weight:900;color:#000;letter-spacing:.5px;">ROUND '+sanitize(String(r.roundNum||''))+'</span>'+(_badge||'')+'</span></td></tr>';
+          var _rows=_rItems.map(function(it){
+            var bg=(_zebra++%2===0)?'#fff':'#F4F4F0';
+            return '<tr style="background:'+bg+';"><td style="padding:8px 12px;font-size:13px;color:#3D3D3D;width:40px;">'+it.qty+'</td><td style="padding:8px 12px;font-size:13px;color:#000;">'+sanitize(it.n)+'</td><td style="padding:8px 12px;font-size:13px;font-weight:700;color:#000;text-align:right;font-variant-numeric:tabular-nums;">&#x20B9;'+Math.round((it.p||0)*(it.qty||0))+'</td></tr>';
+          }).join('');
+          return _hdr+_rows;
         }).join('');
         var _bpName=cv.customerName||cv.name||'—';
         var _bpPhone=cv.phone||cv.customerPhone||'';
@@ -3038,16 +3097,50 @@ function renderWalletPage(bookingRef){
           // For table bookings: if covers doc doesn't have actualArrivalTime yet,
           // check tableReservations as fallback (handles bookings made before the
           // dual-update fix, AND any race conditions during sync).
+          // 🆕 2026-06-08 (Khushi) — UNIFY the rounds + resolve the table number.
+          // Bar rounds live ONLY on the cover; table rounds get copied to BOTH the
+          // cover AND the linked tableReservations doc; captain-placed rounds live
+          // ONLY on the table doc. The OLD code REPLACED cv.tabRounds with the table
+          // doc's rounds whenever the table doc was longer — which silently WIPED the
+          // bar-only rounds and renumbered the bill (Khushi LIVE-BUG: R1 vanished,
+          // bill showed "Round 3, Round 2"). We now MERGE (union) both arrays — never
+          // drop any round, never renumber — deduping by placedAt|roundNum|roundTotal
+          // and sorting by roundNum so the bill always reads in order with every round
+          // and its correct 🍸/🍽️ badge. We ALSO pull the table number/floor off the
+          // linked doc when the cover's own display fields are blank (so an assigned
+          // table always shows; blank only when truly unassigned).
+          function _mergeRoundsFromTable(td){
+            try{
+              if(td && td.actualArrivalTime && !cv.actualArrivalTime) cv.actualArrivalTime=td.actualArrivalTime;
+              if(td){
+                var _tn=td.tableId||'', _fl=td.floorLabel||'';
+                if(_tn){ if(!cv.tableId)cv.tableId=_tn; if(!cv.linkedTableId)cv.linkedTableId=_tn; }
+                if(_fl){ if(!cv.floorLabel)cv.floorLabel=_fl; if(!cv.linkedFloorLabel)cv.linkedFloorLabel=_fl; }
+              }
+              if(td && Array.isArray(td.tabRounds) && td.tabRounds.length){
+                var _merged=(Array.isArray(cv.tabRounds)?cv.tabRounds.slice():[]);
+                var _seen={}, _k=function(r){return String((r&&r.placedAt)||'')+'|'+String((r&&r.roundNum)||'')+'|'+String((r&&r.roundTotal)||'');};
+                _merged.forEach(function(r){_seen[_k(r)]=true;});
+                td.tabRounds.forEach(function(r){var kk=_k(r); if(!_seen[kk]){_seen[kk]=true; _merged.push(r);}});
+                _merged.sort(function(a,b){var an=Number((a&&a.roundNum)||0),bn=Number((b&&b.roundNum)||0); if(an!==bn)return an-bn; return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
+                cv.tabRounds=_merged;
+                cv.tabTotal=_merged.reduce(function(s,r){return s+(Number(r&&r.roundTotal)||0);},0);
+              } else if(td && td.tabTotal && !cv.tabTotal){ cv.tabTotal=td.tabTotal; }
+            }catch(_eMerge){ try{console.warn('[wallet] round merge failed (fail-open)', _eMerge && _eMerge.message);}catch(_){} }
+          }
           function _renderCoverCv(){
-            if(cv.isTableBooking&&!cv.actualArrivalTime&&bookingRef){
+            // Fetch the linked table doc whenever this cover is bound to one (direct
+            // ref preferred; legacy where-query fallback). Fail-open: any error just
+            // renders the cover as-is. Released tables are deleted → no doc → cover
+            // rounds render alone (correct).
+            if(cv.linkedTableRef){
+              firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
+                _mergeRoundsFromTable(d.exists?(d.data()||null):null);
+                renderWalletContent(cv);
+              }).catch(function(){renderWalletContent(cv);});
+            } else if((cv.isTableBooking||cv.tableId)&&bookingRef){
               firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1).get().then(function(tSnap){
-                if(!tSnap.empty){
-                  var td=tSnap.docs[0].data();
-                  if(td.actualArrivalTime)cv.actualArrivalTime=td.actualArrivalTime;
-                  // Also pull tabRounds/tabTotal from tableReservations if more recent
-                  if(td.tabRounds&&(!cv.tabRounds||td.tabRounds.length>cv.tabRounds.length))cv.tabRounds=td.tabRounds;
-                  if(td.tabTotal&&!cv.tabTotal)cv.tabTotal=td.tabTotal;
-                }
+                _mergeRoundsFromTable(tSnap.empty?null:(tSnap.docs[0].data()||null));
                 renderWalletContent(cv);
               }).catch(function(){renderWalletContent(cv);});
             } else {
