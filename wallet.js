@@ -884,20 +884,25 @@ function renderWalletPage(bookingRef){
         var te=document.getElementById('tab-running-total');
         var il=document.getElementById('tab-item-line');
         if(el)el.textContent='₹'+ct;
-        // 🆕 2026-06-08 — RUNNING TAB grand must match the YOUR TAB card + the bar.
-        // The already-placed rounds are recomputed through the SAME discount/SC-aware
-        // breakdown renderRoundsHistory uses, so a 5% bar discount reads ₹1398 (not the
-        // ₹1469 menu-price sum). "+ THIS ROUND" below still shows the cart at menu price.
+        // 🆕 2026-06-08 v3.217 (Khushi) — RUNNING TAB placed total must EQUAL the
+        // cover card "₹X used" number so the guest never sees two different totals.
+        // cv.coverUsed is the ACTUAL amount redeemed from the wallet (the real money
+        // charged — already discount/SC-aware), so anchoring to it both matches the
+        // top card AND stays correct for a bar discount. We still compute the
+        // discount/SC-aware breakdown as a FALLBACK for when nothing has been
+        // redeemed yet (coverUsed 0 — e.g. table-mode pre-settle). "+ THIS ROUND"
+        // below still shows the live cart at menu price.
         var placedGrand;
         try{
           var _allPlaced=[];
           tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_allPlaced.push(i);});});
           placedGrand=_allPlaced.length?hodComputeBreakdown(_allPlaced, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;
         }catch(_e){placedGrand=tt;}
-        if(te)te.textContent=(placedGrand>0)?'₹'+(placedGrand+ct)+' total':'₹'+ct;
+        var _placedDisplay=(Number(cv.coverUsed)>0)?Number(cv.coverUsed):placedGrand;
+        if(te)te.textContent=(_placedDisplay>0||ct>0)?'₹'+(_placedDisplay+ct)+' total':'₹'+ct;
         renderCartSummary();
         if(placeBtn){placeBtn.style.opacity=ct>0?'1':'.45';}
-        var hasTab=(placedGrand+ct)>0;
+        var hasTab=(_placedDisplay+ct)>0;
         if(checkoutBtn){
           checkoutBtn.style.color='#fff';
           checkoutBtn.style.borderColor=hasTab?'rgba(0,0,0,.3)':'rgba(0,0,0,.12)';
@@ -1258,17 +1263,17 @@ function renderWalletPage(bookingRef){
             try { console.warn('[picker] bar locked:', reason||'open tab'); } catch(_){}
             if (!_tabHint) {
               _tabHint=document.createElement('div');
-              _tabHint.style.cssText='font-size:12px;color:#FBBF24;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;';
-              _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
+              _tabHint.style.cssText='font-size:12px;color:#000;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:11px 13px;background:#FFF1F0;border:2px solid #E11900;border-radius:8px;';
+              _tabHint.innerHTML='<div style="font-weight:900;font-size:12px;margin-bottom:5px;letter-spacing:.4px;color:#B91C1C;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#3D3D3D;font-weight:600;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#000;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
               // Insert hint BEFORE the bar button if button already in DOM
               if (_barBtn.parentNode) _barBtn.parentNode.insertBefore(_tabHint, _barBtn);
               else _lpMd.appendChild(_tabHint);
             }
-            _barBtn.style.background='rgba(120,120,120,.18)';
-            _barBtn.style.color='rgba(0,0,0,.4)';
+            _barBtn.style.background='#EDEDED';
+            _barBtn.style.color='#3D3D3D';
             _barBtn.style.cursor='not-allowed';
-            _barBtn.style.border='1.5px dashed rgba(251,191,36,.4)';
-            _barBtn.innerHTML='<span style="font-size:22px;opacity:.6;">🔒</span><span>BAR LOCKED — SETTLE TABLE FIRST</span>';
+            _barBtn.style.border='2px dashed #B91C1C';
+            _barBtn.innerHTML='<span style="font-size:22px;">🔒</span><span style="color:#3D3D3D;">BAR LOCKED — SETTLE TABLE FIRST</span>';
             _barBtn.onclick=function(){
               try { showToast('Ask your captain to settle the table bill first','warn',2500); } catch(_){}
             };
@@ -1296,7 +1301,14 @@ function renderWalletPage(bookingRef){
               });
             } catch(_){ return false; }
           };
-          if (_hasOpenTableRoundsFn(cv.tabRounds)) _lockBarForOpenTab('open table-mode round');
+          // 🆕 2026-06-08 v3.217 (Khushi) — a guest who picked "I'M AT THE BAR"
+          // (cv.atBar===true, set by _parkOrderForBartender, cleared the moment
+          // they pick "I'M AT MY TABLE") must NEVER be bar-locked by their OWN
+          // rounds — even if an older bar round lost its 'bar' source tag and
+          // looks like a table round. Only a genuine TABLE-mode guest gets the
+          // sync lock. Captain-placed rounds on the linked table doc still lock
+          // via the async stale-check above (that's a real double-spend guard).
+          if (cv.atBar!==true && _hasOpenTableRoundsFn(cv.tabRounds)) _lockBarForOpenTab('open table-mode round');
           _lpMd.appendChild(_barBtn);
           var _lpCloseBtn=document.createElement('button');
           _lpCloseBtn.style.cssText='width:100%;padding:10px;border-radius:8px;background:transparent;border:2px solid #000;color:#666;font-size:12px;cursor:pointer;font-family:var(--ff);';
@@ -2971,19 +2983,51 @@ function renderWalletPage(bookingRef){
           // For table bookings: if covers doc doesn't have actualArrivalTime yet,
           // check tableReservations as fallback (handles bookings made before the
           // dual-update fix, AND any race conditions during sync).
-          if(cv.isTableBooking&&!cv.actualArrivalTime&&bookingRef){
-            firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1).get().then(function(tSnap){
-              if(!tSnap.empty){
-                var td=tSnap.docs[0].data();
-                if(td.actualArrivalTime)cv.actualArrivalTime=td.actualArrivalTime;
-                // Also pull tabRounds/tabTotal from tableReservations if more recent
-                if(td.tabRounds&&(!cv.tabRounds||td.tabRounds.length>cv.tabRounds.length))cv.tabRounds=td.tabRounds;
-                if(td.tabTotal&&!cv.tabTotal)cv.tabTotal=td.tabTotal;
-              }
+          function _renderCoverCv(){
+            if(cv.isTableBooking&&!cv.actualArrivalTime&&bookingRef){
+              firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1).get().then(function(tSnap){
+                if(!tSnap.empty){
+                  var td=tSnap.docs[0].data();
+                  if(td.actualArrivalTime)cv.actualArrivalTime=td.actualArrivalTime;
+                  // Also pull tabRounds/tabTotal from tableReservations if more recent
+                  if(td.tabRounds&&(!cv.tabRounds||td.tabRounds.length>cv.tabRounds.length))cv.tabRounds=td.tabRounds;
+                  if(td.tabTotal&&!cv.tabTotal)cv.tabTotal=td.tabTotal;
+                }
+                renderWalletContent(cv);
+              }).catch(function(){renderWalletContent(cv);});
+            } else {
               renderWalletContent(cv);
-            }).catch(function(){renderWalletContent(cv);});
+            }
+          }
+          // 🆕 2026-06-08 (Khushi LIVE-BUG) — RELEASED-TABLE ZOMBIE COVER.
+          // releaseTable() deletes covers/{ref}, but the customer wallet's OWN
+          // merge-writes (paymentStatus:'bill_requested', atBar toggle, pendingOrder)
+          // RE-CREATE covers/{ref} AFTER release — so a found cover does NOT mean
+          // the session is live. The durable release signal is the
+          // releasedReservations marker (the same one the table listener honors at
+          // ~L2690). The covers listener wins whenever a (zombie) cover exists, so
+          // it MUST check the marker too. For TABLE refs, check it FIRST: if
+          // released → render the "🙏 Thank you" screen instead of reopening the
+          // active wallet. Live sessions never have this marker, so no regression.
+          if(bookingRef && (bookingRef.indexOf('TBL-')===0||bookingRef.indexOf('AGG-')===0||bookingRef.indexOf('HODTAB')===0)){
+            firestore.collection('releasedReservations').doc(bookingRef).get().then(function(mDoc){
+              if(mDoc.exists){
+                try{ localStorage.setItem('hod_wallet_visited_'+bookingRef,'1'); }catch(e){}
+                inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
+                  +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
+                  +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:10px;">Thank you for visiting!</div>'
+                  +'<div style="font-size:14px;color:#3D3D3D;line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
+                  +'<div style="font-family:monospace;font-size:13px;color:rgba(242,199,68,.55);margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
+                  +'<div style="margin-top:24px;font-size:12px;color:#888;">See you again soon ✨</div>'
+                +'</div>';
+                try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
+                try{ wireCallWaiterFallback(bookingRef); }catch(e){}
+                return;
+              }
+              _renderCoverCv();
+            }).catch(function(){ _renderCoverCv(); });
           } else {
-            renderWalletContent(cv);
+            _renderCoverCv();
           }
         },function(e){
           inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:#FF5733;">Error loading wallet: '+sanitize(e.message)+'</div>';
