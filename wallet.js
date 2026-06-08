@@ -1760,7 +1760,10 @@ function renderWalletPage(bookingRef){
         try{
           var _all=[];
           tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_all.push(i);});});
-          bd=hodComputeBreakdown(_all);
+          // 🆕 2026-06-07 — YOUR TAB grand reflects the bartender's discount/SC
+          // so it matches the bar + the VIEW BILL preview. Per-round totals below
+          // stay at menu price (the discount is a single bill-level line).
+          bd=hodComputeBreakdown(_all, Number(cv.billDiscountPct||0), (cv.billScOn!==false));
         }catch(_e){bd=null;}
         var grand=bd?bd.grandTotal:tt;
 
@@ -1835,7 +1838,10 @@ function renderWalletPage(bookingRef){
         if(!tabRounds.length)return;
         var allItems=[];
         tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
-        var bd;try{bd=hodComputeBreakdown(allItems);}catch(e){bd=null;}
+        // 🆕 2026-06-07 — honor the bartender's persisted bill-level discount + SC
+        // toggle so this preview matches the bar's bill to the rupee.
+        var _bDisc=Number(cv.billDiscountPct||0), _bSc=(cv.billScOn!==false);
+        var bd;try{bd=hodComputeBreakdown(allItems, _bDisc, _bSc);}catch(e){bd=null;}
         if(!bd)return;
         var overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;font-family:var(--ff);';
@@ -1870,7 +1876,8 @@ function renderWalletPage(bookingRef){
           +'</table></div>'
           +'<div style="padding:12px 18px;border-top:2px solid #000;">'
           +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>Subtotal</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+Math.round((bd.foodSubtotal||0)+(bd.alcSubtotal||0)+(bd.nonAlcSubtotal||0))+'</span></div>'
-          +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>Service Charge (10%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+(bd.serviceCharge||0).toFixed(0)+'</span></div>'
+          +((bd.discount||0)>0?'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#16A34A;font-weight:800;"><span>DISCOUNT ('+bd.discountPct+'%)</span><span style="font-variant-numeric:tabular-nums;">&#8722;&#x20B9;'+Math.round(bd.discount)+'</span></div>':'')
+          +((bd.serviceCharge||0)>0?'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>Service Charge (10%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+(bd.serviceCharge||0).toFixed(0)+'</span></div>':'')
           +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>CGST (2.5%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+((bd.gst||0)/2).toFixed(2)+'</span></div>'
           +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>SGST (2.5%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+((bd.gst||0)/2).toFixed(2)+'</span></div>'
           +'<div style="height:2px;background:#000;margin:10px 0;"></div>'
@@ -2743,6 +2750,10 @@ function renderWalletPage(bookingRef){
             date:td.date,arrivalTime:td.arrivalTime,partySize:td.partySize,
             actualArrivalTime:td.actualArrivalTime||null,
             isTableBooking:true,tabRounds:td.tabRounds||[],tabTotal:td.tabTotal||0,expiresAt:null,
+            // 🆕 2026-06-07 — bartender's bill-level discount/SC mirrored onto the
+            // tableReservations doc (by setCoverBillDiscount) so the table guest's
+            // VIEW BILL + YOUR TAB grand match the bar.
+            billDiscountPct:td.billDiscountPct||0,billScOn:(td.billScOn!==false),
             // Pass source/aggregator flags so song-request hide logic works
             source:td.source||'',
             isAggregator:!!(td.source&&td.source!=='inhouse')||bookingRef.startsWith('AGG-'),
