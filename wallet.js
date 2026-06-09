@@ -632,6 +632,47 @@ function renderWalletPage(bookingRef){
       });
       return out;
     }
+    // 🔧 PERF FIX: Update only the control area of a single menu row.
+    // Before this fix, every +/−/Add tap wiped menuContent.innerHTML and
+    // rebuilt all 40+ rows from scratch — 300-600ms freeze on tablets.
+    // Now: the row's ctrl div gets a stable ID (wv-ctrl-<safeKey>).
+    // On tap, only that div's children are replaced (qty number or Add↔qty swap).
+    // Full buildMenu() only runs on: initial render, tab/subcategory switch,
+    // veg filter toggle. Never on a plain quantity change.
+    function _updateRowCtrl(key, menuData, active, item){
+      var safeKey=key.replace(/[^a-z0-9]/gi,'_');
+      var ctrl=document.getElementById('wv-ctrl-'+safeKey);
+      // If the row can't be found (e.g. OOS toggle changed the list), fall back to full rebuild.
+      if(!ctrl){menuContent.innerHTML='';buildMenu(menuData);return;}
+      var qty=cart[key]?cart[key].qty:0;
+      // Clear only the ctrl children — the rest of the row (name, price) is untouched.
+      while(ctrl.firstChild) ctrl.removeChild(ctrl.firstChild);
+      if(qty===0){
+        var addBtn=document.createElement('button');
+        addBtn.className='wv-add';addBtn.textContent='Add +';
+        addBtn.onclick=function(){
+          cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
+          updateCartBar();updateTabFooter();_updateRowCtrl(key,menuData,active,item);
+        };
+        ctrl.appendChild(addBtn);
+      } else {
+        var minB=document.createElement('button');minB.className='wv-qbtn';minB.textContent='\u2212';
+        minB.onclick=function(){
+          if(!cart[key]){_updateRowCtrl(key,menuData,active,item);return;}
+          if(cart[key].qty>1)cart[key].qty--;else delete cart[key];
+          updateCartBar();updateTabFooter();_updateRowCtrl(key,menuData,active,item);
+        };
+        var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
+        var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
+        plusB.onclick=function(){
+          if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};}
+          else{cart[key].qty++;}
+          updateCartBar();updateTabFooter();_updateRowCtrl(key,menuData,active,item);
+        };
+        ctrl.appendChild(minB);ctrl.appendChild(qtySpan);ctrl.appendChild(plusB);
+      }
+    }
+
     function buildMenu(menuData){
       menuData=_applyVegFilter(menuData);
       // Drop OOS items + empty cats
@@ -653,6 +694,7 @@ function renderWalletPage(bookingRef){
         var chip=document.createElement('button');
         chip.className='wv-subchip'+(i===tabState.sub?' on':'');
         chip.textContent=c.cat;
+        // Sub-category switch still does a full rebuild — the whole list changes.
         chip.onclick=function(){tabState.sub=i;menuContent.innerHTML='';buildMenu(menuData);};
         subRow.appendChild(chip);
       });
@@ -686,37 +728,15 @@ function renderWalletPage(bookingRef){
           : '<span style="color:#000;font-weight:900;">\u20b9'+item.p+'</span>';
         row.innerHTML='<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;font-size:13px;font-weight:800;color:#000;letter-spacing:.4px;">'+vegDot+'<span style="text-transform:uppercase;">'+sanitize(item.n)+'</span></div>'
           +'<div style="font-size:14px;font-family:var(--ff);font-weight:800;margin-top:6px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
-        var ctrl=document.createElement('div');ctrl.style.cssText='display:flex;align-items:center;gap:10px;flex-shrink:0;';
-        var qty=cart[key]?cart[key].qty:0;
-        if(qty===0){
-          var addBtn=document.createElement('button');
-          addBtn.className='wv-add';
-          addBtn.textContent='Add +';
-          addBtn.onclick=function(){
-            cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
-            updateCartBar();updateTabFooter();
-            menuContent.innerHTML='';buildMenu(menuData);
-          };
-          ctrl.appendChild(addBtn);
-        } else {
-          var minB=document.createElement('button');minB.className='wv-qbtn';minB.textContent='\u2212';
-          minB.onclick=function(){
-            if(!cart[key]){menuContent.innerHTML='';buildMenu(menuData);return;}
-            if(cart[key].qty>1)cart[key].qty--;else delete cart[key];
-            updateCartBar();updateTabFooter();
-            menuContent.innerHTML='';buildMenu(menuData);
-          };
-          var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
-          var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
-          plusB.onclick=function(){
-            if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};}
-            else{cart[key].qty++;}
-            updateCartBar();updateTabFooter();
-            menuContent.innerHTML='';buildMenu(menuData);
-          };
-          ctrl.appendChild(minB);ctrl.appendChild(qtySpan);ctrl.appendChild(plusB);
-        }
+        // 🔧 PERF FIX: Give ctrl a stable ID so _updateRowCtrl can find and
+        // patch just this div without touching the rest of the menu.
+        var safeKey=key.replace(/[^a-z0-9]/gi,'_');
+        var ctrl=document.createElement('div');
+        ctrl.id='wv-ctrl-'+safeKey;
+        ctrl.style.cssText='display:flex;align-items:center;gap:10px;flex-shrink:0;';
+        // Seed initial state via _updateRowCtrl so button wiring is in one place.
         row.appendChild(ctrl);listWrap.appendChild(row);
+        _updateRowCtrl(key,menuData,active,item);
       });
     }
 
@@ -818,16 +838,33 @@ function renderWalletPage(bookingRef){
           priceSpan.style.cssText='font-size:13px;font-weight:800;color:#000;min-width:50px;text-align:right;';
           priceSpan.textContent='₹'+(it.p*it.qty);
           (function(k){
+            // 🔧 PERF FIX: Cart summary +/− used to rebuild the entire menu.
+            // Now: re-render just the cart summary + patch only the one menu
+            // row that changed. _patchMenuRow looks the item up by key so we
+            // don't need menuData/active passed in from outside.
+            function _patchMenuRow(k2){
+              var parts=k2.split('|');
+              var catName=parts[0];
+              var itemName=parts.slice(1).join('|');
+              var md=currentMenuData();
+              var mdF=_applyVegFilter(md);
+              var catObj=(mdF||[]).find(function(c){return c.cat===catName;});
+              if(!catObj)return;
+              var it=catObj.items.find(function(x){return x.n===itemName;});
+              if(!it)return;
+              _updateRowCtrl(k2,md,catObj,it);
+            }
             minB.onclick=function(){
               if(cart[k].qty>1)cart[k].qty--;else delete cart[k];
               updateCartBar();updateTabFooter();
-              // Rebuild current menu to reflect changes
-              menuContent.innerHTML='';buildMenu(currentMenuData());
+              renderCartSummary();
+              _patchMenuRow(k);
             };
             plusB.onclick=function(){
               cart[k].qty++;
               updateCartBar();updateTabFooter();
-              menuContent.innerHTML='';buildMenu(currentMenuData());
+              renderCartSummary();
+              _patchMenuRow(k);
             };
           })(key);
           controls.appendChild(minB);controls.appendChild(qtySpan);controls.appendChild(plusB);controls.appendChild(priceSpan);
