@@ -853,12 +853,20 @@ function renderWalletPage(bookingRef){
       // sticker prices already include GST + service charge.
       var checkoutWrap=document.createElement('div');
       checkoutWrap.id='tab-checkout-wrap';
-      checkoutWrap.style.cssText=cv.isTableBooking?'':'display:none;';
+      // 🆕 2026-06-08 v3.256 (Khushi) — "Done Ordering? Settle Your Bill" must show
+      // for ALL TABLE FLOWS, not just pure table bookings. Previously gated on
+      // cv.isTableBooking only, so a COVER+TABLE booking (HODENT… with a linked
+      // table — the "I'm at my table" flow) never saw the settle CTA: the guest
+      // placed rounds but had no way to settle from the wallet. Now show whenever
+      // the booking is associated with a table (pure table OR cover+table). Pure
+      // bar-only covers stay hidden (the bar redeems instantly — nothing to settle).
+      var _hasTableForCheckout=!!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
+      checkoutWrap.style.cssText=_hasTableForCheckout?'':'display:none;';
 
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
       checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#23A094;border:2px solid #000;color:#fff;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:800;letter-spacing:.5px;box-shadow:4px 4px 0 #000;display:flex;align-items:center;justify-content:center;gap:10px;';
-      checkoutBtn.innerHTML='<span style="font-size:18px;">🧾</span><span>Done Ordering? Settle Your Bill</span>';
+      checkoutBtn.innerHTML='<span style="font-size:18px;">🔔</span><span>Call Captain to Settle Bill</span>';
       checkoutWrap.appendChild(checkoutBtn);
       // (Tax-hint pill moved up under Running Tab — see taxHintTop above.)
       submitCard.appendChild(checkoutWrap);
@@ -1889,13 +1897,69 @@ function renderWalletPage(bookingRef){
       };
 
       // ── Checkout (shows full bill modal)
+      // 🆕 2026-06-08 v3.256 (Khushi) — "Call Captain to Settle Bill" is now a
+      // DIRECT captain ping (no Pay-Online / Done-Ordering modal — that confused
+      // guests since the bill is settled IN PERSON against the wallet). Tapping
+      // this stamps the SAME `bill_requested` signal the POS Captain already
+      // surfaces (RED "BILL REQUESTED" chip + Bill Due KPI + chime) onto the
+      // LINKED TABLE doc AND the cover, then tells the guest a captain is coming.
+      // Works for ALL table flows (cover+table via cv.linkedTableRef; pure table
+      // via the bookingRef query). Fail-open — never strands the guest. Guards
+      // against re-stamping an ALREADY-SETTLED table (would wrongly revert the
+      // Captain's paid → bill_requested and re-open a closed tab).
       checkoutBtn.onclick=function(){
-        var tt=getTabTotal()+getCartTotal();
-        if(!tt){showToast('Your tab is empty','err',2000);return;}
-        if(getCartTotal()>0){
-          if(!confirm('You have '+getCartTotal()+' unplaced items. Place them first or checkout now?'))return;
+        if(checkoutBtn.disabled)return;
+        var _ttAll=[];
+        (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){_ttAll.push(i);});});
+        var _billTt;
+        try{_billTt=_ttAll.length?hodComputeBreakdown(_ttAll, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;}catch(_e){_billTt=getTabTotal();}
+        if(!_billTt && !getCartTotal()){showToast('Place an order first, then call your captain to settle.','err',2800);return;}
+        if(getCartTotal()>0){showToast('Heads up: tap PLACE ORDER for your current items so they\u2019re on the bill.','warn',3200);}
+        var _settledChk=function(d){return !!d && d.paymentStatus==='paid' && (!!d.paymentMode || !!d.paidAt);};
+        var _billPatch={paymentStatus:'bill_requested',billRequestedAt:new Date().toISOString(),orderTotal:_billTt,tabTotal:_billTt};
+        var _confirm=function(){
+          try{checkoutBtn.disabled=true;checkoutBtn.style.background='#15803D';checkoutBtn.style.cursor='default';checkoutBtn.style.boxShadow='2px 2px 0 #000';checkoutBtn.innerHTML='<span style="font-size:18px;">\u2705</span><span>Captain notified \u2014 on their way</span>';}catch(_){}
+          try{showToast('A captain will be with you shortly to settle your bill \uD83C\uDF89','success',4500);}catch(_){}
+        };
+        var _alreadySettled=function(){
+          try{checkoutBtn.disabled=true;checkoutBtn.style.opacity='.6';}catch(_){}
+          try{showToast('Your bill\u2019s already been settled \u2014 please ask your captain for a new table.','warn',4500);}catch(_){}
+        };
+        // Honest fallback: the Captain ONLY sees the ping via the tableReservations
+        // doc. If we can't resolve a live table doc to write, do NOT claim success
+        // (would mislead the guest into waiting for a captain who was never paged).
+        // Keep the button enabled so they can retry / a staff member can step in.
+        var _failNotify=function(){
+          try{showToast('Couldn\u2019t reach your captain automatically \u2014 please wave down a staff member to settle your bill.','err',5000);}catch(_){}
+        };
+        // Confirm ONLY after a tableReservations write actually lands — the
+        // Captain is paged solely off that doc, so a fire-and-forget write that
+        // silently fails (offline/rules/transient) must NOT show "Captain notified".
+        var _coverWrite=function(){try{firestore.collection('covers').doc(cv.ref).set(_billPatch,{merge:true}).catch(function(){});}catch(_){}};
+        if(!firestore||!cv.ref){_failNotify();return;}
+        if(cv.linkedTableRef){
+          var _doTblWrite=function(){return firestore.collection('tableReservations').doc(cv.linkedTableRef).update(_billPatch);};
+          var _tryWrite=function(){ _doTblWrite().then(function(){_coverWrite();_confirm();}).catch(function(){_failNotify();}); };
+          firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
+            if(!d.exists){_failNotify();return;}                                  // table doc gone (released) → can't page captain
+            if(_settledChk(d.data()||{})){_alreadySettled();return;}
+            _tryWrite();
+          }).catch(function(){ _failNotify(); });                                 // read failed → can't verify settled-state → do NOT risk reverting a paid table; guest retries / staff steps in
+        }else{
+          firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get().then(function(snap){
+            if(snap.empty){_failNotify();return;}                                 // no table doc for this booking → don't false-confirm
+            var _anySettled=false;
+            snap.forEach(function(d){ if(_settledChk(d.data()||{})) _anySettled=true; });
+            if(_anySettled){_alreadySettled();return;}
+            var _total=0; snap.forEach(function(){_total++;});
+            var _ok=0,_done=0;
+            snap.forEach(function(d){
+              d.ref.update(_billPatch).then(function(){_ok++;}).catch(function(){}).then(function(){
+                _done++; if(_done===_total){ if(_ok>0){_coverWrite();_confirm();} else {_failNotify();} }
+              });
+            });
+          }).catch(function(){ _failNotify(); });                                 // query error → target unknown → honest fallback
         }
-        showCheckoutModal(getTabTotal());
       };
 
       // ── Rounds history — 2026-05-13 v3 (Khushi spec, round 8):
@@ -3311,8 +3375,19 @@ function renderCustomerWallet(bookingRef){
       var used=cv.coverUsed||0;
       var total=cv.coverActivated||cv.coverPaid||0;
       // Check if event is over — cover date or expiresAt
+      // 🆕 2026-06-08 v3.256 (Khushi MIDNIGHT BALANCE) — this card was using the
+      // UTC calendar date (toISOString) which rolls a day ahead from ~5:30AM IST,
+      // while a cover stays VALID until next-day NOON (getCoverExpiryFor). That
+      // could flash ₹0 for a guest who still had balance. Mirror the main wallet
+      // render's noon-anchored operational date (before noon IST → use yesterday's
+      // local date) so the balance never zeroes before the cover truly expires.
+      // The club runs past midnight (till ~2AM): at midnight getHours()<12 so the
+      // anchor = the operational night = cv.date → balance HOLDS, never resets.
       var cvDate=cv.date||cv.eventDate||(cv.activatedAt?cv.activatedAt.split('T')[0]:'');
-      var todayStr=new Date().toISOString().split('T')[0];
+      var _opNowB=new Date();
+      var _opAnchorB=new Date(_opNowB);
+      if(_opNowB.getHours()<12){_opAnchorB.setDate(_opAnchorB.getDate()-1);}
+      var todayStr=_opAnchorB.getFullYear()+'-'+String(_opAnchorB.getMonth()+1).padStart(2,'0')+'-'+String(_opAnchorB.getDate()).padStart(2,'0');
       var isExpired=(cv.expiresAt&&new Date(cv.expiresAt)<new Date())||(cvDate&&cvDate<todayStr);
       if(isExpired){bal=0;} // show 0 balance for past events
       var pct=total>0?Math.round((used/total)*100):0;
