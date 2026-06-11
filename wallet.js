@@ -139,18 +139,6 @@ function renderWalletPage(bookingRef){
   // Inclusive grand total (food+drink+SC+GST). Customer sees ONLY this number — never the breakdown.
   function getCartTotal(){return hodComputeBreakdown(Object.values(cart)).grandTotal;}
 
-  // 🆕 2026-06-08 (Khushi) — SHARED per-round location badge. Bar self-orders
-  // carry a 'bar' source ('customer_self_order_bar' / 'recharge_at_bar'); table
-  // self-orders carry 'customer_self_order'. Legacy rounds with no source get NO
-  // badge (never a wrong label). Used by BOTH the YOUR TAB list and the VIEW BILL
-  // modal so EVERY round clearly shows where it was placed, no matter the mode.
-  function hodRoundLocBadge(r){
-    var s=String((r&&r.source)||'').toLowerCase();
-    if(s.indexOf('bar')!==-1) return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
-    if(s==='customer_self_order') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍽️ At your table</span>';
-    return '';
-  }
-
   function renderWalletContent(cv){
     inner.innerHTML='';
     var bal=cv.coverBalance||0;
@@ -175,7 +163,7 @@ function renderWalletPage(bookingRef){
         +'<span>🕐 <b style="color:#000;">'+sanitize(cv.arrivalTime||'')+'</b></span>'
         +'<span>👥 <b style="color:#000;">'+sanitize(String(cv.partySize||0))+'</b> guests</span>'
         +'</div>'
-        +(bal<=0?'<div style="margin-top:8px;font-size:12px;font-weight:700;color:#000;background:#FFE0F6;border:2px solid #000;border-radius:8px;padding:7px 10px;box-shadow:2px 2px 0 #000;">💰 Pre-order below — pay via cash, card or UPI at your table.</div>':'')
+        +(bal<=0?'<div style="margin-top:8px;font-size:11px;color:rgba(242,199,68,.7);">💰 Pre-order below — pay via cash, card or UPI at your table.</div>':'')
         ;
       inner.appendChild(tbBanner);
     } else {
@@ -191,29 +179,48 @@ function renderWalletPage(bookingRef){
       coverBanner.style.cssText='background:#fff;border:2px solid #000;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:8px 8px 0 0;padding:14px 16px;margin-bottom:0;';
       // 🔴 2026-05-13 v2 (Khushi) — small balance chip removed; balance now
       // displayed prominently in its own BALANCE card above the QR (below).
-      coverBanner.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">'
-        +'<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;">'+_coverHeader+'</div>'
-        +((cv.date||cv.eventDate)?'<div style="flex-shrink:0;font-size:10px;font-weight:800;color:#000;background:#FF90E8;border:2px solid #000;border-radius:6px;padding:3px 8px;letter-spacing:.5px;box-shadow:2px 2px 0 #000;white-space:nowrap;">'+sanitize(cv.date||cv.eventDate)+'</div>':'')
+      coverBanner.innerHTML='<div style="font-size:11px;font-weight:800;color:#000;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">'+_coverHeader+'</div>'
+        +'<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#3D3D3D;">'
+        +  '<span><b style="color:#000;">'+sanitize(name)+'</b></span>'
+        +  (activated>0?'<span><b style="color:#000;">\u20b9'+used.toLocaleString('en-IN')+'</b> used / \u20b9'+activated.toLocaleString('en-IN')+' total</span>':'')
         +'</div>'
-        +'<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:13px;color:#3D3D3D;">'
-        +  '<span><b style="color:#000;font-size:14px;">'+sanitize(name)+'</b></span>'
-        // 🆕 2026-06-08 v3.218 (Khushi) — the "₹X used / ₹Y total" cover badge is
-        // REMOVED here. It surfaced cv.coverUsed which could drift from the real
-        // bill (showed 1680 while the bar bill + VIEW BILL were 1650), confusing
-        // the guest with two different totals. The wallet balance card below + the
-        // RUNNING TAB (now anchored to the computed breakdown) are the single source.
-        +'</div>'
-        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#000;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;box-shadow:2px 2px 0 #000;">⏳ Your cover will be activated at HOD when you arrive.</div>':'');
+        +(!_isActivatedTop?'<div style="margin-top:8px;font-size:11px;color:#3D3D3D;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:6px 10px;">⏳ Your cover will be activated at HOD when you arrive.</div>':'');
       inner.appendChild(coverBanner);
     }
 
-    // 🆕 2026-06-07 (Khushi) — TOP "✅ Bill Settled · View Bill" banner REMOVED.
-    // It rendered on cv.paymentStatus==='paid', but an online TABLE booking
-    // carries paymentStatus:'paid' from the PREPAID COVER deposit while the
-    // FOOD TAB is still OPEN — so the banner wrongly announced "Bill Settled"
-    // on a live, unsettled table. The customer can still open their full GST
-    // invoice any time via the "📄 VIEW BILL" button inside the YOUR TAB card
-    // (renderRoundsHistory below), so no bill access is lost by removing this.
+    // 🔴 2026-05-13 (Khushi) — "✅ Bill Settled · View Bill" banner.
+    // Shown the moment captain stamps paymentStatus:'paid' on the
+    // tableReservation (offline cash/card mark-paid) OR when the
+    // wallet's own paid_online stamp lands. The customer can tap
+    // "View Bill" to see the full GST invoice (matches the captain's
+    // thermal print). Stays visible until the captain releases the
+    // table (after which the "Thank you for visiting" screen kicks in
+    // — that path also gets a View Bill button, see below).
+    if(cv.isTableBooking && cv.paymentStatus==='paid'){
+      var paidBanner=document.createElement('div');
+      paidBanner.style.cssText='background:rgba(34,197,94,.10);border:1.5px solid rgba(34,197,94,.45);border-radius:8px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;';
+      var pmTxt=(cv.paymentMethod==='paid_online'||cv.paymentMethod==='online')?'Paid Online':((cv.paymentMethod||'').toUpperCase()||'Settled');
+      var amtTxt=cv.amountPaid?(' · ₹'+Number(cv.amountPaid).toLocaleString('en-IN')):'';
+      paidBanner.innerHTML='<div style="font-size:24px;">✅</div>'
+        +'<div style="flex:1;min-width:140px;">'
+        +  '<div style="font-size:13px;font-weight:900;color:#22C55E;letter-spacing:.4px;">Bill Settled</div>'
+        +  '<div style="font-size:11px;color:rgba(0,0,0,.7);margin-top:2px;">'+sanitize(pmTxt)+sanitize(amtTxt)+'</div>'
+        +'</div>'
+        +'<button id="hod-paid-viewbill" style="padding:9px 14px;border-radius:9px;background:rgba(242,199,68,.15);border:2px solid #000;color:#000;font-size:12px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;">📄 View Bill</button>';
+      inner.appendChild(paidBanner);
+      var _vbBtn=document.getElementById('hod-paid-viewbill');
+      if(_vbBtn) _vbBtn.onclick=function(){
+        var billItems=_hodFlattenRounds(cv.tabRounds||[]);
+        showHodBillModal(billItems, {
+          customerName:cv.name||'',
+          tableId:cv.tableId||'',
+          paymentMode:cv.paymentMethod||'',
+          paymentId:cv.paymentId||'',
+          amountPaid:cv.amountPaid||0,
+          settledAt:cv.paidAt||null
+        });
+      };
+    }
 
     // Expiry check — date-based or expiresAt.
     // 🆕 2026-05-27 v3.65 (Khushi LIVE-NIGHT) — was using calendar UTC date
@@ -247,7 +254,7 @@ function renderWalletPage(bookingRef){
       waitDiv.style.cssText='padding:0;';
       // QR code
       var qrWait=document.createElement('div');
-      qrWait.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:20px 16px;margin-bottom:16px;text-align:center;box-shadow:3px 3px 0 #000;';
+      qrWait.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:20px 16px;margin-bottom:16px;text-align:center;';
       var qrWaitWrap=document.createElement('div');qrWaitWrap.id='wallet-qr-wait';
       qrWaitWrap.style.cssText='width:140px;height:140px;margin:0 auto 12px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;';
       qrWait.appendChild(qrWaitWrap);
@@ -258,7 +265,7 @@ function renderWalletPage(bookingRef){
       generateLocalQR('wallet-qr-wait','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
       // Waiting message
       var waitMsg=document.createElement('div');
-      waitMsg.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;box-shadow:3px 3px 0 #000;';
+      waitMsg.style.cssText='background:rgba(242,199,68,.06);border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;';
       waitMsg.innerHTML='<div style="font-size:40px;margin-bottom:12px;">🪑</div>'
         +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:8px;">We\'re preparing your table!</div>'
         +(cv.tableId?'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:16px;">Your table <strong style="color:#000;">'+sanitize(cv.tableId)+'</strong>'+(cv.floorLabel?' on <strong style="color:#000;">'+sanitize(cv.floorLabel)+'</strong>':'')+' is being set up for you.</div>':'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:16px;">Your table is being set up. Show your reservation QR to your captain on arrival.</div>')
@@ -267,7 +274,7 @@ function renderWalletPage(bookingRef){
         +'<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Arrival</div><div style="font-size:13px;font-weight:800;color:#000;">'+sanitize(cv.arrivalTime||'—')+'</div></div>'
         +'<div style="background:rgba(0,0,0,.03);border-radius:8px;padding:12px;"><div style="font-size:10px;color:#3D3D3D;margin-bottom:4px;">Guests</div><div style="font-size:13px;font-weight:800;color:#000;">'+(cv.partySize||0)+'</div></div>'
         +'</div>'
-        +'<div style="background:rgba(35,160,148,.10);border:2px solid #000;border-radius:8px;padding:12px 16px;font-size:12px;font-weight:600;color:#000;line-height:1.6;box-shadow:3px 3px 0 #23A094;">ℹ️ The menu will unlock once you arrive and your captain confirms your presence. You\'ll be able to browse and pre-order right from your phone!</div>';
+        +'<div style="background:rgba(35,160,148,.06);border:1px solid rgba(35,160,148,.2);border-radius:8px;padding:12px 16px;font-size:12px;color:rgba(35,160,148,.8);line-height:1.6;">ℹ️ The menu will unlock once you arrive and your captain confirms your presence. You\'ll be able to browse and pre-order right from your phone!</div>';
       waitDiv.appendChild(waitMsg);
       inner.appendChild(waitDiv);
       return;
@@ -277,10 +284,10 @@ function renderWalletPage(bookingRef){
       // Show recharge banner — menu continues below
       var emptyBanner=document.createElement('div');
       // 🔴 2026-05-13 v2 (Khushi) — recolor purple → red/yellow/white theme.
-      emptyBanner.style.cssText='background:#FFE0F6;border:2px solid #000;border-radius:8px;padding:20px;margin-bottom:16px;text-align:center;box-shadow:3px 3px 0 #000;';
+      emptyBanner.style.cssText='background:rgba(239,68,68,.06);border:1.5px solid rgba(239,68,68,.3);border-radius:8px;padding:20px;margin-bottom:16px;text-align:center;';
       emptyBanner.innerHTML='<div style="font-size:28px;margin-bottom:8px;">⚡</div>'
-        +'<div style="font-size:15px;font-weight:900;color:#000;margin-bottom:6px;">Load your wallet to start ordering</div>'
-        +'<div style="font-size:12px;color:#000;line-height:1.6;margin-bottom:14px;">Enter an amount below and pay online, or show your QR above to the bartender — they can recharge for you too.</div>';
+        +'<div style="font-size:15px;font-weight:900;color:#FF5733;margin-bottom:6px;">Load your wallet to start ordering</div>'
+        +'<div style="font-size:12px;color:#3D3D3D;line-height:1.6;margin-bottom:14px;">Enter an amount below and pay online, or show your QR above to the bartender — they can recharge for you too.</div>';
       var _rcAmt=0;
       // ── 2026-05-11 (Khushi feature) — CUSTOM AMOUNT INPUT on empty-wallet banner.
       // 🆕 2026-06-03 v3.205 (Khushi) — quick-amount chips (₹500/999/1499/1999)
@@ -349,11 +356,11 @@ function renderWalletPage(bookingRef){
     var _walTblFloor = cv.linkedFloorLabel || cv.floorLabel || '';
     if(_walTblId){
       var tblCard=document.createElement('div');
-      tblCard.style.cssText='background:rgba(16,185,129,.12);border:2px solid #000;border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:3px 3px 0 #23A094;';
+      tblCard.style.cssText='background:rgba(16,185,129,.08);border:1.5px solid rgba(16,185,129,.45);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:12px;';
       tblCard.innerHTML='<span style="font-size:24px;line-height:1;">\ud83e\ude91</span>'
         +'<div style="text-align:left;">'
-        +  '<div style="font-family:var(--ff);font-size:10px;font-weight:800;color:#000;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:2px;">Your Table</div>'
-        +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(0,0,0,.6);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
+        +  '<div style="font-family:var(--ff);font-size:10px;font-weight:800;color:rgba(255,255,255,.6);letter-spacing:1.6px;text-transform:uppercase;margin-bottom:2px;">Your Table</div>'
+        +  '<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#23A094;line-height:1;letter-spacing:.3px;">'+sanitize(_walTblId)+(_walTblFloor?' <span style="color:rgba(255,255,255,.55);font-size:14px;font-weight:700;">\u00b7 '+sanitize(_walTblFloor)+'</span>':'')+'</div>'
         +'</div>';
       inner.appendChild(tblCard);
     }
@@ -386,7 +393,7 @@ function renderWalletPage(bookingRef){
     // (the captain just glances at it before scanning). Shrunk the card +
     // QR + text considerably so the menu sits closer to the top.
     var _isTbl=cv.isTableBooking;
-    qrSec.style.cssText=_isTbl?'background:#fff;border:2px solid #000;border-radius:8px;padding:14px;margin-bottom:14px;text-align:center;box-shadow:3px 3px 0 #000;':'background:#fff;border:2px solid #000;border-top:none;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:0;padding:18px 16px;margin-bottom:0;text-align:center;';
+    qrSec.style.cssText='background:#fff;border:2px solid #000;border-top:none;border-bottom:1px dashed rgba(0,0,0,.1);border-radius:0;padding:'+(_isTbl?'12px 14px':'18px 16px')+';margin-bottom:0;text-align:center;';
     var qrWrap=document.createElement('div');qrWrap.id='wallet-qr-wrap';
     var _qrPx=_isTbl?100:140;
     qrWrap.style.cssText='width:'+_qrPx+'px;height:'+_qrPx+'px;margin:0 auto '+(_isTbl?'8px':'14px')+';background:#fff;border-radius:'+(_isTbl?'8px':'14px')+';display:flex;align-items:center;justify-content:center;overflow:hidden;';
@@ -414,7 +421,7 @@ function renderWalletPage(bookingRef){
     // For event tickets — show bartender instruction then the menu below
     if(!cv.isTableBooking){
       var evInfo=document.createElement('div');
-      evInfo.style.cssText='background:#FFE0F6;border:2px solid #000;border-top:none;border-radius:0 0 8px 8px;padding:14px 16px;margin-bottom:16px;text-align:center;font-size:12px;color:#000;line-height:1.6;box-shadow:3px 3px 0 #000;';
+      evInfo.style.cssText='background:#F4F4F0;border:2px solid #000;border-top:none;border-radius:0 0 8px 8px;padding:14px 16px;margin-bottom:16px;text-align:center;font-size:12px;color:#3D3D3D;line-height:1.6;';
       if(bal>0){
         // 🔴 2026-05-20 (Khushi) — ONE prominent BOLD "show QR to bartender"
         // message. Previous version repeated the same instruction 3x across
@@ -431,18 +438,18 @@ function renderWalletPage(bookingRef){
           // no ref, we fall through to the safe bar-only copy (popup also
           // falls back to bartender QR), keeping the message and routing aligned.
           evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">ORDERING OPTIONS</div>'
-            +'<div style="font-size:11px;color:#3D3D3D;line-height:1.6;text-align:center;max-width:300px;margin:0 auto;">'
+            +'<div style="font-size:11px;color:#3D3D3D;line-height:1.6;text-align:left;max-width:300px;margin:0 auto;">'
             +  '<div style="margin-bottom:6px;"><strong style="color:#000;">At table '+sanitize(_walTblId)+'</strong> — browse menu below, captain serves you.</div>'
             +  '<div><strong style="color:#000;">At the bar</strong> — show QR above to bartender.</div>'
             +'</div>'
-            +'<div style="font-size:11px;color:#000;line-height:1.5;margin-top:8px;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
+            +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;margin-top:8px;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
         } else {
         evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">SHOW QR TO BARTENDER TO ORDER</div>'
-          +'<div style="font-size:11px;color:#000;line-height:1.5;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
+          +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
         }
       } else {
         evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">RECHARGE TO ORDER</div>'
-          +'<div style="font-size:11px;color:#000;line-height:1.5;">Recharge above, or ask bartender — they accept cash, UPI or card.</div>';
+          +'<div style="font-size:11px;color:#3D3D3D;line-height:1.5;">Recharge above, or ask bartender — they accept cash, UPI or card.</div>';
       }
       inner.appendChild(evInfo);
     }
@@ -453,7 +460,7 @@ function renderWalletPage(bookingRef){
     // pre-order instruction is kept.
     if(cv.isTableBooking){
       var info=document.createElement('div');
-      info.style.cssText='background:rgba(35,160,148,.10);border:2px solid #000;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:12px;font-weight:600;color:#000;line-height:1.6;box-shadow:3px 3px 0 #23A094;';
+      info.style.cssText='background:rgba(35,160,148,.06);border:1px solid rgba(35,160,148,.2);border-radius:12px;padding:12px 16px;margin-bottom:20px;font-size:12px;color:rgba(35,160,148,.8);';
       info.innerHTML='\u2139\ufe0f Browse the menu below, select what you want, and tap <strong>Submit Pre-Order</strong>. Your waiter will scan your QR and activate your order at the table.';
       inner.appendChild(info);
     }
@@ -632,47 +639,6 @@ function renderWalletPage(bookingRef){
       });
       return out;
     }
-    // 🔧 PERF FIX: Update only the control area of a single menu row.
-    // Before this fix, every +/−/Add tap wiped menuContent.innerHTML and
-    // rebuilt all 40+ rows from scratch — 300-600ms freeze on tablets.
-    // Now: the row's ctrl div gets a stable ID (wv-ctrl-<safeKey>).
-    // On tap, only that div's children are replaced (qty number or Add↔qty swap).
-    // Full buildMenu() only runs on: initial render, tab/subcategory switch,
-    // veg filter toggle. Never on a plain quantity change.
-    function _updateRowCtrl(key, menuData, active, item){
-      var safeKey=key.replace(/[^a-z0-9]/gi,'_');
-      var ctrl=document.getElementById('wv-ctrl-'+safeKey);
-      // If the row can't be found (e.g. OOS toggle changed the list), fall back to full rebuild.
-      if(!ctrl){menuContent.innerHTML='';buildMenu(menuData);return;}
-      var qty=cart[key]?cart[key].qty:0;
-      // Clear only the ctrl children — the rest of the row (name, price) is untouched.
-      while(ctrl.firstChild) ctrl.removeChild(ctrl.firstChild);
-      if(qty===0){
-        var addBtn=document.createElement('button');
-        addBtn.className='wv-add';addBtn.textContent='Add +';
-        addBtn.onclick=function(){
-          cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
-          updateCartBar();updateTabFooter();_updateRowCtrl(key,menuData,active,item);
-        };
-        ctrl.appendChild(addBtn);
-      } else {
-        var minB=document.createElement('button');minB.className='wv-qbtn';minB.textContent='\u2212';
-        minB.onclick=function(){
-          if(!cart[key]){_updateRowCtrl(key,menuData,active,item);return;}
-          if(cart[key].qty>1)cart[key].qty--;else delete cart[key];
-          updateCartBar();updateTabFooter();_updateRowCtrl(key,menuData,active,item);
-        };
-        var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
-        var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
-        plusB.onclick=function(){
-          if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};}
-          else{cart[key].qty++;}
-          updateCartBar();updateTabFooter();_updateRowCtrl(key,menuData,active,item);
-        };
-        ctrl.appendChild(minB);ctrl.appendChild(qtySpan);ctrl.appendChild(plusB);
-      }
-    }
-
     function buildMenu(menuData){
       menuData=_applyVegFilter(menuData);
       // Drop OOS items + empty cats
@@ -694,7 +660,6 @@ function renderWalletPage(bookingRef){
         var chip=document.createElement('button');
         chip.className='wv-subchip'+(i===tabState.sub?' on':'');
         chip.textContent=c.cat;
-        // Sub-category switch still does a full rebuild — the whole list changes.
         chip.onclick=function(){tabState.sub=i;menuContent.innerHTML='';buildMenu(menuData);};
         subRow.appendChild(chip);
       });
@@ -728,15 +693,37 @@ function renderWalletPage(bookingRef){
           : '<span style="color:#000;font-weight:900;">\u20b9'+item.p+'</span>';
         row.innerHTML='<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;font-size:13px;font-weight:800;color:#000;letter-spacing:.4px;">'+vegDot+'<span style="text-transform:uppercase;">'+sanitize(item.n)+'</span></div>'
           +'<div style="font-size:14px;font-family:var(--ff);font-weight:800;margin-top:6px;letter-spacing:.3px;">'+priceHtml+'</div></div>';
-        // 🔧 PERF FIX: Give ctrl a stable ID so _updateRowCtrl can find and
-        // patch just this div without touching the rest of the menu.
-        var safeKey=key.replace(/[^a-z0-9]/gi,'_');
-        var ctrl=document.createElement('div');
-        ctrl.id='wv-ctrl-'+safeKey;
-        ctrl.style.cssText='display:flex;align-items:center;gap:10px;flex-shrink:0;';
-        // Seed initial state via _updateRowCtrl so button wiring is in one place.
+        var ctrl=document.createElement('div');ctrl.style.cssText='display:flex;align-items:center;gap:10px;flex-shrink:0;';
+        var qty=cart[key]?cart[key].qty:0;
+        if(qty===0){
+          var addBtn=document.createElement('button');
+          addBtn.className='wv-add';
+          addBtn.textContent='Add +';
+          addBtn.onclick=function(){
+            cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
+            updateCartBar();updateTabFooter();
+            menuContent.innerHTML='';buildMenu(menuData);
+          };
+          ctrl.appendChild(addBtn);
+        } else {
+          var minB=document.createElement('button');minB.className='wv-qbtn';minB.textContent='\u2212';
+          minB.onclick=function(){
+            if(!cart[key]){menuContent.innerHTML='';buildMenu(menuData);return;}
+            if(cart[key].qty>1)cart[key].qty--;else delete cart[key];
+            updateCartBar();updateTabFooter();
+            menuContent.innerHTML='';buildMenu(menuData);
+          };
+          var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
+          var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
+          plusB.onclick=function(){
+            if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};}
+            else{cart[key].qty++;}
+            updateCartBar();updateTabFooter();
+            menuContent.innerHTML='';buildMenu(menuData);
+          };
+          ctrl.appendChild(minB);ctrl.appendChild(qtySpan);ctrl.appendChild(plusB);
+        }
         row.appendChild(ctrl);listWrap.appendChild(row);
-        _updateRowCtrl(key,menuData,active,item);
       });
     }
 
@@ -774,10 +761,7 @@ function renderWalletPage(bookingRef){
           // Also include unplaced cart items so the breakdown matches what
           // the customer is about to confirm.
           Object.values(cart).forEach(function(it){allItems.push(it);});
-          // 🆕 2026-06-08 v3.218 (Khushi) — pass the SAME discount/SC args as the
-          // RUNNING TAB header + VIEW BILL so the expandable breakdown's Grand total
-          // always matches the header (no two different totals on discounted bills).
-          var bd=hodComputeBreakdown(allItems, Number(cv.billDiscountPct||0), (cv.billScOn!==false));
+          var bd=hodComputeBreakdown(allItems);
           var rows='';
           if(bd.foodSubtotal>0) rows+='<div style="display:flex;justify-content:space-between;"><span>Food subtotal</span><span>\u20B9'+bd.foodSubtotal.toFixed(0)+'</span></div>';
           if(bd.alcSubtotal>0)  rows+='<div style="display:flex;justify-content:space-between;"><span>Liquor subtotal</span><span>\u20B9'+bd.alcSubtotal.toFixed(0)+'</span></div>';
@@ -838,33 +822,16 @@ function renderWalletPage(bookingRef){
           priceSpan.style.cssText='font-size:13px;font-weight:800;color:#000;min-width:50px;text-align:right;';
           priceSpan.textContent='₹'+(it.p*it.qty);
           (function(k){
-            // 🔧 PERF FIX: Cart summary +/− used to rebuild the entire menu.
-            // Now: re-render just the cart summary + patch only the one menu
-            // row that changed. _patchMenuRow looks the item up by key so we
-            // don't need menuData/active passed in from outside.
-            function _patchMenuRow(k2){
-              var parts=k2.split('|');
-              var catName=parts[0];
-              var itemName=parts.slice(1).join('|');
-              var md=currentMenuData();
-              var mdF=_applyVegFilter(md);
-              var catObj=(mdF||[]).find(function(c){return c.cat===catName;});
-              if(!catObj)return;
-              var it=catObj.items.find(function(x){return x.n===itemName;});
-              if(!it)return;
-              _updateRowCtrl(k2,md,catObj,it);
-            }
             minB.onclick=function(){
               if(cart[k].qty>1)cart[k].qty--;else delete cart[k];
               updateCartBar();updateTabFooter();
-              renderCartSummary();
-              _patchMenuRow(k);
+              // Rebuild current menu to reflect changes
+              menuContent.innerHTML='';buildMenu(currentMenuData());
             };
             plusB.onclick=function(){
               cart[k].qty++;
               updateCartBar();updateTabFooter();
-              renderCartSummary();
-              _patchMenuRow(k);
+              menuContent.innerHTML='';buildMenu(currentMenuData());
             };
           })(key);
           controls.appendChild(minB);controls.appendChild(qtySpan);controls.appendChild(plusB);controls.appendChild(priceSpan);
@@ -890,20 +857,12 @@ function renderWalletPage(bookingRef){
       // sticker prices already include GST + service charge.
       var checkoutWrap=document.createElement('div');
       checkoutWrap.id='tab-checkout-wrap';
-      // 🆕 2026-06-08 v3.256 (Khushi) — "Done Ordering? Settle Your Bill" must show
-      // for ALL TABLE FLOWS, not just pure table bookings. Previously gated on
-      // cv.isTableBooking only, so a COVER+TABLE booking (HODENT… with a linked
-      // table — the "I'm at my table" flow) never saw the settle CTA: the guest
-      // placed rounds but had no way to settle from the wallet. Now show whenever
-      // the booking is associated with a table (pure table OR cover+table). Pure
-      // bar-only covers stay hidden (the bar redeems instantly — nothing to settle).
-      var _hasTableForCheckout=!!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
-      checkoutWrap.style.cssText=_hasTableForCheckout?'':'display:none;';
+      checkoutWrap.style.cssText=cv.isTableBooking?'':'display:none;';
 
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
-      checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#23A094;border:2px solid #000;color:#fff;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:800;letter-spacing:.5px;box-shadow:4px 4px 0 #000;display:flex;align-items:center;justify-content:center;gap:10px;';
-      checkoutBtn.innerHTML='<span style="font-size:18px;">🔔</span><span>Call Captain to Settle Bill</span>';
+      checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#FF5733;border:1px solid rgba(0,0,0,.08);color:#000;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:700;letter-spacing:.5px;box-shadow:0 4px 14px rgba(184,50,39,.28),inset 0 1px 0 rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;gap:10px;';
+      checkoutBtn.innerHTML='<span style="font-size:18px;">🧾</span><span>Done Ordering? Settle Your Bill</span>';
       checkoutWrap.appendChild(checkoutBtn);
       // (Tax-hint pill moved up under Running Tab — see taxHintTop above.)
       submitCard.appendChild(checkoutWrap);
@@ -922,7 +881,7 @@ function renderWalletPage(bookingRef){
         songCard.style.cssText='background:rgba(255,51,102,.15);border:2px solid rgba(255,51,102,.35);border-radius:8px;padding:20px;margin:20px 0;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(255,51,102,.08);';
         songCard.innerHTML='<div style="text-align:center;margin-bottom:12px;"><span style="font-size:32px;">🎵</span></div>'
           +'<div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:-.3px;">Request a Song</div>'
-          +'<div style="text-align:center;font-size:13px;color:rgba(0,0,0,.6);margin-bottom:16px;line-height:1.4;">Search any song in the world — we\'ll play it for you tonight!</div>'
+          +'<div style="text-align:center;font-size:13px;color:rgba(255,255,255,.6);margin-bottom:16px;line-height:1.4;">Search any song in the world — we\'ll play it for you tonight!</div>'
           +'<div style="text-align:center;"><div style="display:inline-flex;gap:8px;align-items:center;padding:10px 24px;background:#FF5733;border-radius:8px;font-size:14px;font-weight:700;color:#000;">Pick Your Song →</div></div>'
           +'<div style="display:flex;justify-content:center;gap:16px;margin-top:14px;">'
           +'<div style="font-size:10px;color:rgba(0,0,0,.4);text-transform:uppercase;letter-spacing:1px;">Free</div>'
@@ -948,25 +907,12 @@ function renderWalletPage(bookingRef){
         var te=document.getElementById('tab-running-total');
         var il=document.getElementById('tab-item-line');
         if(el)el.textContent='₹'+ct;
-        // 🆕 2026-06-08 v3.218 (Khushi) — RUNNING TAB placed total now ALWAYS uses
-        // the discount/SC-aware computed breakdown (placedGrand) so it equals the
-        // bar bill + VIEW BILL grand total exactly. The prior v3.217 anchor to
-        // cv.coverUsed drifted (showed ₹1680 while the real bill was ₹1650) and is
-        // removed along with the "₹X used / total" cover badge. "+ THIS ROUND"
-        // below still shows the live cart at menu price.
-        var placedGrand;
-        try{
-          var _allPlaced=[];
-          tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_allPlaced.push(i);});});
-          placedGrand=_allPlaced.length?hodComputeBreakdown(_allPlaced, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;
-        }catch(_e){placedGrand=tt;}
-        var _placedDisplay=placedGrand;
-        if(te)te.textContent=(_placedDisplay>0||ct>0)?'₹'+(_placedDisplay+ct)+' total':'₹'+ct;
+        if(te)te.textContent=tt>0?'₹'+(tt+ct)+' total':'₹'+ct;
         renderCartSummary();
         if(placeBtn){placeBtn.style.opacity=ct>0?'1':'.45';}
-        var hasTab=(_placedDisplay+ct)>0;
+        var hasTab=(tt+ct)>0;
         if(checkoutBtn){
-          checkoutBtn.style.color='#fff';
+          checkoutBtn.style.color=hasTab?'#000':'#3D3D3D';
           checkoutBtn.style.borderColor=hasTab?'rgba(0,0,0,.3)':'rgba(0,0,0,.12)';
         }
       }
@@ -1020,22 +966,22 @@ function renderWalletPage(bookingRef){
           } catch(_eBar) { try { console.warn('[park-bar] write threw',_eBar); } catch(_){} }
           // "show this to the bartender" screen
           var _bsOv=document.createElement('div');
-          _bsOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10001;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px 60px;backdrop-filter:blur(10px);animation:fadeIn .25s ease;overflow-y:auto;';
+          _bsOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(10px);animation:fadeIn .25s ease;overflow-y:auto;';
           var _bsMd=document.createElement('div');
-          _bsMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:24px 22px;width:100%;max-width:400px;box-shadow:6px 6px 0 #FF90E8;position:relative;';
+          _bsMd.style.cssText='background:#F4F4F0;border:2px solid rgba(255,144,232,.55);border-radius:8px;padding:24px 22px;width:100%;max-width:400px;box-shadow:0 24px 80px rgba(0,0,0,.85),0 0 60px rgba(255,144,232,.25);';
           var _bsHdr='<div style="text-align:center;margin-bottom:18px;">'
             +'<div style="font-size:48px;margin-bottom:6px;">🍸</div>'
             +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;letter-spacing:.4px;line-height:1.15;margin-bottom:4px;">SHOW THIS TO THE BARTENDER</div>'
-            +'<div style="font-size:12px;color:#3D3D3D;line-height:1.5;">They\'ll place your order on the POS.</div>'
+            +'<div style="font-size:12px;color:#aaa;line-height:1.5;">They\'ll place your order on the POS.</div>'
             +'</div>';
           var _refTxt=sanitize(cv.ref||cv.bookingId||'');
           var _bsRef='<div style="background:#FF90E8;border:2px solid #000;border-radius:12px;padding:12px 14px;margin-bottom:14px;text-align:center;">'
-            +'<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.5px;margin-bottom:4px;">WALLET / BOOKING REF</div>'
+            +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.5px;margin-bottom:4px;">WALLET / BOOKING REF</div>'
             +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;letter-spacing:1.5px;">'+_refTxt+'</div>'
-            +(cv.tableId?'<div style="font-size:12px;color:#3D3D3D;margin-top:4px;">Table '+sanitize(cv.tableId)+(cv.floorLabel?' · '+sanitize(cv.floorLabel):'')+'</div>':'')
+            +(cv.tableId?'<div style="font-size:12px;color:#aaa;margin-top:4px;">Table '+sanitize(cv.tableId)+(cv.floorLabel?' · '+sanitize(cv.floorLabel):'')+'</div>':'')
             +'</div>';
           var _bsItemsHtml='<div style="background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:12px 14px;margin-bottom:14px;">'
-            +'<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.5px;margin-bottom:8px;text-align:center;">YOUR ORDER</div>';
+            +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.5px;margin-bottom:8px;text-align:center;">YOUR ORDER</div>';
           _items.forEach(function(it){
             _bsItemsHtml+='<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:14px;border-bottom:1px dashed rgba(0,0,0,.06);">'
               +'<span style="color:#000;font-weight:600;">'+it.qty+'× '+sanitize(it.n)+'</span>'
@@ -1046,10 +992,10 @@ function renderWalletPage(bookingRef){
             +'<span style="color:#000;">TOTAL</span><span style="color:#000;">₹'+ct.toLocaleString('en-IN')+'</span>'
             +'</div></div>';
           var _bsBal='<div style="background:rgba(34,197,94,.08);border:1.5px solid rgba(34,197,94,.4);border-radius:12px;padding:10px 14px;margin-bottom:14px;text-align:center;">'
-            +'<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.5px;margin-bottom:2px;">WALLET BALANCE</div>'
-            +'<div style="font-size:22px;font-weight:900;color:#15803D;font-variant-numeric:tabular-nums;">₹'+bal.toLocaleString('en-IN')+'</div>'
+            +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.5px;margin-bottom:2px;">WALLET BALANCE</div>'
+            +'<div style="font-size:22px;font-weight:900;color:#22C55E;font-variant-numeric:tabular-nums;">₹'+bal.toLocaleString('en-IN')+'</div>'
             +'</div>';
-          var _bsHint='<div style="font-size:11px;color:#3D3D3D;line-height:1.5;text-align:center;margin-bottom:14px;">Bartender will deduct from your wallet using the ref above.</div>';
+          var _bsHint='<div style="font-size:11px;color:#888;line-height:1.5;text-align:center;margin-bottom:14px;">Bartender will deduct from your wallet using the ref above.</div>';
           // 🆕 2026-06-03 v3.203 (Khushi): QR inside the "show this to the bartender"
           // popup so the bartender can SCAN the wallet (same ?verify= link as the
           // main wallet QR) instead of keying in the ref by hand.
@@ -1059,15 +1005,9 @@ function renderWalletPage(bookingRef){
             +'</div>';
           _bsMd.innerHTML=_bsHdr+_bsQR+_bsRef+_bsItemsHtml+_bsBal+_bsHint;
           generateLocalQR('bs-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
-          var _bsCloseX=document.createElement('button');
-          _bsCloseX.setAttribute('aria-label','Close');
-          _bsCloseX.innerHTML='✕';
-          _bsCloseX.style.cssText='position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:8px;background:#fff;border:2px solid #000;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:var(--ff);line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:2px 2px 0 #000;z-index:2;';
-          _bsCloseX.onclick=function(){_bsOv.remove();};
-          _bsMd.appendChild(_bsCloseX);
           var _bsBackBtn=document.createElement('button');
-          _bsBackBtn.style.cssText='width:100%;padding:15px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;box-shadow:4px 4px 0 #000;';
-          _bsBackBtn.textContent='← Back to Menu';
+          _bsBackBtn.style.cssText='width:100%;padding:13px;border-radius:12px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.15);color:#aaa;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
+          _bsBackBtn.textContent='← Back to menu';
           _bsBackBtn.onclick=function(){_bsOv.remove();};
           _bsMd.appendChild(_bsBackBtn);
           _bsOv.appendChild(_bsMd);
@@ -1095,78 +1035,13 @@ function renderWalletPage(bookingRef){
         // bookings it's confusing + lets them pick AT BAR and miss captain
         // service. Force `_loc='table'` so the picker is bypassed and the
         // captain-ping branch runs straight away.
-        // 🆕 2026-06-08 v3.254 (Khushi) — BILL-SETTLED GUARD. Once the captain taps
-        // SETTLE BILL (markTablePaid stamps paymentStatus:'paid' + paymentMode/
-        // paidAt on the tableReservations doc), this table tab is CLOSED — the
-        // guest must NOT add another captain/table round on the same wallet (that
-        // round had no Settle Bill button on the POS → uncollected = money leak).
-        // A prepaid cover ALSO carries paymentStatus:'paid' from the DEPOSIT, so
-        // we REQUIRE paymentMode||paidAt (only markTablePaid writes those) to avoid
-        // a false-positive on a live, unsettled table. Product decision (Khushi
-        // 2026-06-08): block TABLE orders only; the BAR stays OPEN so any leftover
-        // wallet balance is still spendable there.
-        var _tableBillIsSettled=function(d){
-          return !!d && d.paymentStatus==='paid' && (!!d.paymentMode || !!d.paidAt);
-        };
-        var _showBillSettledPopup=function(){
-          try {
-            var _sOv=document.createElement('div');
-            _sOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:10002;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn .25s ease;';
-            var _sMd=document.createElement('div');
-            _sMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:28px 24px 22px;width:100%;max-width:380px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(34,160,148,.18);';
-            var _leftover=(typeof bal==='number' && bal>0)?bal:0;
-            _sMd.innerHTML=''
-              +'<div style="font-size:48px;margin-bottom:10px;line-height:1;">✅</div>'
-              +'<div style="font-family:var(--ff);font-size:21px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">Your bill\u2019s been settled</div>'
-              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:'+(_leftover?'14px':'18px')+';">This table\u2019s tab is closed. To order again, please ask your <b style="color:#000;">captain</b> to set you up at a new table.</div>'
-              +(_leftover?('<div style="background:rgba(34,160,148,.08);border:1.5px solid rgba(34,160,148,.4);border-radius:12px;padding:10px 14px;margin-bottom:16px;"><div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.2px;margin-bottom:2px;">WALLET BALANCE LEFT</div><div style="font-size:20px;font-weight:900;color:#15803D;font-variant-numeric:tabular-nums;">\u20b9'+_leftover.toLocaleString('en-IN')+'</div><div style="font-size:11px;color:#3D3D3D;margin-top:4px;line-height:1.4;">You can still use this at the \ud83c\udf78 bar \u2014 show your QR to the bartender.</div></div>'):'');
-            var _sBar=document.createElement('button');
-            _sBar.style.cssText='width:100%;padding:16px;border-radius:8px;background:rgba(123,47,190,.15);border:2px solid #7B2FBE;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
-            _sBar.innerHTML='<span style="font-size:22px;">\ud83c\udf78</span><span>SHOW QR TO BARTENDER</span>';
-            _sBar.onclick=function(){ try{_sOv.remove();}catch(_){} try{ _parkOrderForBartender('customer_self_order_bar'); }catch(_){} };
-            _sMd.appendChild(_sBar);
-            var _sCancel=document.createElement('button');
-            _sCancel.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.14);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
-            _sCancel.textContent='Close';
-            _sCancel.onclick=function(){ try{_sOv.remove();}catch(_){} };
-            _sMd.appendChild(_sCancel);
-            _sOv.appendChild(_sMd);
-            _sOv.onclick=function(e){ if(e.target===_sOv) _sOv.remove(); };
-            document.body.appendChild(_sOv);
-          } catch(_e){ try{ showToast('This table\u2019s bill is settled \u2014 please ask your captain for a new table.','warn',4000); }catch(_){} }
-        };
         var _refIsTable = !!(bookingRef && (bookingRef.indexOf('HODTAB')===0 || bookingRef.indexOf('TBL-')===0 || bookingRef.indexOf('AGG-')===0));
         if (_refIsTable && !placeBtn._loc) {
-          // PURE table bookings SKIP the picker — so the settled guard runs HERE.
-          // If the captain already settled the bill, block + show the settled popup;
-          // otherwise proceed straight to the captain/table flow. Fail-open on any
-          // read error or when the table doc can't be resolved.
-          var _proceedTable=function(){ placeBtn._loc = 'table'; try { placeBtn.onclick(); } finally { placeBtn._loc = null; } };
-          if (firestore && cv.linkedTableRef) {
-            firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-              if (d.exists && _tableBillIsSettled(d.data()||{})) { _showBillSettledPopup(); }
-              else { _proceedTable(); }
-            }).catch(function(){ _proceedTable(); });
-          } else if (_tableBillIsSettled(cv)) {
-            _showBillSettledPopup();
-          } else {
-            _proceedTable();
-          }
+          placeBtn._loc = 'table';
+          try { placeBtn.onclick(); } finally { placeBtn._loc = null; }
           return;
         }
         if ((cv.isTableBooking || cv.linkedTableRef || cv.tableId) && (cv.coverActivated||0) > 0 && !placeBtn._loc){
-          // 🆕 2026-06-08 (Khushi) — once the table session has ENDED (released), the
-          // guest should never see the "Where are you?" picker again — every further
-          // round goes straight to the bartender. We persist a per-booking ack flag
-          // the moment a DEFINITIVE release is detected (see _showSessionEndedPopup);
-          // if it's set, skip the picker entirely and park the order for the bar.
-          var _endedAckKey='hod_tbl_ended_'+(cv.ref||cv.bookingId||'');
-          var _endedAck=false; try{_endedAck=!!localStorage.getItem(_endedAckKey);}catch(_e0){}
-          if(_endedAck){
-            placeBtn._loc=null;
-            try{ _parkOrderForBartender('customer_self_order_bar'); }catch(_e1){}
-            return;
-          }
           var _lpOv=document.createElement('div');
           _lpOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn .25s ease;';
           var _lpMd=document.createElement('div');
@@ -1287,11 +1162,7 @@ function renderWalletPage(bookingRef){
             } catch(_){ return false; }
           };
           var _evalTableDoc=function(tr,sourceLabel){
-            if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); try { _unlockBarReleased('table dead-status: '+(tr.status||'?')); } catch(_){} try { _showSessionEndedPopup('table dead-status: '+(tr.status||'?')); } catch(_){} return; }
-            // 🆕 2026-06-08 v3.254 (Khushi) — bill SETTLED (paid via markTablePaid) but
-            // table not yet released. Replace the picker with the settled popup (which
-            // keeps the bar open for any leftover balance). Block the table order.
-            if (_tableBillIsSettled(tr)) { try { _lpOv.remove(); } catch(_){} try { _showBillSettledPopup(); } catch(_){} return; }
+            if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); return; }
             var phN=_normP(tr.customerPhone||tr.phone);
             // Strict phone check ONLY when both sides have digits; protects
             // against re-seated tables without locking out customers whose
@@ -1308,25 +1179,10 @@ function renderWalletPage(bookingRef){
               try { if (typeof _lockBarForOpenTab === 'function') _lockBarForOpenTab('captain table rounds open'); } catch(_){}
             }
           };
-          var _runQueryFallback=function(linkWasMissing){
+          var _runQueryFallback=function(){
             firestore.collection('tableReservations').where('linkedCoverRef','==',cv.ref).get().then(function(snap){
               clearTimeout(_staleTO);
               if (snap.empty) {
-                // 🆕 2026-06-08 (Khushi) — if this cover HAD a linkedTableRef but
-                // its table doc is GONE (direct lookup returned !exists) AND no
-                // other reservation is linked to this wallet, the table was
-                // RELEASED. releaseTable DELETES the tableReservations doc, so a
-                // missing-link + empty-query is definitive proof the table session
-                // ended. Mark the table button stale (→ "go to the bar" nudge) AND
-                // UNLOCK the bar so the guest can redeem any remaining balance there
-                // (no captain tab left to settle → no double-spend risk).
-                if (linkWasMissing) {
-                  try { console.warn('[picker] linked table released (doc gone + no re-link) — table stale, bar unlocked'); } catch(_){}
-                  _markStale('table released — doc deleted');
-                  try { _unlockBarReleased('table released'); } catch(_){}
-                  try { _showSessionEndedPopup('table released — doc deleted'); } catch(_){}
-                  return;
-                }
                 // No doc was ever linked to this wallet via the
                 // where-field. Can't prove staleness either way — FAIL
                 // OPEN. (Better to accidentally serve one re-seated
@@ -1335,20 +1191,16 @@ function renderWalletPage(bookingRef){
                 _markFresh(); return;
               }
               // Walk results; if any non-dead row matches identity → fresh.
-              var fresh=false, lastReason='all linked reservations look dead', _anyOpenRounds=false, _settled=false;
+              var fresh=false, lastReason='all linked reservations look dead', _anyOpenRounds=false;
               snap.forEach(function(d){
                 var tr=d.data()||{};
                 if (_isDeadStatus(tr.status)) { lastReason='all linked reservations dead'; return; }
                 var phN=_normP(tr.customerPhone||tr.phone);
                 if (_cvPhoneN && phN && phN!==_cvPhoneN) { lastReason='phone mismatch — re-seated to …'+phN.slice(-4); return; }
                 fresh=true;
-                // 🆕 2026-06-08 v3.254 — a matching row whose bill is SETTLED blocks
-                // the table order (bar stays open via the settled popup).
-                if (_tableBillIsSettled(tr)) _settled=true;
                 // 🆕 v3.5 — track open captain rounds across any matching row
                 if (_hasOpenRoundsFn(tr.tabRounds)) _anyOpenRounds=true;
               });
-              if (_settled) { try { _lpOv.remove(); } catch(_){} try { _showBillSettledPopup(); } catch(_){} return; }
               if (fresh) {
                 _markFresh();
                 if (_anyOpenRounds) {
@@ -1369,16 +1221,16 @@ function renderWalletPage(bookingRef){
               // PRIMARY path — direct doc lookup
               firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
                 clearTimeout(_staleTO);
-                if (!d.exists) { _runQueryFallback(true); return; }
+                if (!d.exists) { _runQueryFallback(); return; }
                 _evalTableDoc(d.data()||{},'doc');
               }).catch(function(e){
                 clearTimeout(_staleTO);
                 try { console.warn('[picker] direct lookup failed, falling back to query:', e && e.message); } catch(_){}
-                _runQueryFallback(false);
+                _runQueryFallback();
               });
             } else {
               // No linkedTableRef on cover — use legacy where-query path
-              _runQueryFallback(false);
+              _runQueryFallback();
             }
           } catch(_eStale) {
             clearTimeout(_staleTO);
@@ -1413,70 +1265,20 @@ function renderWalletPage(bookingRef){
             try { console.warn('[picker] bar locked:', reason||'open tab'); } catch(_){}
             if (!_tabHint) {
               _tabHint=document.createElement('div');
-              _tabHint.style.cssText='font-size:12px;color:#000;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:11px 13px;background:#FFF1F0;border:2px solid #E11900;border-radius:8px;';
-              _tabHint.innerHTML='<div style="font-weight:900;font-size:12px;margin-bottom:5px;letter-spacing:.4px;color:#B91C1C;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#3D3D3D;font-weight:600;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#000;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
+              _tabHint.style.cssText='font-size:12px;color:#FBBF24;margin:-4px 0 12px;line-height:1.55;letter-spacing:.2px;text-align:center;font-weight:600;padding:10px 12px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;';
+              _tabHint.innerHTML='<div style="font-weight:800;font-size:12px;margin-bottom:4px;letter-spacing:.4px;color:#FBBF24;">❗ FINISH YOUR TABLE TAB FIRST</div><div style="color:#FCD34D;font-weight:500;font-size:11px;">You have an open order at your table.<br>Ask your <b style="color:#FBBF24;">CAPTAIN</b> to print &amp; settle the bill,<br>then you can order at the bar.</div>';
               // Insert hint BEFORE the bar button if button already in DOM
               if (_barBtn.parentNode) _barBtn.parentNode.insertBefore(_tabHint, _barBtn);
               else _lpMd.appendChild(_tabHint);
             }
-            _barBtn.style.background='#EDEDED';
-            _barBtn.style.color='#3D3D3D';
+            _barBtn.style.background='rgba(120,120,120,.18)';
+            _barBtn.style.color='rgba(0,0,0,.4)';
             _barBtn.style.cursor='not-allowed';
-            _barBtn.style.border='2px dashed #B91C1C';
-            _barBtn.innerHTML='<span style="font-size:22px;">🔒</span><span style="color:#3D3D3D;">BAR LOCKED — SETTLE TABLE FIRST</span>';
+            _barBtn.style.border='1.5px dashed rgba(251,191,36,.4)';
+            _barBtn.innerHTML='<span style="font-size:22px;opacity:.6;">🔒</span><span>BAR LOCKED — SETTLE TABLE FIRST</span>';
             _barBtn.onclick=function(){
               try { showToast('Ask your captain to settle the table bill first','warn',2500); } catch(_){}
             };
-          };
-          // 🆕 2026-06-08 (Khushi) — reverse a bar lock when the table turns out to
-          // be RELEASED (table doc deleted, detected by the async lookup above). The
-          // sync check below may optimistically lock the bar from an open table-mode
-          // round still on the cover; once we know the table is gone there is no
-          // captain tab left to settle, so we unlock the bar and let the guest spend
-          // any remaining wallet balance there. Runs async (after the sync lock), so
-          // it cleanly restores the button. No-op if the bar was never locked.
-          var _unlockBarReleased=function(reason){
-            try {
-              _barBtn._locked=false;
-              try { console.warn('[picker] bar unlocked (table released):', reason||''); } catch(_){}
-              if (_tabHint && _tabHint.parentNode) { _tabHint.parentNode.removeChild(_tabHint); }
-              _tabHint=null;
-              _barBtn.style.background='rgba(123,47,190,.15)';
-              _barBtn.style.color='#000';
-              _barBtn.style.cursor='pointer';
-              _barBtn.style.border='1.5px solid rgba(123,47,190,.5)';
-              _barBtn.innerHTML='<span style="font-size:22px;">🍸</span><span>I\'M AT THE BAR</span>';
-              _barBtn.onclick=function(){ _lpOv.remove(); _parkOrderForBartender('customer_self_order_bar'); };
-            } catch(_){}
-          };
-          // 🆕 2026-06-08 (Khushi) — ONE-TIME "table session ended" popup. The moment
-          // a DEFINITIVE release is detected (table doc deleted, or a dead status), we
-          // REPLACE the picker with a clean, friendly message and a single "SHOW QR TO
-          // BARTENDER" action — no more confusing greyed table button next to a locked
-          // bar. We also persist the per-booking ack flag so EVERY later order taps
-          // straight through to the bartender (the picker is skipped entirely). Only
-          // called from definitive-release paths — never from a phone-mismatch or a
-          // read timeout (those stay fail-open / grey, never trapping a live guest).
-          var _showSessionEndedPopup=function(reason){
-            try {
-              if (_lpOv._ended) return; _lpOv._ended=true;
-              try { localStorage.setItem(_endedAckKey,'1'); } catch(_){}
-              try { console.warn('[picker] session ended popup:', reason||''); } catch(_){}
-              _lpMd.innerHTML=''
-                +'<div style="font-size:46px;margin-bottom:10px;line-height:1;">🍸</div>'
-                +'<div style="font-family:var(--ff);font-size:21px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">Your table session has ended</div>'
-                +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">No problem — your wallet still works at the <b style="color:#000;">bar</b>.<br>Just show your QR to the bartender to place your order.</div>';
-              var _goBar=document.createElement('button');
-              _goBar.style.cssText='width:100%;padding:18px;border-radius:8px;background:rgba(123,47,190,.15);border:2px solid #7B2FBE;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
-              _goBar.innerHTML='<span style="font-size:22px;">🍸</span><span>SHOW QR TO BARTENDER</span>';
-              _goBar.onclick=function(){ try{_lpOv.remove();}catch(_){} _parkOrderForBartender('customer_self_order_bar'); };
-              _lpMd.appendChild(_goBar);
-              var _cc=document.createElement('button');
-              _cc.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.14);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
-              _cc.textContent='Cancel';
-              _cc.onclick=function(){ try{_lpOv.remove();}catch(_){} };
-              _lpMd.appendChild(_cc);
-            } catch(_){}
           };
           // Sync check (cv.tabRounds — covers customer-self-order rounds).
           // 🆕 2026-06-02 v3.184c (Khushi CORE FIX) — a guest already IN BAR mode
@@ -1501,14 +1303,7 @@ function renderWalletPage(bookingRef){
               });
             } catch(_){ return false; }
           };
-          // 🆕 2026-06-08 v3.217 (Khushi) — a guest who picked "I'M AT THE BAR"
-          // (cv.atBar===true, set by _parkOrderForBartender, cleared the moment
-          // they pick "I'M AT MY TABLE") must NEVER be bar-locked by their OWN
-          // rounds — even if an older bar round lost its 'bar' source tag and
-          // looks like a table round. Only a genuine TABLE-mode guest gets the
-          // sync lock. Captain-placed rounds on the linked table doc still lock
-          // via the async stale-check above (that's a real double-spend guard).
-          if (cv.atBar!==true && _hasOpenTableRoundsFn(cv.tabRounds)) _lockBarForOpenTab('open table-mode round');
+          if (_hasOpenTableRoundsFn(cv.tabRounds)) _lockBarForOpenTab('open table-mode round');
           _lpMd.appendChild(_barBtn);
           var _lpCloseBtn=document.createElement('button');
           _lpCloseBtn.style.cssText='width:100%;padding:10px;border-radius:8px;background:transparent;border:2px solid #000;color:#666;font-size:12px;cursor:pointer;font-family:var(--ff);';
@@ -1562,10 +1357,12 @@ function renderWalletPage(bookingRef){
             // NO ⚠️, NO red. Minimal copy. Quick-recharge preset chips REMOVED.
             // Two ways to add funds: PAY ONLINE (Razorpay) OR RECHARGE AT BAR
             // (parks the order so the bartender sees it on scan/search).
-            _md.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;box-shadow:6px 6px 0 #23A094;';
+            _md.style.cssText='background:#fff;border:2px solid #23A094;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;';
             var _shortfall=ct+pendingTotal-bal;
-            _md.innerHTML='<div style="font-size:20px;font-weight:900;color:#16A34A;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
-              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">Tap the recharge button below.</div>';
+            _md.innerHTML='<div style="background:rgba(0,200,100,.10);border:2px solid #23A094;border-radius:8px;padding:18px 16px;margin-bottom:18px;">'
+              +'<div style="font-size:19px;font-weight:900;color:#00C864;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
+              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;">Tap the recharge button below.</div>'
+              +'</div>';
             // Amount to recharge — defaults to the EXACT shortfall (editable).
             var _selRcAmt=Math.max(1,_shortfall);
             var _modalCustomWrap=document.createElement('div');
@@ -1576,7 +1373,7 @@ function renderWalletPage(bookingRef){
             var _modalCustomInput=document.createElement('input');
             _modalCustomInput.type='number';_modalCustomInput.min='1';_modalCustomInput.max='50000';_modalCustomInput.step='1';
             _modalCustomInput.value=String(_selRcAmt);
-            _modalCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
+            _modalCustomInput.style.cssText='flex:1;background:transparent;border:2px solid #000;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
             _modalCustomInput.oninput=function(){
               var v=parseInt(_modalCustomInput.value,10);
               if(isNaN(v)||v<1){_modalCustomRow.style.borderColor='rgba(239,68,68,.4)';return;}
@@ -1696,7 +1493,6 @@ function renderWalletPage(bookingRef){
             }
           } catch (_e) {}
           var placedItems=Object.values(cart).map(function(it){return it.qty+'× '+it.n;}).join(', ');
-          var placedItemsArr=Object.values(cart).map(function(it){return {n:it.n,qty:it.qty,p:it.p};});
           cart={};
           updateCartBar();
           renderRoundsHistory();
@@ -1711,7 +1507,7 @@ function renderWalletPage(bookingRef){
             tbMd.innerHTML=
               '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🍽️</div>'
               +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:8px;letter-spacing:.3px;">Order Placed!</div>'
-              +'<div style="font-size:14px;color:#000;line-height:1.55;margin-bottom:18px;">Your captain has been notified and will be with you shortly to confirm.</div>'
+              +'<div style="font-size:14px;color:#aaa;line-height:1.55;margin-bottom:18px;">Your captain has been notified and will be with you shortly to confirm.</div>'
               +'<div style="background:rgba(242,199,68,.06);border:2px solid #000;border-radius:12px;padding:12px 14px;margin-bottom:18px;">'
                 +'<div style="font-size:10px;font-weight:800;color:#888;letter-spacing:1.2px;margin-bottom:6px;">YOUR ORDER</div>'
                 +'<div style="font-size:13px;color:#000;font-weight:700;line-height:1.5;">'+sanitize(placedItems)+'</div>'
@@ -1767,20 +1563,20 @@ function renderWalletPage(bookingRef){
               +  '<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;letter-spacing:1px;">HOUSE OF DOPAMINE</div>'
               +  '<div style="font-size:10px;color:#3D3D3D;margin-top:2px;letter-spacing:.6px;">ORDER PLACED · '+_staffLabel+'</div>'
               +'</div>'
-              +'<div style="text-align:center;font-size:16px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:600;">Show this QR to your <strong style="background:#FF90E8;color:#000;padding:1px 7px;border-radius:5px;border:1.5px solid #000;">'+_staffWord+'</strong> to prepare your order</div>'
-              +'<div style="background:#fff;border:2px solid #000;border-radius:14px;padding:14px;margin:0 auto 12px;width:max-content;box-shadow:4px 4px 0 #000;"><div id="order-qr-popup" style="width:160px;height:160px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div></div>'
+              +'<div style="text-align:center;font-size:16px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:600;">Show this QR to your <strong style="color:#E8C97A;">'+_staffWord+'</strong> to prepare your order</div>'
+              +'<div id="order-qr-popup" style="width:160px;height:160px;margin:0 auto 12px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'
               +'<div style="text-align:center;font-family:monospace;font-size:12px;color:#000;letter-spacing:2px;margin-bottom:12px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>'
-              +'<div style="padding:4px 0 6px;margin-bottom:10px;">'
-              +  '<div style="font-size:10px;color:#3D3D3D;letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;text-align:center;font-weight:800;">Your Order</div>'
-              +  placedItemsArr.map(function(it){return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:9px 12px;margin-bottom:8px;box-shadow:3px 3px 0 #000;"><span style="font-size:13px;color:#000;font-weight:700;">'+it.qty+'× '+sanitize(it.n)+'</span><span style="font-size:13px;color:#000;font-weight:800;white-space:nowrap;">\u20b9'+((it.p||0)*(it.qty||0)).toLocaleString('en-IN')+'</span></div>';}).join('')
+              +'<div style="border-top:1px dashed rgba(0,0,0,.15);border-bottom:1px dashed rgba(0,0,0,.15);padding:10px 0;margin-bottom:10px;">'
+              +  '<div style="font-size:10px;color:#3D3D3D;letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px;">Your Order</div>'
+              +  '<div style="font-size:13px;color:#000;font-weight:700;line-height:1.5;">'+sanitize(placedItems)+'</div>'
               +'</div>'
               +'<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0 10px;">'
               +  '<span style="font-size:13px;font-weight:900;color:#000;">Total</span>'
               +  '<span style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;font-variant-numeric:tabular-nums;">\u20b9'+ct.toLocaleString('en-IN')+'</span>'
               +'</div>'
-              +'<div style="text-align:center;font-size:14px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:700;">'+(_isTbl?'Captain':'Bartender')+' will scan, confirm and <strong style="background:#FF90E8;color:#000;padding:1px 7px;border-radius:5px;border:1.5px solid #000;">deduct</strong> from your wallet automatically</div>';
+              +'<div style="text-align:center;font-size:14px;color:#000;margin-bottom:14px;line-height:1.6;font-weight:700;">'+(_isTbl?'Captain':'Bartender')+' will scan, confirm and <strong style="color:#E8C97A;">deduct</strong> from your wallet automatically</div>';
             var closeBtn=document.createElement('button');
-            closeBtn.style.cssText='width:100%;padding:14px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.6px;text-transform:uppercase;box-shadow:4px 4px 0 #000;';
+            closeBtn.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(242,199,68,.15);border:2px solid #000;color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ff);letter-spacing:.6px;text-transform:uppercase;';
             closeBtn.textContent='Got it ✓';
             closeBtn.onclick=function(){overlay.remove();};
             modal.appendChild(closeBtn);
@@ -1934,69 +1730,13 @@ function renderWalletPage(bookingRef){
       };
 
       // ── Checkout (shows full bill modal)
-      // 🆕 2026-06-08 v3.256 (Khushi) — "Call Captain to Settle Bill" is now a
-      // DIRECT captain ping (no Pay-Online / Done-Ordering modal — that confused
-      // guests since the bill is settled IN PERSON against the wallet). Tapping
-      // this stamps the SAME `bill_requested` signal the POS Captain already
-      // surfaces (RED "BILL REQUESTED" chip + Bill Due KPI + chime) onto the
-      // LINKED TABLE doc AND the cover, then tells the guest a captain is coming.
-      // Works for ALL table flows (cover+table via cv.linkedTableRef; pure table
-      // via the bookingRef query). Fail-open — never strands the guest. Guards
-      // against re-stamping an ALREADY-SETTLED table (would wrongly revert the
-      // Captain's paid → bill_requested and re-open a closed tab).
       checkoutBtn.onclick=function(){
-        if(checkoutBtn.disabled)return;
-        var _ttAll=[];
-        (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){_ttAll.push(i);});});
-        var _billTt;
-        try{_billTt=_ttAll.length?hodComputeBreakdown(_ttAll, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;}catch(_e){_billTt=getTabTotal();}
-        if(!_billTt && !getCartTotal()){showToast('Place an order first, then call your captain to settle.','err',2800);return;}
-        if(getCartTotal()>0){showToast('Heads up: tap PLACE ORDER for your current items so they\u2019re on the bill.','warn',3200);}
-        var _settledChk=function(d){return !!d && d.paymentStatus==='paid' && (!!d.paymentMode || !!d.paidAt);};
-        var _billPatch={paymentStatus:'bill_requested',billRequestedAt:new Date().toISOString(),orderTotal:_billTt,tabTotal:_billTt};
-        var _confirm=function(){
-          try{checkoutBtn.disabled=true;checkoutBtn.style.background='#15803D';checkoutBtn.style.cursor='default';checkoutBtn.style.boxShadow='2px 2px 0 #000';checkoutBtn.innerHTML='<span style="font-size:18px;">\u2705</span><span>Captain notified \u2014 on their way</span>';}catch(_){}
-          try{showToast('A captain will be with you shortly to settle your bill \uD83C\uDF89','success',4500);}catch(_){}
-        };
-        var _alreadySettled=function(){
-          try{checkoutBtn.disabled=true;checkoutBtn.style.opacity='.6';}catch(_){}
-          try{showToast('Your bill\u2019s already been settled \u2014 please ask your captain for a new table.','warn',4500);}catch(_){}
-        };
-        // Honest fallback: the Captain ONLY sees the ping via the tableReservations
-        // doc. If we can't resolve a live table doc to write, do NOT claim success
-        // (would mislead the guest into waiting for a captain who was never paged).
-        // Keep the button enabled so they can retry / a staff member can step in.
-        var _failNotify=function(){
-          try{showToast('Couldn\u2019t reach your captain automatically \u2014 please wave down a staff member to settle your bill.','err',5000);}catch(_){}
-        };
-        // Confirm ONLY after a tableReservations write actually lands — the
-        // Captain is paged solely off that doc, so a fire-and-forget write that
-        // silently fails (offline/rules/transient) must NOT show "Captain notified".
-        var _coverWrite=function(){try{firestore.collection('covers').doc(cv.ref).set(_billPatch,{merge:true}).catch(function(){});}catch(_){}};
-        if(!firestore||!cv.ref){_failNotify();return;}
-        if(cv.linkedTableRef){
-          var _doTblWrite=function(){return firestore.collection('tableReservations').doc(cv.linkedTableRef).update(_billPatch);};
-          var _tryWrite=function(){ _doTblWrite().then(function(){_coverWrite();_confirm();}).catch(function(){_failNotify();}); };
-          firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-            if(!d.exists){_failNotify();return;}                                  // table doc gone (released) → can't page captain
-            if(_settledChk(d.data()||{})){_alreadySettled();return;}
-            _tryWrite();
-          }).catch(function(){ _failNotify(); });                                 // read failed → can't verify settled-state → do NOT risk reverting a paid table; guest retries / staff steps in
-        }else{
-          firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get().then(function(snap){
-            if(snap.empty){_failNotify();return;}                                 // no table doc for this booking → don't false-confirm
-            var _anySettled=false;
-            snap.forEach(function(d){ if(_settledChk(d.data()||{})) _anySettled=true; });
-            if(_anySettled){_alreadySettled();return;}
-            var _total=0; snap.forEach(function(){_total++;});
-            var _ok=0,_done=0;
-            snap.forEach(function(d){
-              d.ref.update(_billPatch).then(function(){_ok++;}).catch(function(){}).then(function(){
-                _done++; if(_done===_total){ if(_ok>0){_coverWrite();_confirm();} else {_failNotify();} }
-              });
-            });
-          }).catch(function(){ _failNotify(); });                                 // query error → target unknown → honest fallback
+        var tt=getTabTotal()+getCartTotal();
+        if(!tt){showToast('Your tab is empty','err',2000);return;}
+        if(getCartTotal()>0){
+          if(!confirm('You have '+getCartTotal()+' unplaced items. Place them first or checkout now?'))return;
         }
+        showCheckoutModal(getTabTotal());
       };
 
       // ── Rounds history — 2026-05-13 v3 (Khushi spec, round 8):
@@ -2038,10 +1778,7 @@ function renderWalletPage(bookingRef){
         try{
           var _all=[];
           tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_all.push(i);});});
-          // 🆕 2026-06-07 — YOUR TAB grand reflects the bartender's discount/SC
-          // so it matches the bar + the VIEW BILL preview. Per-round totals below
-          // stay at menu price (the discount is a single bill-level line).
-          bd=hodComputeBreakdown(_all, Number(cv.billDiscountPct||0), (cv.billScOn!==false));
+          bd=hodComputeBreakdown(_all);
         }catch(_e){bd=null;}
         var grand=bd?bd.grandTotal:tt;
 
@@ -2058,36 +1795,22 @@ function renderWalletPage(bookingRef){
         var statusC={'preparing':'#a85800','activated':'#0a7a3c','served':'#0a7a3c','paid':'#0a7a3c'};
         var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':'✅ Served','paid':'💳 Paid'};
 
-        // 🆕 2026-06-08 v3.253 (Khushi) — render rounds in true CHRONOLOGICAL order
-        // (by placedAt) and RENUMBER the display label 1..N. The stored roundNum is
-        // unreliable: bar / table / captain / bartender each compute it off a
-        // DIFFERENT array (tabRounds.length+1) so the numbers COLLIDE ("Round 3"
-        // twice) and GAP ("missing Round 2"). placedAt is the only reliable order,
-        // so we sort by it and number sequentially — R1 bar → R2 bar → R3 table → …
-        var _sortedRounds=tabRounds.slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
-        var roundsHtml=_sortedRounds.map(function(r,idx){
+        var roundsHtml=tabRounds.map(function(r,idx){
           var sc=statusC[r.status]||'#5c3f0a';
           var sl=statusL[r.status]||r.status;
           var rBd=null;
           try{rBd=hodComputeBreakdown(r.items||[]);}catch(_e){rBd=null;}
           var rTotal=rBd?rBd.grandTotal:(r.roundTotal||0);
-          // 🆕 2026-06-08 (Khushi) — per-round location badge so the guest sees
-          // WHERE each round was placed. Now from the shared hodRoundLocBadge helper
-          // (same logic the VIEW BILL modal uses), so YOUR TAB + the bill always agree.
-          var _locBadge=hodRoundLocBadge(r);
           var ilist=(r.items||[]).map(function(it){
             return '<div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0;color:#1a1408;font-weight:600;">'
               +'<span style="flex:1;padding-right:8px;">'+sanitize(it.qty+'× '+it.n)+'</span>'
               +'<span style="color:#3a2a08;font-variant-numeric:tabular-nums;font-weight:700;">₹'+(it.p*it.qty)+'</span></div>';
           }).join('');
-          var sep=idx<_sortedRounds.length-1?'border-bottom:1.5px dashed #8a6a1f;':'';
+          var sep=idx<tabRounds.length-1?'border-bottom:1.5px dashed #8a6a1f;':'';
           return '<div style="padding:10px 0 12px;'+sep+'">'
-            +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">'
-            +'<span style="display:flex;flex-direction:column;gap:5px;min-width:0;">'
-            +'<span style="font-size:17px;font-weight:900;color:#5c3f0a;letter-spacing:.5px;">● Round '+(idx+1)+'</span>'
-            +(_locBadge?('<span style="display:flex;">'+_locBadge+'</span>'):'')
-            +'</span>'
-            +'<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
+            +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+            +'<span style="font-size:17px;font-weight:900;color:#5c3f0a;letter-spacing:.5px;">● Round '+r.roundNum+'</span>'
+            +'<span style="display:flex;align-items:center;gap:8px;">'
             +'<span style="font-size:11px;font-weight:800;color:'+sc+';background:rgba(255,255,255,.55);padding:3px 9px;border-radius:12px;letter-spacing:.4px;">'+sl+'</span>'
             +'<span style="font-size:17px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+rTotal+'</span>'
             +'</span></div>'
@@ -2130,50 +1853,19 @@ function renderWalletPage(bookingRef){
         if(!tabRounds.length)return;
         var allItems=[];
         tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
-        // 🆕 2026-06-07 — honor the bartender's persisted bill-level discount + SC
-        // toggle so this preview matches the bar's bill to the rupee.
-        var _bDisc=Number(cv.billDiscountPct||0), _bSc=(cv.billScOn!==false);
-        var bd;try{bd=hodComputeBreakdown(allItems, _bDisc, _bSc);}catch(e){bd=null;}
+        var bd;try{bd=hodComputeBreakdown(allItems);}catch(e){bd=null;}
         if(!bd)return;
         var overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;font-family:var(--ff);';
         var card=document.createElement('div');
         card.style.cssText='background:#FFFFFF;border:2px solid #000;border-radius:12px;max-width:480px;width:100%;max-height:92vh;overflow:auto;color:#000;';
-        // 🆕 2026-06-08 (Khushi) — group the bill by ROUND with a per-round
-        // location badge (🍸 bar / 🍽️ table) so the customer always sees EVERY
-        // round AND where it was placed, no matter the mode. Each round renders a
-        // header row (Round N + badge) followed by its items. Falls back to a flat
-        // list only for the legacy case where no rounds carry items.
-        var _zebra=0;
-        // 🆕 2026-06-08 v3.253 (Khushi) — chronological order + sequential renumber
-        // (see renderRoundsHistory). Sort by placedAt; label each rendered round with
-        // a running counter (skips empty rounds) so the bill reads R1, R2, R3 … with
-        // no dup/gap, instead of the unreliable stored roundNum.
-        var _billRounds=tabRounds.slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
-        var _billNo=0;
-        var itemsRows=_billRounds.map(function(r){
-          var _rItems=(r.items||[]);
-          if(!_rItems.length) return '';
-          _billNo++;
-          var _badge=hodRoundLocBadge(r);
-          var _hdr='<tr style="background:#fff;"><td colspan="3" style="padding:10px 12px 4px;border-top:1px dashed rgba(0,0,0,.12);"><span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:11px;font-weight:900;color:#000;letter-spacing:.5px;">ROUND '+_billNo+'</span>'+(_badge||'')+'</span></td></tr>';
-          var _rows=_rItems.map(function(it){
-            var bg=(_zebra++%2===0)?'#fff':'#F4F4F0';
-            return '<tr style="background:'+bg+';"><td style="padding:8px 12px;font-size:13px;color:#3D3D3D;width:40px;">'+it.qty+'</td><td style="padding:8px 12px;font-size:13px;color:#000;">'+sanitize(it.n)+'</td><td style="padding:8px 12px;font-size:13px;font-weight:700;color:#000;text-align:right;font-variant-numeric:tabular-nums;">&#x20B9;'+Math.round((it.p||0)*(it.qty||0))+'</td></tr>';
-          }).join('');
-          return _hdr+_rows;
+        var itemsRows=allItems.map(function(it,idx){
+          var bg=idx%2===0?'#fff':'#F4F4F0';
+          return '<tr style="background:'+bg+';"><td style="padding:8px 12px;font-size:13px;color:#3D3D3D;width:40px;">'+it.qty+'</td><td style="padding:8px 12px;font-size:13px;color:#000;">'+sanitize(it.n)+'</td><td style="padding:8px 12px;font-size:13px;font-weight:700;color:#000;text-align:right;font-variant-numeric:tabular-nums;">&#x20B9;'+Math.round((it.p||0)*(it.qty||0))+'</td></tr>';
         }).join('');
-        var _bpName=cv.customerName||cv.name||'—';
-        var _bpPhone=cv.phone||cv.customerPhone||'';
-        var _bpRef=cv.ref||cv.bookingId||'';
-        var _bpWhen=[cv.date||cv.eventDate||'',cv.arrivalTime||''].filter(Boolean).join(' · ');
         var meta=''
-          +(cv.tableId?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">TABLE:</b> '+sanitize(cv.tableId)+(cv.floorLabel?' &middot; '+sanitize(cv.floorLabel):'')+'</div>':'')
-          +'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">GUEST:</b> '+sanitize(_bpName)+'</div>'
-          +(_bpPhone?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">PHONE:</b> '+sanitize(_bpPhone)+'</div>':'')
-          +(cv.partySize?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">GUESTS:</b> '+sanitize(String(cv.partySize))+'</div>':'')
-          +(_bpWhen?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:3px;"><b style="color:#000;">WHEN:</b> '+sanitize(_bpWhen)+'</div>':'')
-          +(_bpRef?'<div style="font-size:12px;color:#3D3D3D;"><b style="color:#000;">REF:</b> '+sanitize(_bpRef)+'</div>':'');
+          +(cv.tableId?'<div style="font-size:12px;color:#3D3D3D;margin-bottom:2px;"><b style="color:#000;">TABLE:</b> '+sanitize(cv.tableId)+(cv.floorLabel?' &middot; '+sanitize(cv.floorLabel):'')+'</div>':'')
+          +'<div style="font-size:12px;color:#3D3D3D;"><b style="color:#000;">GUEST:</b> '+sanitize(cv.customerName||'—')+'</div>';
         card.innerHTML=''
           +'<div style="padding:16px 18px;border-bottom:2px solid #000;">'
           +'<div style="font-size:10px;color:#3D3D3D;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">BILL PREVIEW</div>'
@@ -2188,8 +1880,7 @@ function renderWalletPage(bookingRef){
           +'</table></div>'
           +'<div style="padding:12px 18px;border-top:2px solid #000;">'
           +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>Subtotal</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+Math.round((bd.foodSubtotal||0)+(bd.alcSubtotal||0)+(bd.nonAlcSubtotal||0))+'</span></div>'
-          +((bd.discount||0)>0?'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#16A34A;font-weight:800;"><span>DISCOUNT ('+bd.discountPct+'%)</span><span style="font-variant-numeric:tabular-nums;">&#8722;&#x20B9;'+Math.round(bd.discount)+'</span></div>':'')
-          +((bd.serviceCharge||0)>0?'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>Service Charge (10%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+(bd.serviceCharge||0).toFixed(0)+'</span></div>':'')
+          +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>Service Charge (10%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+(bd.serviceCharge||0).toFixed(0)+'</span></div>'
           +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>CGST (2.5%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+((bd.gst||0)/2).toFixed(2)+'</span></div>'
           +'<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#3D3D3D;"><span>SGST (2.5%)</span><span style="font-variant-numeric:tabular-nums;font-weight:600;">&#x20B9;'+((bd.gst||0)/2).toFixed(2)+'</span></div>'
           +'<div style="height:2px;background:#000;margin:10px 0;"></div>'
@@ -2208,15 +1899,6 @@ function renderWalletPage(bookingRef){
 
       // ── Checkout modal
       function showCheckoutModal(tt){
-        // 🆕 2026-06-08 — the SETTLE total + Pay Online charge must match the bar +
-        // YOUR TAB: recompute the whole placed tab through the SAME discount/SC-aware
-        // breakdown so a 5% bar discount is honoured at settle (₹1398, not ₹1469) and
-        // the guest is never charged the un-discounted menu price.
-        try{
-          var _stAll=[];
-          (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){_stAll.push(i);});});
-          if(_stAll.length){tt=hodComputeBreakdown(_stAll, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal;}
-        }catch(_eDt){}
         var overlay=document.createElement('div');
         overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
         var sheet=document.createElement('div');
@@ -2229,12 +1911,9 @@ function renderWalletPage(bookingRef){
           +'</div>'
           +'<div style="border-top:1px solid rgba(0,0,0,.08);padding-top:14px;margin-bottom:16px;">';
 
-        // 🆕 2026-06-08 v3.253 (Khushi) — chronological order + sequential renumber
-        // (see renderRoundsHistory) so the SETTLE breakdown matches YOUR TAB + VIEW BILL.
-        var _coRounds=(tabRounds||[]).slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
-        _coRounds.forEach(function(r,ci){
+        tabRounds.forEach(function(r){
           bHtml+='<div style="margin-bottom:14px;">'
-            +'<div style="font-size:10px;font-weight:800;color:#000;margin-bottom:6px;letter-spacing:.5px;">ROUND '+(ci+1)+'</div>';
+            +'<div style="font-size:10px;font-weight:800;color:#000;margin-bottom:6px;letter-spacing:.5px;">ROUND '+r.roundNum+'</div>';
           r.items.forEach(function(it){
             bHtml+='<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;">'
               +'<span>'+it.qty+'× '+sanitize(it.n)+'</span>'
@@ -2253,15 +1932,12 @@ function renderWalletPage(bookingRef){
         // customers can see SC + GST split before paying.
         var _coAll=[];
         (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){_coAll.push(i);});});
-        // 🆕 2026-06-08 — breakdown honours the bartender's persisted discount/SC so
-        // the rows reconcile to the discounted grand (matches VIEW BILL + the bar).
-        var _coBd;try{_coBd=hodComputeBreakdown(_coAll, Number(cv.billDiscountPct||0), (cv.billScOn!==false));}catch(e){_coBd=null;}
+        var _coBd;try{_coBd=hodComputeBreakdown(_coAll);}catch(e){_coBd=null;}
         if(_coBd){
           var _coRows='';
           if(_coBd.foodSubtotal>0)    _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Food subtotal</span><span>\u20B9'+_coBd.foodSubtotal.toFixed(0)+'</span></div>';
           if(_coBd.alcSubtotal>0)     _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Liquor subtotal</span><span>\u20B9'+_coBd.alcSubtotal.toFixed(0)+'</span></div>';
           if(_coBd.nonAlcSubtotal>0)  _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Beverages subtotal</span><span>\u20B9'+_coBd.nonAlcSubtotal.toFixed(0)+'</span></div>';
-          if((_coBd.discount||0)>0)   _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;color:#16A34A;font-weight:800;"><span>DISCOUNT ('+_coBd.discountPct+'%)</span><span>\u2212\u20B9'+Math.round(_coBd.discount)+'</span></div>';
           _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Service charge (10%)</span><span>\u20B9'+_coBd.serviceCharge.toFixed(0)+'</span></div>';
           _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>GST (5%)</span><span>\u20B9'+_coBd.gst.toFixed(0)+'</span></div>';
           if(Math.abs(_coBd.roundOff||0)>=0.01) _coRows+='<div style="display:flex;justify-content:space-between;padding:2px 0;"><span>Round off</span><span>'+(_coBd.roundOff>=0?'+':'')+'\u20B9'+Math.abs(_coBd.roundOff).toFixed(2)+'</span></div>';
@@ -3077,10 +2753,6 @@ function renderWalletPage(bookingRef){
             date:td.date,arrivalTime:td.arrivalTime,partySize:td.partySize,
             actualArrivalTime:td.actualArrivalTime||null,
             isTableBooking:true,tabRounds:td.tabRounds||[],tabTotal:td.tabTotal||0,expiresAt:null,
-            // 🆕 2026-06-07 — bartender's bill-level discount/SC mirrored onto the
-            // tableReservations doc (by setCoverBillDiscount) so the table guest's
-            // VIEW BILL + YOUR TAB grand match the bar.
-            billDiscountPct:td.billDiscountPct||0,billScOn:(td.billScOn!==false),
             // Pass source/aggregator flags so song-request hide logic works
             source:td.source||'',
             isAggregator:!!(td.source&&td.source!=='inhouse')||bookingRef.startsWith('AGG-'),
@@ -3276,87 +2948,19 @@ function renderWalletPage(bookingRef){
           // For table bookings: if covers doc doesn't have actualArrivalTime yet,
           // check tableReservations as fallback (handles bookings made before the
           // dual-update fix, AND any race conditions during sync).
-          // 🆕 2026-06-08 (Khushi) — UNIFY the rounds + resolve the table number.
-          // Bar rounds live ONLY on the cover; table rounds get copied to BOTH the
-          // cover AND the linked tableReservations doc; captain-placed rounds live
-          // ONLY on the table doc. The OLD code REPLACED cv.tabRounds with the table
-          // doc's rounds whenever the table doc was longer — which silently WIPED the
-          // bar-only rounds and renumbered the bill (Khushi LIVE-BUG: R1 vanished,
-          // bill showed "Round 3, Round 2"). We now MERGE (union) both arrays — never
-          // drop any round, never renumber — deduping by placedAt|roundNum|roundTotal
-          // and sorting by roundNum so the bill always reads in order with every round
-          // and its correct 🍸/🍽️ badge. We ALSO pull the table number/floor off the
-          // linked doc when the cover's own display fields are blank (so an assigned
-          // table always shows; blank only when truly unassigned).
-          function _mergeRoundsFromTable(td){
-            try{
-              if(td && td.actualArrivalTime && !cv.actualArrivalTime) cv.actualArrivalTime=td.actualArrivalTime;
-              if(td){
-                var _tn=td.tableId||'', _fl=td.floorLabel||'';
-                if(_tn){ if(!cv.tableId)cv.tableId=_tn; if(!cv.linkedTableId)cv.linkedTableId=_tn; }
-                if(_fl){ if(!cv.floorLabel)cv.floorLabel=_fl; if(!cv.linkedFloorLabel)cv.linkedFloorLabel=_fl; }
+          if(cv.isTableBooking&&!cv.actualArrivalTime&&bookingRef){
+            firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1).get().then(function(tSnap){
+              if(!tSnap.empty){
+                var td=tSnap.docs[0].data();
+                if(td.actualArrivalTime)cv.actualArrivalTime=td.actualArrivalTime;
+                // Also pull tabRounds/tabTotal from tableReservations if more recent
+                if(td.tabRounds&&(!cv.tabRounds||td.tabRounds.length>cv.tabRounds.length))cv.tabRounds=td.tabRounds;
+                if(td.tabTotal&&!cv.tabTotal)cv.tabTotal=td.tabTotal;
               }
-              if(td && Array.isArray(td.tabRounds) && td.tabRounds.length){
-                var _merged=(Array.isArray(cv.tabRounds)?cv.tabRounds.slice():[]);
-                var _seen={}, _k=function(r){return String((r&&r.placedAt)||'')+'|'+String((r&&r.roundNum)||'')+'|'+String((r&&r.roundTotal)||'');};
-                _merged.forEach(function(r){_seen[_k(r)]=true;});
-                td.tabRounds.forEach(function(r){var kk=_k(r); if(!_seen[kk]){_seen[kk]=true; _merged.push(r);}});
-                // 🆕 2026-06-08 v3.253 — sort CHRONOLOGICALLY by placedAt (roundNum is
-                // unreliable across writers; the display renumbers 1..N from this order).
-                _merged.sort(function(a,b){var at=String((a&&a.placedAt)||''),bt=String((b&&b.placedAt)||''); if(at!==bt)return at.localeCompare(bt); return Number((a&&a.roundNum)||0)-Number((b&&b.roundNum)||0);});
-                cv.tabRounds=_merged;
-                cv.tabTotal=_merged.reduce(function(s,r){return s+(Number(r&&r.roundTotal)||0);},0);
-              } else if(td && td.tabTotal && !cv.tabTotal){ cv.tabTotal=td.tabTotal; }
-            }catch(_eMerge){ try{console.warn('[wallet] round merge failed (fail-open)', _eMerge && _eMerge.message);}catch(_){} }
-          }
-          function _renderCoverCv(){
-            // Fetch the linked table doc whenever this cover is bound to one (direct
-            // ref preferred; legacy where-query fallback). Fail-open: any error just
-            // renders the cover as-is. Released tables are deleted → no doc → cover
-            // rounds render alone (correct).
-            if(cv.linkedTableRef){
-              firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-                _mergeRoundsFromTable(d.exists?(d.data()||null):null);
-                renderWalletContent(cv);
-              }).catch(function(){renderWalletContent(cv);});
-            } else if((cv.isTableBooking||cv.tableId)&&bookingRef){
-              firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1).get().then(function(tSnap){
-                _mergeRoundsFromTable(tSnap.empty?null:(tSnap.docs[0].data()||null));
-                renderWalletContent(cv);
-              }).catch(function(){renderWalletContent(cv);});
-            } else {
               renderWalletContent(cv);
-            }
-          }
-          // 🆕 2026-06-08 (Khushi LIVE-BUG) — RELEASED-TABLE ZOMBIE COVER.
-          // releaseTable() deletes covers/{ref}, but the customer wallet's OWN
-          // merge-writes (paymentStatus:'bill_requested', atBar toggle, pendingOrder)
-          // RE-CREATE covers/{ref} AFTER release — so a found cover does NOT mean
-          // the session is live. The durable release signal is the
-          // releasedReservations marker (the same one the table listener honors at
-          // ~L2690). The covers listener wins whenever a (zombie) cover exists, so
-          // it MUST check the marker too. For TABLE refs, check it FIRST: if
-          // released → render the "🙏 Thank you" screen instead of reopening the
-          // active wallet. Live sessions never have this marker, so no regression.
-          if(bookingRef && (bookingRef.indexOf('TBL-')===0||bookingRef.indexOf('AGG-')===0||bookingRef.indexOf('HODTAB')===0)){
-            firestore.collection('releasedReservations').doc(bookingRef).get().then(function(mDoc){
-              if(mDoc.exists){
-                try{ localStorage.setItem('hod_wallet_visited_'+bookingRef,'1'); }catch(e){}
-                inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
-                  +'<div style="font-size:54px;margin-bottom:14px;">🙏</div>'
-                  +'<div style="font-family:var(--ff);font-size:22px;font-weight:800;color:#000;margin-bottom:10px;">Thank you for visiting!</div>'
-                  +'<div style="font-size:14px;color:#3D3D3D;line-height:1.7;max-width:300px;margin:0 auto 14px;">Your table session has ended. We hope you had a wonderful evening at House of Dopamine.</div>'
-                  +'<div style="font-family:monospace;font-size:13px;color:rgba(242,199,68,.55);margin-top:6px;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
-                  +'<div style="margin-top:24px;font-size:12px;color:#888;">See you again soon ✨</div>'
-                +'</div>';
-                try{ if(typeof renderHodFeedbackForm==='function') renderHodFeedbackForm(inner, 0); }catch(e){}
-                try{ wireCallWaiterFallback(bookingRef); }catch(e){}
-                return;
-              }
-              _renderCoverCv();
-            }).catch(function(){ _renderCoverCv(); });
+            }).catch(function(){renderWalletContent(cv);});
           } else {
-            _renderCoverCv();
+            renderWalletContent(cv);
           }
         },function(e){
           inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:#FF5733;">Error loading wallet: '+sanitize(e.message)+'</div>';
@@ -3375,9 +2979,6 @@ function renderWalletPage(bookingRef){
 // Size auto-adapts to its container so legacy 140x140 wrappers (#order-qr-popup,
 // #ticket-qr-wrap, #gl-qr-wrap) and the new 180x180 wallet wrap both render
 // without cropping. Falls back to 140 if container measurement isn't ready.
-// ⚡ FIX: timeout reduced 500ms → 80ms — DOM is already mounted when this is
-// called; 80ms is enough for the browser to paint the container. Saves ~420ms
-// of visible blank-QR time on every wallet open.
 function generateLocalQR(elId,data){
   setTimeout(function(){
     var qEl=document.getElementById(elId);
@@ -3387,7 +2988,7 @@ function generateLocalQR(elId,data){
       var sz=Math.max(96,Math.min(w,h)-8); // small inner margin so QR never touches edge
       new QRCode(qEl,{text:data,width:sz,height:sz,colorDark:'#000000',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
     }
-  },80);
+  },500);
 }
 
 // ════════════════════════════════════════
@@ -3415,19 +3016,8 @@ function renderCustomerWallet(bookingRef){
       var used=cv.coverUsed||0;
       var total=cv.coverActivated||cv.coverPaid||0;
       // Check if event is over — cover date or expiresAt
-      // 🆕 2026-06-08 v3.256 (Khushi MIDNIGHT BALANCE) — this card was using the
-      // UTC calendar date (toISOString) which rolls a day ahead from ~5:30AM IST,
-      // while a cover stays VALID until next-day NOON (getCoverExpiryFor). That
-      // could flash ₹0 for a guest who still had balance. Mirror the main wallet
-      // render's noon-anchored operational date (before noon IST → use yesterday's
-      // local date) so the balance never zeroes before the cover truly expires.
-      // The club runs past midnight (till ~2AM): at midnight getHours()<12 so the
-      // anchor = the operational night = cv.date → balance HOLDS, never resets.
       var cvDate=cv.date||cv.eventDate||(cv.activatedAt?cv.activatedAt.split('T')[0]:'');
-      var _opNowB=new Date();
-      var _opAnchorB=new Date(_opNowB);
-      if(_opNowB.getHours()<12){_opAnchorB.setDate(_opAnchorB.getDate()-1);}
-      var todayStr=_opAnchorB.getFullYear()+'-'+String(_opAnchorB.getMonth()+1).padStart(2,'0')+'-'+String(_opAnchorB.getDate()).padStart(2,'0');
+      var todayStr=new Date().toISOString().split('T')[0];
       var isExpired=(cv.expiresAt&&new Date(cv.expiresAt)<new Date())||(cvDate&&cvDate<todayStr);
       if(isExpired){bal=0;} // show 0 balance for past events
       var pct=total>0?Math.round((used/total)*100):0;
