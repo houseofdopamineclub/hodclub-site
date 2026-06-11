@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.256";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-08)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.260";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-08)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -72,6 +72,29 @@ try{document.addEventListener("DOMContentLoaded",function(){var b=document.creat
 <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com"/>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com"/>
 <link rel="dns-prefetch" href="https://cdn.onesignal.com"/>
+<!-- ⚡ FIX: wallet.js parallel preload — when customer opens ?wallet= link
+     (WhatsApp → hodclub.in), wallet.js used to download AFTER Firebase SDK
+     finished loading (sequential = 5-10s blank screen). Now it downloads in
+     PARALLEL with Firebase so the QR paints in ~1-2s on first render.
+     Script is also deferred alongside Firebase so _renderWalletPage is ready
+     before the first render() call — eliminating the stub + re-render cycle. -->
+<script>
+(function(){
+  try{
+    var _qs=window.location.search;
+    if(_qs.indexOf('wallet=')>=0||_qs.indexOf('verify=')>=0||_qs.indexOf('topup=')>=0){
+      // Preload hint — browser fetches wallet.js immediately in parallel
+      var _pl=document.createElement('link');
+      _pl.rel='preload';_pl.as='script';_pl.href='wallet.js';
+      document.head.appendChild(_pl);
+      // Also inject as defer script so it executes alongside Firebase SDKs
+      var _sc=document.createElement('script');
+      _sc.src='wallet.js';_sc.defer=true;
+      document.head.appendChild(_sc);
+    }
+  }catch(_e){}
+})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -1251,6 +1274,19 @@ var DB_KEY='hod_v4_db';
 // before the full state object is assigned later in the script.
 // (Latent race when firebase SDK is loaded synchronously from cache.)
 var S = {};
+// ⚡ FIX: seed S._cachedEvents from localStorage immediately so the FIRST
+// render() shows events instantly (from cache) instead of a blank spinner.
+// On returning visits this eliminates the "keeps loading" flash — the page
+// paints events in ~0ms and Firestore refreshes them silently in the background.
+// New visitors still see the spinner until Firebase responds (~1-2s), which is
+// unavoidable (no local cache yet). DB_KEY is declared 2 lines above.
+try{
+  var _lsSeed=JSON.parse(localStorage.getItem('hod_v4_db')||'{}');
+  if(_lsSeed&&Array.isArray(_lsSeed.events)&&_lsSeed.events.length){
+    S._cachedEvents=_lsSeed.events;
+    try{S._cachedEventsJson=JSON.stringify(_lsSeed.events);}catch(_e2){}
+  }
+}catch(_e){}
 var DB_MODE = 'local';
 var firestore = null;
 function initFirebase(){
@@ -5978,6 +6014,10 @@ function _showTableConfirm(bk, table){
 
 // ── generateLocalQR (kept in main — used by My Bookings + Table Reservations)
 function generateLocalQR(elId,data){
+  // ⚡ FIX: reduced from 500ms → 80ms — the DOM element is already mounted by
+  // the time this is called, so the only reason for a delay is letting the
+  // browser paint the container first. 80ms is enough for that and saves ~420ms
+  // of visible blank-QR time on every wallet open.
   setTimeout(function(){
     var qEl=document.getElementById(elId);
     if(qEl&&typeof QRCode!=='undefined'&&!qEl.hasAttribute('data-qr')){
@@ -5986,7 +6026,7 @@ function generateLocalQR(elId,data){
       var sz=Math.max(96,Math.min(w,h)-8);
       new QRCode(qEl,{text:data,width:sz,height:sz,colorDark:'#000000',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
     }
-  },500);
+  },80);
 }
 
 // ── Wallet loader

@@ -3375,6 +3375,9 @@ function renderWalletPage(bookingRef){
 // Size auto-adapts to its container so legacy 140x140 wrappers (#order-qr-popup,
 // #ticket-qr-wrap, #gl-qr-wrap) and the new 180x180 wallet wrap both render
 // without cropping. Falls back to 140 if container measurement isn't ready.
+// ⚡ FIX: timeout reduced 500ms → 80ms — DOM is already mounted when this is
+// called; 80ms is enough for the browser to paint the container. Saves ~420ms
+// of visible blank-QR time on every wallet open.
 function generateLocalQR(elId,data){
   setTimeout(function(){
     var qEl=document.getElementById(elId);
@@ -3384,7 +3387,7 @@ function generateLocalQR(elId,data){
       var sz=Math.max(96,Math.min(w,h)-8); // small inner margin so QR never touches edge
       new QRCode(qEl,{text:data,width:sz,height:sz,colorDark:'#000000',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
     }
-  },500);
+  },80);
 }
 
 // ════════════════════════════════════════
