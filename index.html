@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.269";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-12)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.271";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-12)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -1858,6 +1858,24 @@ function saveBookingToFirebase(booking, callback){
 }
 
 // ── Firebase: Load bookings (admin only)
+// 🆕 2026-06-12 v3.271 (My Bookings first-tap-empty fix) — resolve once Firebase
+// is ready (retry init up to maxTries × 500ms), so callers can AWAIT readiness
+// before issuing get() queries. Without this, the My Bookings lookup evaluated
+// `firestore ? query : []` synchronously while Firebase was still initialising,
+// so the table-reservation + guest-list queries silently returned [] on the
+// FIRST tap (only the bookings query retried). Adds NO Firestore reads.
+function ensureFirestoreReady(maxTries){
+  return new Promise(function(resolve){
+    function tryOnce(n){
+      if(firestore){resolve(true);return;}
+      try{initFirebase();}catch(_e){}
+      if(firestore){resolve(true);return;}
+      if(n<=0){resolve(false);return;}
+      setTimeout(function(){tryOnce(n-1);},500);
+    }
+    tryOnce(maxTries==null?5:maxTries);
+  });
+}
 function loadBookingsFromFirebase(callback){
   // If firestore not ready, retry up to 5 times (500ms apart)
   function attempt(tries){
@@ -4346,16 +4364,33 @@ function renderMyBookings(){
     if(_cached && (Date.now()-_cached.ts)<300000){
       _fetch=Promise.resolve(_cached.results);
     }else{
-      var pBks=new Promise(function(res){loadBookingsFromFirebase(function(bks){res(bks||[]);});});
-      var pTbl=firestore?firestore.collection('tableReservations').where('date','>=',_cutoff90).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
-      var pGL=firestore?firestore.collection('guestlist').orderBy('joinedAt','desc').limit(300).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
-      _fetch=Promise.all([pBks,pTbl,pGL]).then(function(r){try{window[_ck]={ts:Date.now(),results:r};}catch(_e){}return r;});
+      // 🆕 2026-06-12 v3.271 — WAIT for Firebase to be ready BEFORE issuing the
+      // table-reservation + guest-list queries. Previously the `firestore ? … : []`
+      // ternaries were evaluated synchronously at tap time; on a fresh page load /
+      // slow venue wifi Firebase wasn't ready yet, so those two queries silently
+      // returned [] → "no bookings" on the FIRST tap, working only on the second.
+      _fetch=ensureFirestoreReady(5).then(function(_ready){
+        var pBks=new Promise(function(res){loadBookingsFromFirebase(function(bks){res(bks||[]);});});
+        var pTbl=firestore?firestore.collection('tableReservations').where('date','>=',_cutoff90).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
+        var pGL=firestore?firestore.collection('guestlist').orderBy('joinedAt','desc').limit(300).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
+        return Promise.all([pBks,pTbl,pGL]).then(function(r){
+          // Only cache when Firebase actually served the data — never cache a
+          // partial/empty result captured while Firebase was still initialising,
+          // or it would stick as "no bookings" for 5 minutes.
+          try{if(firestore)window[_ck]={ts:Date.now(),results:r};}catch(_e){}
+          return r;
+        });
+      });
     }
     _fetch.then(function(results){
       lookupBtn.textContent='Find My Bookings →';lookupBtn.disabled=false;
       var myBks=(results[0]||[]).filter(function(b){return (b.phone||'').replace(/\D/g,'').endsWith(phone10);});
-      var myTbls=(results[1]||[]).filter(function(t){return (t.phone||'').replace(/\D/g,'').endsWith(phone10);}).map(function(t){
-        return {ref:t.bookingRef||t.id,name:t.customerName||'',phone:t.phone||'',email:t.email||'',date:t.date||'',time:t.arrivalTime||'',
+      // 🆕 2026-06-12 v3.271 — match table reservations on EITHER `phone` OR
+      // `customerPhone`: customer-site BOOK A TABLE writes `phone`, but POS/Door
+      // walk-in & captain table writes use `customerPhone` — those tables (e.g.
+      // FD6 booked at the door) never matched here and went missing from My Bookings.
+      var myTbls=(results[1]||[]).filter(function(t){return ((t.phone||t.customerPhone||'')+'').replace(/\D/g,'').endsWith(phone10);}).map(function(t){
+        return {ref:t.bookingRef||t.id,name:t.customerName||t.name||'',phone:t.phone||t.customerPhone||'',email:t.email||'',date:t.date||'',time:t.arrivalTime||'',
           eventTitle:'🪑 '+(t.tableId||'')+' · '+(t.floorLabel||''),entryType:'table',total:0,checkedIn:!!t.actualArrivalTime,
           paymentId:t.paymentId||'',bookedAt:t.bookedAt||t.createdAt||''};
       });
@@ -4412,7 +4447,7 @@ function renderMyBookings(){
             ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(245,158,11,.12);border:2px solid #000;color:#F59E0B;letter-spacing:.5px;">⏳ PAY AT VENUE</span>'
             : (b.total===0
               ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;letter-spacing:.5px;">FREE</span>'
-              : '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.05);border:1px solid rgba(0,0,0,.15);color:rgba(255,255,255,.65);letter-spacing:.5px;">PENDING</span>');
+              : '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.05);border:1px solid rgba(0,0,0,.15);color:#3D3D3D;letter-spacing:.5px;">PENDING</span>');
         var statusBadge=isCI
           ? '<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(0,200,100,.12);border:1px solid rgba(0,200,100,.4);color:#00C864;letter-spacing:.5px;">✓ CHECKED IN</span>'
           : '<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;letter-spacing:.5px;">CONFIRMED</span>';
@@ -4429,8 +4464,8 @@ function renderMyBookings(){
           +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:14px;margin-bottom:12px;">'
           +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;margin-bottom:8px;">Guest</div>'
           +'<div style="font-size:15px;font-weight:700;color:#000;margin-bottom:6px;">'+sanitize(b.name||'—')+'</div>'
-          +(b.phone?'<div style="font-size:13px;color:rgba(255,255,255,.75);margin-bottom:'+(b.email?'4px':'0')+';">📱 '+sanitize(b.phone)+'</div>':'')
-          +(b.email?'<div style="font-size:13px;color:rgba(255,255,255,.75);word-break:break-all;">✉️ '+sanitize(b.email)+'</div>':'')
+          +(b.phone?'<div style="font-size:13px;color:#3D3D3D;font-weight:600;margin-bottom:'+(b.email?'4px':'0')+';">📱 '+sanitize(b.phone)+'</div>':'')
+          +(b.email?'<div style="font-size:13px;color:#3D3D3D;font-weight:600;word-break:break-all;">✉️ '+sanitize(b.email)+'</div>':'')
           +'</div>'
           // Booking facts grid: date, time, type, amount
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
