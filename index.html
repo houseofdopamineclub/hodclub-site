@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.256";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-08)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.269";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-12)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -1690,16 +1690,15 @@ function startEventsListener(){
   _refresh();
   // 30s poll while tab is visible (no work when backgrounded — same
   // visibilityState gate as the menu poll at line ~822).
-  // 🔧 READ-COST FIX: Events change at most a few times per day (admin adds/edits).
-  // Polling every 30s was firing 14 docs × 12 connections × 2/min = 20K reads/hr.
-  // Changed to 5-minute poll — customers still see fresh events within 5 min of any change.
+  // 🆕 2026-06-12 v3.257 READ-COST: events change ~once a day, so poll every
+  // 5min (was 30s = 10× overkill).
   var _iv=setInterval(function(){
     if(document.visibilityState==='visible') _refresh();
   },300000);
-  // 🔧 READ-COST FIX: Debounce visibility handler by 3s.
-  // Phone users switch apps constantly (WhatsApp → HOD → Instagram → HOD).
-  // Without debounce each app-switch = 14 Firestore reads instantly.
-  // 134 wallets × 10 app-switches/hr × 14 docs = 18K reads/hr eliminated.
+  // Foreground refresh — customer who came back after backgrounding sees fresh
+  // stock counts. 🆕 v3.257: DEBOUNCED 3s so rapid app-switching (WhatsApp →
+  // back → Insta → back, 10-20×/hr × every open wallet) fires at most ONE
+  // events fetch instead of one full fetch per switch (was the biggest reader).
   var _visTimer=null;
   var _vis=function(){
     if(document.visibilityState==='visible'){
@@ -1710,8 +1709,8 @@ function startEventsListener(){
   try{ document.addEventListener('visibilitychange',_vis); }catch(e){}
   S._eventsUnsub=function(){
     try{ clearInterval(_iv); }catch(e){}
+    try{ if(_visTimer) clearTimeout(_visTimer); }catch(e){}
     try{ document.removeEventListener('visibilitychange',_vis); }catch(e){}
-    if(_visTimer){ try{ clearTimeout(_visTimer); }catch(e){} _visTimer=null; }
   };
   S._eventsListenerStarted=true;
 }
@@ -1994,10 +1993,10 @@ function mkBtn(type,text,onClick){
 }
 
 function set(patch){
-  // 🔧 READ-COST FIX: Previously cleared bookings cache on ANY adminTab change.
-  // Admin clicking Events → Promo Codes → Analytics would wipe the cache each
-  // time, so navigating back to Bookings triggered a fresh 200-doc fetch.
-  // Now cache only resets when navigating TO the bookings tab specifically.
+  // 🆕 2026-06-12 v3.257 READ-COST: only wipe the bookings cache when the admin
+  // actually OPENS the Bookings tab — was wiping on EVERY tab switch (events →
+  // promo → analytics → …), forcing a full ~200-doc refetch each time the admin
+  // clicked around. Now other tabs reuse the cache; Bookings still re-fetches.
   if(patch.adminTab==='bookings'){
     S._bookingsFetched=false;
     S._fbBookings=null;
@@ -4328,26 +4327,31 @@ function renderMyBookings(){
     var phone=phoneInp.value.replace(/\D/g,'');
     if(phone.length<10){alert('Please enter a valid 10-digit phone number.');return;}
     var phone10=phone.slice(-10);
-    // 🔧 READ-COST FIX: Cache tableReservations + guestlist results for 5 minutes.
-    // Each lookup fires 3 parallel queries = 500+ reads. Customers often tap
-    // "Find My Bookings" multiple times (mistype, re-check, share screen with staff).
-    // _fromCache=true → skip Firestore; pTbl/pGL resolve instantly from memory.
-    // Bookings cache is handled separately via S._bookingsFetched / S._fbBookings.
-    var _cacheKey='_hodLookupCache_'+phone10;
-    var _cached=window[_cacheKey];
-    var _fromCache=(_cached && (Date.now()-_cached.ts)<300000);
     lookupBtn.textContent='Searching...';lookupBtn.disabled=true;
     // Search bookings, table reservations, AND guest list
     // 🔴 2026-05-24 COST FIX: tableReservations + guestlist were unbounded.
     // tableReservations has 'date' (YYYY-MM-DD) → filter last 90d + upcoming.
     // guestlist has no date field → use orderBy joinedAt desc + limit 300.
-    // 🔧 READ-COST FIX: Added .limit(100) to tableReservations — prevents unbounded
-    // scan as reservation history grows over months of events.
     var _cutoff90 = (function(){ var d=new Date(); d.setDate(d.getDate()-90); return d.toISOString().slice(0,10); })();
-    var pBks=new Promise(function(res){loadBookingsFromFirebase(function(bks){res(bks||[]);});});
-    var pTbl=_fromCache?Promise.resolve(_cached.tbl):(firestore?firestore.collection('tableReservations').where('date','>=',_cutoff90).limit(100).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]));
-    var pGL=_fromCache?Promise.resolve(_cached.gl):(firestore?firestore.collection('guestlist').orderBy('joinedAt','desc').limit(300).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]));
-    Promise.all([pBks,pTbl,pGL]).then(function(results){
+    // 🆕 2026-06-12 v3.257 READ-COST: 5-min in-memory cache so repeated taps of
+    // "Find My Bookings" for the SAME phone don't refire the 3 queries each time
+    // (cleared on reload; a brand-new booking shows after 5min or a refresh).
+    // NOTE: the tableReservations scan stays 90-day-bounded but UNLIMITED on
+    // purpose — it's filtered by phone CLIENT-side, so a hard .limit() could
+    // drop a guest's own booking on a busy night (false "no bookings"). The
+    // cache, not a row cap, is the safe saving here.
+    var _ck='_hodLookup_'+phone10;
+    var _cached=window[_ck];
+    var _fetch;
+    if(_cached && (Date.now()-_cached.ts)<300000){
+      _fetch=Promise.resolve(_cached.results);
+    }else{
+      var pBks=new Promise(function(res){loadBookingsFromFirebase(function(bks){res(bks||[]);});});
+      var pTbl=firestore?firestore.collection('tableReservations').where('date','>=',_cutoff90).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
+      var pGL=firestore?firestore.collection('guestlist').orderBy('joinedAt','desc').limit(300).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
+      _fetch=Promise.all([pBks,pTbl,pGL]).then(function(r){try{window[_ck]={ts:Date.now(),results:r};}catch(_e){}return r;});
+    }
+    _fetch.then(function(results){
       lookupBtn.textContent='Find My Bookings →';lookupBtn.disabled=false;
       var myBks=(results[0]||[]).filter(function(b){return (b.phone||'').replace(/\D/g,'').endsWith(phone10);});
       var myTbls=(results[1]||[]).filter(function(t){return (t.phone||'').replace(/\D/g,'').endsWith(phone10);}).map(function(t){
@@ -4379,9 +4383,6 @@ function renderMyBookings(){
       var mineAll=mine.slice();
       mine=mine.filter(function(b){var t=_ts(b);return t===0||t>=_cutoffMs;});
       mine.sort(function(a,b){return _ts(b)-_ts(a);}); // newest first
-      // 🔧 READ-COST FIX: Save tbl+gl raw arrays + assembled mine to 5-min cache.
-      // Next lookup for same phone number skips Firestore entirely (400+ reads saved).
-      if(!_fromCache){ try{ window[_cacheKey]={ts:Date.now(),tbl:results[1]||[],gl:results[2]||[]}; }catch(_){} }
       var _hiddenCount=mineAll.length-mine.length;
       resultsDiv.innerHTML='';
       if(!mine.length){
@@ -5127,8 +5128,20 @@ function renderTableFloorPlan(){
   // ── STATS BAR
   var statBar=document.createElement('div');
   statBar.id='tbl-stat-bar';
-  statBar.style.cssText='padding:8px 20px 0;font-size:11px;color:rgba(0,0,0,.35);';
+  statBar.style.cssText='padding:8px 20px 0;font-size:14px;font-weight:700;color:rgba(0,0,0,.7);';
   wrap.appendChild(statBar);
+
+  // 🆕 2026-06-12 v3.268 (Khushi) — colour legend for the floor map, so guests
+  // instantly read what the table colours mean. Static (built once) — adds NO
+  // Firestore reads. Bigger, bolder text than the old faint stat line.
+  var legendBar=document.createElement('div');
+  legendBar.id='tbl-legend-bar';
+  legendBar.style.cssText='display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:8px 20px 2px;font-size:13px;font-weight:800;color:#000;';
+  legendBar.innerHTML=''
+    +'<span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;border-radius:4px;background:#C9F2D8;border:2px solid #00C864;display:inline-block;"></span>All slots free</span>'
+    +'<span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;border-radius:4px;background:#FF9F1C;border:2px solid #F59E0B;display:inline-block;"></span>A few slots left</span>'
+    +'<span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;border-radius:4px;background:#FF9F1C;border:2px solid #FF5733;display:inline-block;"></span>Fully booked</span>';
+  wrap.appendChild(legendBar);
 
   // ── SLIDE-UP BOOKING PANEL (hidden by default)
   var bookPanel=document.createElement('div');
@@ -5812,12 +5825,13 @@ function renderTableFloorPlan(){
     if(_pollBksVis){document.removeEventListener('visibilitychange',_pollBksVis);_pollBksVis=null;}
     // Prime once
     _readBksOnce();
-    // 🔧 READ-COST FIX: Changed from 20s → 60s.
-    // Table availability doesn't change every 20s — it changes when someone books,
-    // which is rare. 60s is still fast enough for real-time floor plan feel.
+    // 🆕 2026-06-12 v3.257 READ-COST: poll every 45s (was 20s). The foreground
+    // visibilitychange rebind below still gives an instant refresh when a staffer
+    // flips back to the tab, so 45s background cadence costs less without making
+    // the floor map feel stale.
     _pollBksTimer=setInterval(function(){
       if(document.visibilityState==='visible')_readBksOnce();
-    },60000);
+    },45000);
     // Foreground rebind — instant refresh when customer flips back to tab
     _pollBksVis=function(){
       if(document.visibilityState==='visible')_readBksOnce();
