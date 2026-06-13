@@ -1123,11 +1123,23 @@ function renderWalletPage(bookingRef){
               +'<div style="font-family:var(--ff);font-size:21px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">Your bill\u2019s been settled</div>'
               +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:'+(_leftover?'14px':'18px')+';">This table\u2019s tab is closed. To order again, please ask your <b style="color:#000;">captain</b> to set you up at a new table.</div>'
               +(_leftover?('<div style="background:rgba(34,160,148,.08);border:1.5px solid rgba(34,160,148,.4);border-radius:12px;padding:10px 14px;margin-bottom:16px;"><div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.2px;margin-bottom:2px;">WALLET BALANCE LEFT</div><div style="font-size:20px;font-weight:900;color:#15803D;font-variant-numeric:tabular-nums;">\u20b9'+_leftover.toLocaleString('en-IN')+'</div><div style="font-size:11px;color:#3D3D3D;margin-top:4px;line-height:1.4;">You can still use this at the \ud83c\udf78 bar \u2014 show your QR to the bartender.</div></div>'):'');
-            var _sBar=document.createElement('button');
-            _sBar.style.cssText='width:100%;padding:16px;border-radius:8px;background:rgba(123,47,190,.15);border:2px solid #7B2FBE;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
-            _sBar.innerHTML='<span style="font-size:22px;">\ud83c\udf78</span><span>SHOW QR TO BARTENDER</span>';
-            _sBar.onclick=function(){ try{_sOv.remove();}catch(_){} try{ _parkOrderForBartender('customer_self_order_bar'); }catch(_){} };
-            _sMd.appendChild(_sBar);
+            // 🆕 2026-06-13 v3.282 (Khushi) — the "SHOW QR TO BARTENDER" option is
+            // correct ONLY for a TABLE+WALLET booking (a cover was activated, so the
+            // guest may still spend leftover/recharge at the bar). For a PURE TABLE
+            // (no wallet ever activated) there is NO bar wallet to use — so we hide
+            // the bartender button entirely and leave only the "ask your captain for
+            // a new table" message + Close. Detection is "was a cover EVER activated",
+            // amount-agnostic (Khushi: even a ₹0 activation counts): activation
+            // timestamp present OR any activated amount OR any balance. A pure table
+            // has none of these (coverActivatedAt unset, coverActivated 0, balance 0).
+            var _coverWasActivated = !!cv.coverActivatedAt || Number(cv.coverActivated||0)>0 || Number(cv.coverBalance||0)>0;
+            if (_coverWasActivated) {
+              var _sBar=document.createElement('button');
+              _sBar.style.cssText='width:100%;padding:16px;border-radius:8px;background:rgba(123,47,190,.15);border:2px solid #7B2FBE;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
+              _sBar.innerHTML='<span style="font-size:22px;">\ud83c\udf78</span><span>SHOW QR TO BARTENDER</span>';
+              _sBar.onclick=function(){ try{_sOv.remove();}catch(_){} try{ _parkOrderForBartender('customer_self_order_bar'); }catch(_){} };
+              _sMd.appendChild(_sBar);
+            }
             var _sCancel=document.createElement('button');
             _sCancel.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.14);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
             _sCancel.textContent='Close';
@@ -3091,6 +3103,7 @@ function renderWalletPage(bookingRef){
           renderWalletContent({
             ref:bookingRef,name:td.customerName||'',phone:td.phone||'',
             coverBalance:td.coverBalance||0,coverActivated:td.coverActivated||0,
+            coverActivatedAt:td.coverActivatedAt||null,
             coverUsed:td.coverUsed||0,transactions:[],
             eventTitle:(td.tableId||'')+' · '+(td.floorLabel||''),
             tableId:td.tableId,floor:td.floor,floorLabel:td.floorLabel||'',
