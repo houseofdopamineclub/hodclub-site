@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.271";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-12)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.272";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-12)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -2019,6 +2019,11 @@ function set(patch){
     S._bookingsFetched=false;
     S._fbBookings=null;
   }
+  // 🆕 2026-06-12 v3.272 — when LEAVING My Bookings, forget the looked-up number so
+  // the next person to open My Bookings on this device must re-enter their own
+  // number (the auto-replay must only ever re-show results to the SAME person who
+  // just searched, during a same-session re-render — never to a later viewer).
+  if(patch.view && patch.view!=='myBookings'){try{window._hodLastBkPhone=null;}catch(_e){}}
   Object.assign(S,patch);render();
 }
 
@@ -4345,6 +4350,13 @@ function renderMyBookings(){
     var phone=phoneInp.value.replace(/\D/g,'');
     if(phone.length<10){alert('Please enter a valid 10-digit phone number.');return;}
     var phone10=phone.slice(-10);
+    // 🆕 2026-06-12 v3.272 — remember the looked-up number so the results survive a
+    // page re-render. My Bookings cards lazy-load wallet.js (renderCustomerWallet),
+    // which fires a full render() once loaded → renderMyBookings rebuilds the page
+    // with a FRESH empty resultsDiv, wiping the just-painted results ("showed for a
+    // moment then disappeared"). renderMyBookings now auto-replays this lookup (from
+    // the 5-min cache → ZERO extra reads) so the results re-appear after any re-render.
+    try{window._hodLastBkPhone=phoneInp.value;}catch(_e){}
     lookupBtn.textContent='Searching...';lookupBtn.disabled=true;
     // Search bookings, table reservations, AND guest list
     // 🔴 2026-05-24 COST FIX: tableReservations + guestlist were unbounded.
@@ -4415,9 +4427,16 @@ function renderMyBookings(){
         if(isNaN(t)) t=Date.parse(b.bookedAt||'');
         return isNaN(t)?0:t;
       }
+      // 🆕 2026-06-12 v3.272 — sort by when the booking was MADE (bookedAt), not by
+      // event/reservation date. A table you just booked for tonight was sorting
+      // BELOW any ticket held for a future-dated event (date-sort put the future
+      // event first), so "my most recent booking" wasn't on top. bookedAt is present
+      // on all three sources (bookings, tableReservations, guestlist.joinedAt);
+      // fall back to the date timestamp when bookedAt is missing.
+      function _bts(b){var t=Date.parse(b.bookedAt||'');return isNaN(t)?_ts(b):t;}
       var mineAll=mine.slice();
       mine=mine.filter(function(b){var t=_ts(b);return t===0||t>=_cutoffMs;});
-      mine.sort(function(a,b){return _ts(b)-_ts(a);}); // newest first
+      mine.sort(function(a,b){return _bts(b)-_bts(a);}); // most-recently-BOOKED first
       var _hiddenCount=mineAll.length-mine.length;
       resultsDiv.innerHTML='';
       if(!mine.length){
@@ -4510,6 +4529,23 @@ function renderMyBookings(){
   inputWrap.appendChild(inputLabel);inputWrap.appendChild(phoneInp);inputWrap.appendChild(lookupBtn);inputWrap.appendChild(resultsDiv);
   body2.appendChild(inputWrap);
   wrap.appendChild(body2);
+  // 🆕 2026-06-12 v3.272 — if a number was looked up moments ago, re-run the lookup
+  // automatically so results survive a page re-render (e.g. wallet.js lazy-load firing
+  // render()). Replay ONLY when the 5-min cache for that number is still warm → the
+  // replay hits the cache, stays synchronous, and adds ZERO Firestore reads. If the
+  // cache has expired we do NOT replay (and never silently re-query): the user taps
+  // again deliberately. `_hodLastBkPhone` is cleared on leaving My Bookings (see set())
+  // so this can only ever re-show results to the SAME person, never a later viewer.
+  try{
+    if(window._hodLastBkPhone){
+      var _rp=(window._hodLastBkPhone+'').replace(/\D/g,'').slice(-10);
+      var _rc=window['_hodLookup_'+_rp];
+      if(_rp.length===10 && _rc && (Date.now()-_rc.ts)<300000){
+        phoneInp.value=window._hodLastBkPhone;
+        setTimeout(function(){try{lookupBtn.onclick();}catch(_e){}},0);
+      }
+    }
+  }catch(_e){}
   return wrap;
 }
 
