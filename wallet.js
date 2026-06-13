@@ -71,6 +71,9 @@ function renderWalletPage(bookingRef){
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-otp b{color:#000;letter-spacing:1.5px;font-weight:900;}'
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-call{display:flex;align-items:center;gap:8px;color:#000;font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;background:transparent;border:2px solid #000;font-family:var(--ff);}'
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-avatar{width:26px;height:26px;border-radius:50%;background:#FF90E8;color:#000000;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;}'
+      // 🆕 Exit/back button — leaves the wallet, returns to the main site
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-exit{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:transparent;border:2px solid #000;color:#000;font-size:19px;font-weight:900;cursor:pointer;font-family:var(--ff);line-height:1;flex:none;padding:0;}'
+      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-exit:active{transform:scale(.94);}'
       // 4-tab solid rectangles like Digitory FOOD/LIQUOR/NAB/SMOKE
       +'.hod-wallet-v2 .wv-tab4row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;}'
       +'.hod-wallet-v2 .wv-tab4{padding:22px 6px;border-radius:8px;font-size:12px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);border:2px solid #000;text-align:center;transition:all .12s;color:#000;background:#fff;line-height:1.1;box-shadow:0 1px 4px rgba(0,0,0,.15);}'
@@ -108,8 +111,10 @@ function renderWalletPage(bookingRef){
   var hdr=document.createElement('div');
   hdr.className='wv-hdr2';
   // Build header lazily after we know cv — start with just brand.
-  hdr.innerHTML='<div><div class="wv-hd2-brand">House of Dopamine</div>'
-    +'<div class="wv-hd2-otp" id="wv-hd2-ref">&nbsp;</div></div>'
+  hdr.innerHTML='<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
+    +'<button class="wv-hd2-exit" id="wv-hd2-exit-btn" type="button" aria-label="Exit wallet" title="Exit">&#8592;</button>'
+    +'<div style="min-width:0;"><div class="wv-hd2-brand">House of Dopamine</div>'
+    +'<div class="wv-hd2-otp" id="wv-hd2-ref">&nbsp;</div></div></div>'
     // 2026-05-13 (Khushi spec) — "Call Waiter" no longer dials a hardcoded
     // phone (the old tel:+918882222900 went to a number nobody at HOD owns
     // any more). It now writes a `waiterCalls/{auto}` doc to Firestore;
@@ -121,6 +126,18 @@ function renderWalletPage(bookingRef){
       +'<span id="wv-hd2-call-label">Call Waiter</span><span class="wv-hd2-avatar">&#9742;</span>'
     +'</button>';
   wrap.appendChild(hdr);
+
+  // 🆕 Exit button — leave the wallet and return to the main hodclub.in site.
+  // Strips the ?wallet= deep-link param so the SPA shows the events home view
+  // (host-agnostic: works on the live site AND the dev preview). Falls back to
+  // the hardcoded site URL if location is unavailable for any reason.
+  try{
+    var _exitBtn=hdr.querySelector('#wv-hd2-exit-btn');
+    if(_exitBtn){_exitBtn.onclick=function(){
+      try{ window.location.href = window.location.origin + window.location.pathname; }
+      catch(_){ window.location.href='https://hodclub.in'; }
+    };}
+  }catch(_){}
 
   var inner=document.createElement('div');
   inner.style.cssText='padding:20px;max-width:480px;margin:0 auto;';
@@ -863,10 +880,23 @@ function renderWalletPage(bookingRef){
       var _hasTableForCheckout=!!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
       checkoutWrap.style.cssText=_hasTableForCheckout?'':'display:none;';
 
+      // 🆕 2026-06-13 (Khushi) — split the settle CTA by booking type:
+      //  • TABLE + WALLET (guest has a prepaid balance loaded) → keep the
+      //    "🔔 Call Captain to Settle Bill" captain-ping (captain deducts the
+      //    bill from the wallet in person — unchanged).
+      //  • NORMAL TABLE (NO prepaid balance — just runs a tab) → show
+      //    "✅ Done Ordering — Settle Your Bill", which pages the captain to
+      //    collect payment AND routes the guest to the existing feedback /
+      //    Google-review flow (showCaptainFeedback). See _confirm below.
+      // Prepaid detection: coverBalance OR coverActivated > 0 (coverBalance can
+      // be >0 pre-arrival; coverActivated is the stable "money was loaded" flag).
+      var _hasPrepaid = Number(cv.coverBalance||0)>0 || Number(cv.coverActivated||0)>0;
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
       checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#23A094;border:2px solid #000;color:#fff;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:800;letter-spacing:.5px;box-shadow:4px 4px 0 #000;display:flex;align-items:center;justify-content:center;gap:10px;';
-      checkoutBtn.innerHTML='<span style="font-size:18px;">🔔</span><span>Call Captain to Settle Bill</span>';
+      checkoutBtn.innerHTML=_hasPrepaid
+        ? '<span style="font-size:18px;">🔔</span><span>Call Captain to Settle Bill</span>'
+        : '<span style="font-size:18px;">✅</span><span>Done Ordering — Settle Your Bill</span>';
       checkoutWrap.appendChild(checkoutBtn);
       // (Tax-hint pill moved up under Running Tab — see taxHintTop above.)
       submitCard.appendChild(checkoutWrap);
@@ -1912,6 +1942,25 @@ function renderWalletPage(bookingRef){
         var _settledChk=function(d){return !!d && d.paymentStatus==='paid' && (!!d.paymentMode || !!d.paidAt);};
         var _billPatch={paymentStatus:'bill_requested',billRequestedAt:new Date().toISOString(),orderTotal:_billTt,tabTotal:_billTt};
         var _confirm=function(){
+          // 🆕 2026-06-13 (Khushi) — NORMAL TABLE (no prepaid wallet): once the
+          // captain has been paged (bill_requested already written above) route
+          // the guest to the existing reviews / feedback flow. The captain still
+          // comes to collect payment; the guest sees the captain-on-way +
+          // 5-star feedback + Google-rating screen (same flow as the
+          // wallet-funded GET BILL gate at the _walletBal>=tt branch).
+          if(!_hasPrepaid){
+            try{ if(_walletUnsub){_walletUnsub();_walletUnsub=null;} }catch(_){}
+            try{
+              inner.innerHTML='';
+              showCaptainFeedback(inner, _billTt, false);
+              try{ window.scrollTo(0,0); }catch(_s){}
+            }catch(_e){
+              // Fail-open: never strand the guest — fall back to the toast.
+              try{checkoutBtn.disabled=true;checkoutBtn.style.background='#15803D';checkoutBtn.style.cursor='default';checkoutBtn.style.boxShadow='2px 2px 0 #000';checkoutBtn.innerHTML='<span style="font-size:18px;">\u2705</span><span>Captain notified \u2014 on their way</span>';}catch(_2){}
+              try{showToast('A captain will be with you shortly to settle your bill \uD83C\uDF89','success',4500);}catch(_2){}
+            }
+            return;
+          }
           try{checkoutBtn.disabled=true;checkoutBtn.style.background='#15803D';checkoutBtn.style.cursor='default';checkoutBtn.style.boxShadow='2px 2px 0 #000';checkoutBtn.innerHTML='<span style="font-size:18px;">\u2705</span><span>Captain notified \u2014 on their way</span>';}catch(_){}
           try{showToast('A captain will be with you shortly to settle your bill \uD83C\uDF89','success',4500);}catch(_){}
         };
