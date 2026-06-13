@@ -2012,8 +2012,14 @@ function renderWalletPage(bookingRef){
           +'<span style="font-size:22px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+grand+'</span>'
           +'</div>';
 
-        var statusC={'preparing':'#a85800','activated':'#0a7a3c','served':'#0a7a3c','paid':'#0a7a3c'};
-        var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':'✅ Served','paid':'💳 Paid'};
+        // 🆕 2026-06-13 v3.273 (Khushi) — NO round ever shows "🔵 Preparing" in the
+        // customer wallet. Bar/cashier have no "mark served" step, so a Preparing
+        // badge there can never advance; and even for tables Khushi wants the guest
+        // to simply see "🟡 Ordered" until the captain taps "mark served" (→ "✅ Served")
+        // or it's paid (→ "💳 Paid"). So BOTH 'preparing' and 'activated' map to
+        // "🟡 Ordered" (amber). Captain's mark-served still flips table rounds to Served.
+        var statusC={'preparing':'#a85800','activated':'#a85800','served':'#0a7a3c','paid':'#0a7a3c'};
+        var statusL={'preparing':'🟡 Ordered','activated':'🟡 Ordered','served':'✅ Served','paid':'💳 Paid'};
 
         // 🆕 2026-06-08 v3.253 (Khushi) — render rounds in true CHRONOLOGICAL order
         // (by placedAt) and RENUMBER the display label 1..N. The stored roundNum is
@@ -3632,5 +3638,5 @@ function renderTopUpContent(card, cv, diffAmt){
 window._renderWalletPage = renderWalletPage;
 window._renderTopUp = renderTopUp;
 window._renderCustomerWallet = renderCustomerWallet;
-console.log("[HOD] wallet.js loaded (v3.269 — my-bookings ReferenceError fix)");
+console.log("[HOD] wallet.js loaded (v3.273 — all rounds show Ordered, no Preparing)");
 })();
