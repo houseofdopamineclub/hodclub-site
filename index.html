@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.285";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-13)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.291";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-14)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -1000,8 +1000,8 @@ function hodGetMenuByTab(tab){
   var FOOD = (typeof window!=='undefined' && window.HOD_FOOD_MENU) || (typeof HOD_FOOD_MENU_FALLBACK!=='undefined' ? HOD_FOOD_MENU_FALLBACK : []);
   var BAR  = (typeof window!=='undefined' && window.HOD_BAR_MENU)  || (typeof HOD_BAR_MENU_FALLBACK !=='undefined' ? HOD_BAR_MENU_FALLBACK  : []);
   var SMK  = (typeof window!=='undefined' && window.HOD_SMOKE_MENU)|| (typeof HOD_SMOKE_MENU_FALLBACK!=='undefined' ? HOD_SMOKE_MENU_FALLBACK: []);
-  if(tab==='food') return FOOD;
-  if(tab==='smoke') return SMK;
+  if(tab==='food') return _hodApplyLiveCats(FOOD);
+  if(tab==='smoke') return _hodApplyLiveCats(SMK);
   var split=[];
   BAR.forEach(function(c){
     var matched=(c.items||[]).filter(function(it){
@@ -1010,7 +1010,59 @@ function hodGetMenuByTab(tab){
     });
     if(matched.length) split.push({cat:c.cat,items:matched});
   });
-  return split;
+  return _hodApplyLiveCats(split);
+}
+// 2026-06-14 — LIVE MENU CATEGORIES (admin Menu CRM). Mirror of the POS
+// filterMenuByLiveCategories so the customer wallet matches Bar + Captain:
+// when 1+ categories are toggled LIVE, the customer menu shows ONLY items whose
+// name matches a live-category item (with the category discount applied). When
+// none are live (or the read fails / rules block it) → full menu (fail-open).
+var HOD_LIVE_CATEGORIES=[];
+function _hodLiveCatMap(){
+  // lowercased item name -> max discount% across the LIVE categories it appears in
+  var m={};
+  (HOD_LIVE_CATEGORIES||[]).forEach(function(c){
+    if(!c||c.isLive!==true) return;
+    (c.items||[]).forEach(function(it){
+      var k=String((it&&it.name)||'').toLowerCase().trim();
+      if(!k) return;
+      var d=Number(c.discountPercent||0);
+      if(m[k]===undefined||d>m[k]) m[k]=d;
+    });
+  });
+  return m;
+}
+function _hodApplyLiveCats(menuData){
+  try{
+    var map=_hodLiveCatMap();
+    var keys=Object.keys(map);
+    if(keys.length===0) return menuData; // fail-open → full menu
+    var out=[];
+    (menuData||[]).forEach(function(c){
+      var hits=[];
+      (c.items||[]).forEach(function(it){
+        var k=String((it&&it.n)||'').toLowerCase().trim();
+        if(!(k in map)) return;
+        var d=map[k];
+        if(d>0){ var nit={}; for(var p in it){ if(Object.prototype.hasOwnProperty.call(it,p)) nit[p]=it[p]; } nit.p=Math.round(it.p*(1-d/100)*100)/100; hits.push(nit); }
+        else hits.push(it);
+      });
+      if(hits.length) out.push({cat:c.cat,items:hits});
+    });
+    return out;
+  }catch(e){ return menuData; } // fail-open on any error
+}
+function _hodLoadLiveCats(){
+  try{
+    if(typeof firestore==='undefined'||!firestore) return;
+    firestore.collection('menuCategories').get().then(function(snap){
+      var live=[];
+      snap.forEach(function(d){ var c=d.data()||{}; if(c&&c.isLive===true) live.push(c); });
+      HOD_LIVE_CATEGORIES=live;
+      // repaint the open wallet menu (if any) so a toggle reflects without reload
+      try{ if(typeof window.__rebuildWalletMenu==='function') window.__rebuildWalletMenu(); }catch(e){}
+    }).catch(function(){ HOD_LIVE_CATEGORIES=[]; /* fail-open: drop filter → full menu */ try{ if(typeof window.__rebuildWalletMenu==='function') window.__rebuildWalletMenu(); }catch(e){} });
+  }catch(e){}
 }
 var HOD_GST_RATE=0.05, HOD_SC_RATE=0.10;
 function hodComputeBreakdown(items, discPct, scOn){
@@ -1241,9 +1293,8 @@ function sendBookingEmail(booking, eventTitle, eventDate, eventTime, eventVenue,
   }catch(e){console.warn('sendBookingEmail error:',e);}
 }
 
-// ── ADMIN AUTH — password stored as SHA-256 hash (not plaintext)
-// Hash of 'hod@admin2024' + salt. Change password by recomputing hash.
-// To generate new hash: open browser console → run: hashAdminPw('yourNewPassword')
+// ── Admin auth lives in the POS (not the customer site). Any prior admin
+// credentials were removed from this public file — staff modes are POS-only.
 var DB_KEY='hod_v4_db';
 
 // ── Firebase init — runs after all scripts loaded
@@ -1319,6 +1370,10 @@ function initFirebase(){
       // Keyed by slug(name) so it bridges menu-data.ts ↔ hod-menu.ts ↔ this wallet.
       // Customer sees OOS items disappear and discounts auto-apply (with reason).
       startMenuOverridesListener();
+      // 2026-06-14 — LIVE MENU CATEGORIES (admin Menu CRM). One-shot read now + on
+      // tab-focus (cheap, menuCategories is tiny & rarely changes). Fail-open.
+      _hodLoadLiveCats();
+      try{ document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') _hodLoadLiveCats(); }); }catch(_e){}
       console.log('✅ Firebase connected — real-time database active');
     } else if(typeof firebase === 'undefined'){
       console.log('ℹ️ Firebase SDK not loaded yet — using localStorage');
