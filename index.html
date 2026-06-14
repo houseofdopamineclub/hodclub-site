@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.291";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-14)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.294";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-14)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -1374,6 +1374,29 @@ function initFirebase(){
       // tab-focus (cheap, menuCategories is tiny & rarely changes). Fail-open.
       _hodLoadLiveCats();
       try{ document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') _hodLoadLiveCats(); }); }catch(_e){}
+      // 🆕 2026-06-14 v3.294 (Khushi) — AUTO-REPAINT the open wallet menu when the
+      // menu DATA changes. The 30s poll (startMenuOverridesListener replaced the old
+      // onSnapshot to kill the "reads in millions" cost) updates window.HOD_*_MENU in
+      // the background and fires 'hod-menu-updated' (hash-guarded — ONLY on a real
+      // change), but nothing was listening, so a deleted/added item lingered on screen
+      // until a manual refresh. This listener repaints the mounted menu the moment a
+      // change lands → add/delete now reflect on their own within ≤30s. ZERO new reads
+      // (it only re-renders already-fetched data). __rebuildWalletMenu no-ops when the
+      // wallet is closed. Debounced so the 3 near-simultaneous food/smoke/bar dispatches
+      // collapse into ONE rebuild.
+      try{
+        if(!window.__hodMenuRepaintBound){
+          window.__hodMenuRepaintBound=true; // single-attach guard (init could re-run)
+          var _hodMenuRepaintT=null;
+          window.addEventListener('hod-menu-updated', function(){
+            if(_hodMenuRepaintT) return;
+            _hodMenuRepaintT=setTimeout(function(){
+              _hodMenuRepaintT=null;
+              try{ if(typeof window.__rebuildWalletMenu==='function') window.__rebuildWalletMenu(); }catch(_e){}
+            },80);
+          });
+        }
+      }catch(_e){}
       console.log('✅ Firebase connected — real-time database active');
     } else if(typeof firebase === 'undefined'){
       console.log('ℹ️ Firebase SDK not loaded yet — using localStorage');
