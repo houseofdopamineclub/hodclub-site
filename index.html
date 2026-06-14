@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.284";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-13)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.285";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-13)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -5113,11 +5113,22 @@ function renderTableFloorPlan(){
   var wrap=document.createElement('div');
   wrap.style.cssText='padding:0 0 60px;';
 
+  // 🆕 2026-06-14 v3.285 — back button on the Book-A-Table view (Khushi audit). This
+  // view is reached via set({view:'tables'}) and previously had no way back to events.
+  var tblBack=el('button','btn-ghost');
+  tblBack.textContent='← Back';
+  tblBack.style.cssText+='margin:0 20px 18px;';
+  tblBack.onclick=function(){set({view:'home',_homeTab:'events'});return false;};
+  wrap.appendChild(tblBack);
+
   var evs=(S._cachedEvents||db.events||[]).filter(function(e){return e.published&&!isEventPast(e);}).sort(function(a,b){return a.date<b.date?-1:1;});
   var selEv=S._tableSelEv||(evs.length?evs[0]:null);
 
   if(!evs.length){
-    wrap.innerHTML='<div style="text-align:center;padding:80px 20px;color:#3D3D3D;"><div style="font-size:48px;margin-bottom:14px;">🎧</div><div style="font-size:14px;">No upcoming events. Tables open soon!</div></div>';
+    var _noEv=document.createElement('div');
+    _noEv.style.cssText='text-align:center;padding:80px 20px;color:#3D3D3D;';
+    _noEv.innerHTML='<div style="font-size:48px;margin-bottom:14px;">🎧</div><div style="font-size:14px;">No upcoming events. Tables open soon!</div>';
+    wrap.appendChild(_noEv);
     return wrap;
   }
 

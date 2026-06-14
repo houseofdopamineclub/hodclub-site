@@ -3512,9 +3512,24 @@ function renderTopUp(bookingId, diffAmt){
 
   var hdr3=document.createElement('div');
   hdr3.style.cssText='background:rgba(244,244,240,.95);border-bottom:2px solid #000;padding:14px 20px;display:flex;align-items:center;gap:12px;position:fixed;top:0;left:0;right:0;z-index:100;';
-  hdr3.innerHTML='<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;">HOD</div>'
+  // 🆕 2026-06-14 v3.285 — back button on the Top-Up page (Khushi audit). Returns to
+  // this cover's WALLET view by swapping ?topup= → ?wallet= (host-agnostic; works on
+  // the live site AND dev preview). Falls back to the site origin if anything throws.
+  hdr3.innerHTML='<button id="tu-back-btn" type="button" aria-label="Back to wallet" style="background:#fff;border:2px solid #000;border-radius:8px;font-size:13px;font-weight:800;color:#000;cursor:pointer;font-family:var(--ff);padding:6px 12px;">&#8592; Back</button>'
+    +'<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;">HOD</div>'
     +'<div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#3D3D3D;">TOP UP COVER</div>';
   wrap.appendChild(hdr3);
+  // Default the back target to a SAFE home navigation (strip ?topup=). Once the
+  // cover loads we repoint it to that cover's wallet via the RESOLVED identity
+  // (cv.ref||cv.bookingId) — the raw ?topup= value may be a cover doc ID, which
+  // the wallet view can't open (renderWalletPage queries by ref then bookingId).
+  try{
+    var _tuBack=hdr3.querySelector('#tu-back-btn');
+    if(_tuBack){_tuBack.onclick=function(){
+      try{ window.location.href = window.location.origin + window.location.pathname; }
+      catch(_){ window.location.href='https://hodclub.in'; }
+    };}
+  }catch(_){}
 
   var card=document.createElement('div');
   card.style.cssText='margin-top:70px;width:100%;max-width:380px;background:#fff;border:2px solid #000;border-radius:18px;padding:28px;';
@@ -3559,6 +3574,18 @@ function renderTopUp(bookingId, diffAmt){
 function renderTopUpContent(card, cv, diffAmt){
       var bal=cv.coverBalance||0;
       var isLockedAmt = diffAmt > 0; // came from cover activation diff link
+
+      // 🆕 2026-06-14 v3.285 — now that the cover is resolved, repoint the Back
+      // button to THIS cover's wallet using the identity the wallet view can open
+      // (ref preferred, then bookingId). Falls back to the safe home target set above.
+      try{
+        var _tuBack2=document.getElementById('tu-back-btn');
+        var _wref=cv.ref||cv.bookingId||'';
+        if(_tuBack2&&_wref){_tuBack2.onclick=function(){
+          try{ window.location.href = window.location.origin + window.location.pathname + '?wallet=' + encodeURIComponent(_wref); }
+          catch(_){ window.location.href='https://hodclub.in'; }
+        };}
+      }catch(_){}
 
       // Header card — show different message based on context
       var balDiv=document.createElement('div');
