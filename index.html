@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.295";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-15)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.297";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-15)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -739,6 +739,54 @@ var VERIFY_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/verifyRechargePayment';
 // filtering client-side. Fail-open: the lookup handler falls back to the old
 // direct Firestore queries if this endpoint is unreachable.
 var MYBOOKINGS_LOOKUP_URL = HOD_FUNCTIONS_BASE + '/myBookingsLookup';
+// 🆕 2026-06-15 v3.296 (Phase 3) — customer MONEY/PAYMENT writes move server-side.
+// The browser no longer writes tabRounds / tabTotal / paymentStatus / amountPaid
+// directly to Firestore; it POSTs to these Cloud Functions which recompute the
+// TRUE prices/totals server-side (selfOrderPlace + requestBill), and verify the
+// Razorpay charge before marking a table paid (createTableBillOrder +
+// verifyTableBillPayment). EVERY call is fail-open: on any non-OK response or
+// outage the client falls back to its original direct-write path, so a function
+// outage can never stop a guest from ordering, calling for a bill, or paying.
+// Once these are verified live, Firestore rules v8 block the browser writes.
+var SELF_ORDER_PLACE_URL          = HOD_FUNCTIONS_BASE + '/selfOrderPlace';
+var REQUEST_BILL_URL              = HOD_FUNCTIONS_BASE + '/requestBill';
+var CREATE_TABLE_BILL_ORDER_URL   = HOD_FUNCTIONS_BASE + '/createTableBillOrder';
+var VERIFY_TABLE_BILL_PAYMENT_URL = HOD_FUNCTIONS_BASE + '/verifyTableBillPayment';
+// 🆕 2026-06-15 v3.297 (Phase 4) — the LAST browser money-write to coverBalance.
+// Prepaid table bookings used to create their redeemable `covers` wallet
+// DIRECTLY from the browser (coverBalance set client-side). Now the browser
+// POSTs the payment to verifyBookingCover, which fetches the charge from
+// Razorpay and creates the wallet with a SERVER-VERIFIED balance clamped to
+// the REAL captured amount (no value can be minted). FAIL-OPEN: on any non-OK
+// response or outage the client falls back to its original direct `covers`
+// write, so a function outage can never block a prepaid table booking.
+var VERIFY_BOOKING_COVER_URL      = HOD_FUNCTIONS_BASE + '/verifyBookingCover';
+// hodVerifyBookingCover — POST a captured Razorpay payment and let the server
+// create the prepaid table wallet. Resolves on a verified create; REJECTS on
+// any error so the caller can run its legacy direct write (fail-open).
+function hodVerifyBookingCover(opts){
+  try{
+    if(!VERIFY_BOOKING_COVER_URL) return Promise.reject(new Error('no url'));
+    if(!opts || !opts.paymentId || String(opts.paymentId).indexOf('pay_')!==0) return Promise.reject(new Error('not an online payment'));
+    // Hard timeout so a STALLED CF call ALWAYS rejects → caller runs its legacy
+    // write (a paying guest can never be left without a wallet by a hang).
+    var ctrl=null, timer=null;
+    try{ if(typeof AbortController!=='undefined'){ ctrl=new AbortController(); } }catch(_){}
+    var p=new Promise(function(resolve,reject){
+      var fetchOpts={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(opts)};
+      if(ctrl){ fetchOpts.signal=ctrl.signal; }
+      timer=setTimeout(function(){ try{ if(ctrl) ctrl.abort(); }catch(_){}; reject(new Error('timeout')); }, 12000);
+      fetch(VERIFY_BOOKING_COVER_URL,fetchOpts).then(function(r){
+        return r.json().catch(function(){return {ok:false};}).then(function(j){
+          if(r.ok && j && j.ok) return j;
+          throw new Error((j&&j.error)||('HTTP '+r.status));
+        });
+      }).then(resolve, reject);
+    });
+    return p.then(function(v){ if(timer) clearTimeout(timer); return v; },
+                  function(e){ if(timer) clearTimeout(timer); throw e; });
+  }catch(e){ return Promise.reject(e); }
+}
 //
 // kind: 'topup' (regular wallet recharge) | 'diff_paid' (table-booking
 //       cover-charge top-up — also clears pendingTopUp on the cover doc)
@@ -4050,22 +4098,40 @@ function saveBooking(paymentId){
   // visible in DoorMode → TABLES tab — just without a pre-loaded wallet.
   var _tablePaid = !!(paymentId && String(paymentId).indexOf('pay_') === 0);
   if(firestore && _tablePaid && booking.tableType && (booking.tableType==='table4' || booking.tableType==='vip')){
-    try{
-      firestore.collection('covers').doc(ref).set({
-        ref:ref, bookingId:ref,
-        name:booking.name, phone:booking.phone, email:booking.email||'',
-        coverBalance: tableTotal, coverActivated: tableTotal, coverUsed:0,
-        transactions: [{ type:'table_prepay', amount: tableTotal, paymentId: paymentId||'', at: new Date().toISOString() }],
-        eventTitle: ev.title||'', eventId: ev.id||'',
-        partySize: (booking.tableType==='vip' ? 6 : 4),
-        date: ev.date||'', arrivalTime: (ev.time||''),
-        floorLabel: 'GROUND FLOOR',
-        tableTier: booking.tableType,
-        isTableBooking:true, tablePrePaid:true,
-        paymentStatus:'paid',
-        createdAt: new Date().toISOString()
-      },{merge:true}).catch(function(err){ try{ console.warn('[v3.42] table covers pre-credit failed', err && err.message); }catch(_){} });
-    }catch(_e){ try{ console.warn('[v3.42] table covers write threw', _e); }catch(_){} }
+    var _hodCoverDoc = {
+      ref:ref, bookingId:ref,
+      name:booking.name, phone:booking.phone, email:booking.email||'',
+      coverBalance: tableTotal, coverActivated: tableTotal, coverUsed:0,
+      transactions: [{ type:'table_prepay', amount: tableTotal, paymentId: paymentId||'', at: new Date().toISOString() }],
+      eventTitle: ev.title||'', eventId: ev.id||'',
+      partySize: (booking.tableType==='vip' ? 6 : 4),
+      date: ev.date||'', arrivalTime: (ev.time||''),
+      floorLabel: 'GROUND FLOOR',
+      tableTier: booking.tableType,
+      isTableBooking:true, tablePrePaid:true,
+      paymentStatus:'paid',
+      createdAt: new Date().toISOString()
+    };
+    // 🆕 v3.297 (Phase 4) — LEGACY direct write, now the FAIL-OPEN fallback only.
+    var _hodLegacyCoverWrite = function(){
+      try{
+        firestore.collection('covers').doc(ref).set(_hodCoverDoc,{merge:true})
+          .catch(function(err){ try{ console.warn('[v3.42] table covers pre-credit failed', err && err.message); }catch(_){} });
+      }catch(_e){ try{ console.warn('[v3.42] table covers write threw', _e); }catch(_){} }
+    };
+    // 🆕 v3.297 (Phase 4) — move the coverBalance write SERVER-SIDE. The server
+    // fetches the Razorpay charge and clamps the wallet to the REAL captured
+    // amount (the redeemable balance is the TABLE price only — coverAmount).
+    // On ANY failure we fall back to the legacy client write (zero regression).
+    hodVerifyBookingCover({
+      paymentId: paymentId, coverRef: ref, coverAmount: tableTotal, kind:'table_prepay',
+      name:booking.name, phone:booking.phone, email:booking.email||'',
+      eventTitle: ev.title||'', eventId: ev.id||'',
+      partySize: (booking.tableType==='vip' ? 6 : 4),
+      date: ev.date||'', arrivalTime: (ev.time||''),
+      floorLabel: 'GROUND FLOOR', tableTier: booking.tableType
+    }).then(function(){ /* wallet created + verified server-side */ })
+      .catch(function(err){ try{ console.warn('[v3.297] booking cover server verify failed → legacy write', err && err.message); }catch(_){} _hodLegacyCoverWrite(); });
   }
   // 🆕 2026-05-27 v3.44 (Khushi LIVE-NIGHT) — TABLE BOOKING also writes a
   // tableReservations doc so it appears in DoorMode → TABLES tab. Before
@@ -5812,7 +5878,7 @@ function renderTableFloorPlan(){
           // and the door modal can pre-fill guest details; the door girl is
           // the only one who can put money into this wallet (manual ACTIVATE
           // COVER step). Fail-open: cover-doc write is fire-and-forget.
-          firestore.collection('covers').doc(ref2).set({
+          var _fpCoverDoc = {
             ref:ref2,bookingId:ref2,name:name,phone:phone,email:email,
             coverBalance:_paidOnline?_coverAmt:0,coverActivated:_paidOnline?_coverAmt:0,coverUsed:0,
             transactions:_paidOnline?[{type:'table_prepay',amount:_coverAmt,paymentId:_payId||'',at:new Date().toISOString()}]:[],
@@ -5821,7 +5887,26 @@ function renderTableFloorPlan(){
             date:today,arrivalTime:arrival,partySize:ps,
             coverCharge:_coverAmt||0,paymentStatus:_paidOnline?'paid':(_isCash?'pending':'na'),paymentId:_payId||'',
             isTableBooking:true,tablePrePaid:_paidOnline,createdAt:new Date().toISOString()
-          }).catch(function(){});
+          };
+          var _fpLegacyCoverWrite=function(){ try{ firestore.collection('covers').doc(ref2).set(_fpCoverDoc).catch(function(){}); }catch(_){} };
+          // 🆕 v3.297 (Phase 4) — when PAID ONLINE this is a money-write, so move
+          // the coverBalance server-side: verifyBookingCover fetches the Razorpay
+          // charge and clamps the wallet to the REAL captured amount (no mint).
+          // FAIL-OPEN to the legacy client write on any error (zero regression).
+          // FREE / cash-pending bookings stay a ₹0 client stub exactly as today
+          // (no money is written — the door girl funds it manually on arrival).
+          if(_paidOnline){
+            hodVerifyBookingCover({
+              paymentId:_payId, coverRef:ref2, coverAmount:_coverAmt, kind:'table_prepay',
+              name:name, phone:phone, email:email||'',
+              eventTitle:ev?ev.title:'', eventId:ev?ev.id:'',
+              tableId:table.id, floor:activeFloor, floorLabel:_HOD_TABLES[activeFloor].label,
+              date:today, arrivalTime:arrival, partySize:ps
+            }).then(function(){ /* wallet created + verified server-side */ })
+              .catch(function(err){ try{ console.warn('[v3.297] floor-picker cover server verify failed → legacy write', err && err.message); }catch(_){} _fpLegacyCoverWrite(); });
+          } else {
+            _fpLegacyCoverWrite();
+          }
         }
         return ref2;
       }).then(function(ref2){

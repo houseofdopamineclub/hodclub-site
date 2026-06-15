@@ -1663,8 +1663,18 @@ function renderWalletPage(bookingRef){
         // THE BAR" choice (atBar / hasIncomingCustomerOrder are durable) so this
         // table order does NOT ALSO light up the bartender's incoming dashboard.
         if(_isTableChoice){_coverPatch.atBar=false;_coverPatch.hasIncomingCustomerOrder=false;}
-        firestore.collection('covers').doc(coverDocId).set(_coverPatch,{merge:true}).then(function(){
-          tabRounds=updatedRounds;
+        // 🆕 2026-06-15 v3.296 (Phase 3) — the money write (cover round + table
+        // mirror) now goes SERVER-SIDE via selfOrderPlace, which re-prices the
+        // cart from venueMenu (+ live cats + POS overrides) so a DevTools user
+        // can't place a forged / zero-price round. _afterPlace renders the SAME
+        // success UI for both paths; on the server path (serverDid===true) the
+        // CF already wrote the cover round AND mirrored it to the table doc(s),
+        // so we skip EVERY client money write below and just adopt the server's
+        // authoritative rounds. FAIL-OPEN: on any CF error we run _legacyWrite
+        // (the original direct write) so a guest can always order.
+        var _placeRoundKey=(cv.ref||cv.bookingId||'place')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+        var _afterPlace=function(serverDid,serverRounds){
+          tabRounds=(serverDid&&serverRounds&&serverRounds.length)?serverRounds:updatedRounds;
           // 🔴 2026-05-20 (Khushi Bug 1 fix) — AUTO-IMPORT customer's self-
           // order onto the captain's running tab.
           // Before: customer placed soup → only landed on the cover wallet.
@@ -1683,6 +1693,7 @@ function renderWalletPage(bookingRef){
           // and the existing 🔔 CUSTOMER CALLING banner still fires —
           // captain can fall back to manual ADD ORDER like before. Zero
           // regression for pure-cover (non-linked) wallets.
+          if(!serverDid){
           try {
             if (cv && cv.linkedTableRef) {
               var _fv = (window.firebase && window.firebase.firestore && window.firebase.firestore.FieldValue);
@@ -1694,6 +1705,7 @@ function renderWalletPage(bookingRef){
                 .catch(function(err){ try { console.warn('[auto-import] tableReservations update failed', err && err.message); } catch(_){} });
             }
           } catch (_e) {}
+          }
           var placedItems=Object.values(cart).map(function(it){return it.qty+'× '+it.n;}).join(', ');
           var placedItemsArr=Object.values(cart).map(function(it){return {n:it.n,qty:it.qty,p:it.p};});
           cart={};
@@ -1921,15 +1933,41 @@ function renderWalletPage(bookingRef){
             }
           }
 
-          if(cv.isTableBooking&&cv.ref){
+          if(!serverDid && cv.isTableBooking&&cv.ref){
             firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
               .then(function(snap){snap.forEach(function(d){d.ref.update({tabRounds:updatedRounds,tabTotal:getTabTotal()});});})
               .catch(function(){});
           }
-        }).catch(function(e){
-          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
-          showToast('Failed: '+e.message,'err',3000);
-        });
+        };
+        // ── SERVER-FIRST dispatch (Phase 3). POST the cart (n/qty/cat only) to
+        //    selfOrderPlace, which re-prices it server-side, writes the cover
+        //    round + mirrors to the table doc(s) (idempotent on roundKey). On OK
+        //    we adopt the server's authoritative rounds and render the success
+        //    UI with NO client money write. On ANY error → _legacyWrite (the
+        //    original direct write) so a guest can always order while rules
+        //    still permit it (the transition window before rules v8).
+        var _legacyWrite=function(){
+          firestore.collection('covers').doc(coverDocId).set(_coverPatch,{merge:true})
+            .then(function(){ _afterPlace(false); })
+            .catch(function(e){
+              placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
+              showToast('Failed: '+e.message,'err',3000);
+            });
+        };
+        try{
+          if(window.SELF_ORDER_PLACE_URL){
+            var _placeItems=(roundItems||[]).map(function(it){return {n:it.n,qty:it.qty,cat:it.cat};});
+            fetch(window.SELF_ORDER_PLACE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+              coverDocId:coverDocId, bookingRef:cv.ref||cv.bookingId||'', name:cv.name||'', phone:cv.phone||'',
+              isTableBooking:!!cv.isTableBooking, tableId:cv.tableId||'', floorLabel:cv.floorLabel||'',
+              isTableChoice:_isTableChoice, linkedTableRef:cv.linkedTableRef||'',
+              items:_placeItems, roundKey:_placeRoundKey
+            })}).then(function(r){return r.json();}).then(function(resp){
+              if(!resp||!resp.ok) throw new Error('cf_self_order');
+              _afterPlace(true, resp.tabRounds);
+            }).catch(function(){ _legacyWrite(); });
+          } else { _legacyWrite(); }
+        }catch(_ePlace){ _legacyWrite(); }
       };
 
       // ── Checkout (shows full bill modal)
@@ -1991,30 +2029,53 @@ function renderWalletPage(bookingRef){
         // Captain is paged solely off that doc, so a fire-and-forget write that
         // silently fails (offline/rules/transient) must NOT show "Captain notified".
         var _coverWrite=function(){try{firestore.collection('covers').doc(cv.ref).set(_billPatch,{merge:true}).catch(function(){});}catch(_){}};
-        if(!firestore||!cv.ref){_failNotify();return;}
-        if(cv.linkedTableRef){
-          var _doTblWrite=function(){return firestore.collection('tableReservations').doc(cv.linkedTableRef).update(_billPatch);};
-          var _tryWrite=function(){ _doTblWrite().then(function(){_coverWrite();_confirm();}).catch(function(){_failNotify();}); };
-          firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-            if(!d.exists){_failNotify();return;}                                  // table doc gone (released) → can't page captain
-            if(_settledChk(d.data()||{})){_alreadySettled();return;}
-            _tryWrite();
-          }).catch(function(){ _failNotify(); });                                 // read failed → can't verify settled-state → do NOT risk reverting a paid table; guest retries / staff steps in
-        }else{
-          firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get().then(function(snap){
-            if(snap.empty){_failNotify();return;}                                 // no table doc for this booking → don't false-confirm
-            var _anySettled=false;
-            snap.forEach(function(d){ if(_settledChk(d.data()||{})) _anySettled=true; });
-            if(_anySettled){_alreadySettled();return;}
-            var _total=0; snap.forEach(function(){_total++;});
-            var _ok=0,_done=0;
-            snap.forEach(function(d){
-              d.ref.update(_billPatch).then(function(){_ok++;}).catch(function(){}).then(function(){
-                _done++; if(_done===_total){ if(_ok>0){_coverWrite();_confirm();} else {_failNotify();} }
+        // 🆕 2026-06-15 v3.296 (Phase 3) — the bill_requested money write now goes
+        // SERVER-SIDE via requestBill, which recomputes the bill total from the
+        // cover's own rounds (falling back to the table doc) and stamps the SAME
+        // bill_requested patch on the table doc(s) + cover. _legacyBill is the
+        // original direct-write path, kept as a FAIL-OPEN fallback so a CF outage
+        // can never strand a guest who wants to settle.
+        var _legacyBill=function(){
+          if(!firestore||!cv.ref){_failNotify();return;}
+          if(cv.linkedTableRef){
+            var _doTblWrite=function(){return firestore.collection('tableReservations').doc(cv.linkedTableRef).update(_billPatch);};
+            var _tryWrite=function(){ _doTblWrite().then(function(){_coverWrite();_confirm();}).catch(function(){_failNotify();}); };
+            firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
+              if(!d.exists){_failNotify();return;}                                  // table doc gone (released) → can't page captain
+              if(_settledChk(d.data()||{})){_alreadySettled();return;}
+              _tryWrite();
+            }).catch(function(){ _failNotify(); });                                 // read failed → can't verify settled-state → do NOT risk reverting a paid table; guest retries / staff steps in
+          }else{
+            firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get().then(function(snap){
+              if(snap.empty){_failNotify();return;}                                 // no table doc for this booking → don't false-confirm
+              var _anySettled=false;
+              snap.forEach(function(d){ if(_settledChk(d.data()||{})) _anySettled=true; });
+              if(_anySettled){_alreadySettled();return;}
+              var _total=0; snap.forEach(function(){_total++;});
+              var _ok=0,_done=0;
+              snap.forEach(function(d){
+                d.ref.update(_billPatch).then(function(){_ok++;}).catch(function(){}).then(function(){
+                  _done++; if(_done===_total){ if(_ok>0){_coverWrite();_confirm();} else {_failNotify();} }
+                });
               });
-            });
-          }).catch(function(){ _failNotify(); });                                 // query error → target unknown → honest fallback
-        }
+            }).catch(function(){ _failNotify(); });                                 // query error → target unknown → honest fallback
+          }
+        };
+        // SERVER-FIRST: ask requestBill to page the captain. ok → _confirm;
+        // reason 'already_settled' → _alreadySettled; ANY other non-OK / error →
+        // _legacyBill (fail-open).
+        try{
+          if(window.REQUEST_BILL_URL && cv.ref){
+            var _billCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
+            fetch(window.REQUEST_BILL_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+              coverDocId:_billCoverId, bookingRef:cv.ref, linkedTableRef:cv.linkedTableRef||''
+            })}).then(function(r){return r.json();}).then(function(resp){
+              if(resp&&resp.ok&&resp.notified){ _confirm(); return; }
+              if(resp&&resp.reason==='already_settled'){ _alreadySettled(); return; }
+              _legacyBill();                                                        // table_gone / no_table / not-notified → legacy retries the live lookup
+            }).catch(function(){ _legacyBill(); });
+          } else { _legacyBill(); }
+        }catch(_eBill){ _legacyBill(); }
       };
 
       // ── Rounds history — 2026-05-13 v3 (Khushi spec, round 8):
@@ -2451,6 +2512,11 @@ function renderWalletPage(bookingRef){
               }).catch(function(){});
             } catch(_){}
           }
+          // 🆕 2026-06-15 v3.296 (Phase 3) — _legacyPay is the original
+          // client-amount flow (RAZORPAY_KEY, no server order, _writePaidOnline).
+          // It is kept ONLY as a FAIL-OPEN fallback; the server-verified path
+          // (_serverPay below) is tried first.
+          var _legacyPay=function(){
           ensureRazorpay(function(_rzReady){
           if(!_rzReady){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); return; }
           try{
@@ -2505,6 +2571,91 @@ function renderWalletPage(bookingRef){
           rz.open();
           }catch(_e){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); }
           });
+          };
+          // ── SERVER-VERIFIED online table-bill pay (Phase 3). createTableBillOrder
+          //    computes the amount server-side + returns a Razorpay order_id + the
+          //    public keyId (so we open in the SAME test/live mode); on success
+          //    verifyTableBillPayment checks the signature + captures the charge
+          //    with Razorpay's API BEFORE marking the table paid (server-trusted
+          //    amount, idempotent on paymentId). FAIL-OPEN: any non-OK order /
+          //    outage → _legacyPay.
+          var _serverPay=function(){
+            var _payCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
+            fetch(window.CREATE_TABLE_BILL_ORDER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+              coverDocId:_payCoverId, bookingRef:cv.ref||'', linkedTableRef:cv.linkedTableRef||''
+            })}).then(function(r){return r.json();}).then(function(ord){
+              // SETTLEMENT FINALITY: server says this bill is already paid →
+              // do NOT re-open Razorpay (would double-charge). Mark settled in
+              // the UI instead of falling through to _legacyPay.
+              if(ord&&ord.reason==='already_settled'){
+                if(typeof _alreadySettled==='function'){ _alreadySettled(); }
+                else { alert('\u2705 This table bill is already settled.'); poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; }
+                return;
+              }
+              if(!ord||!ord.ok||!ord.orderId||!ord.keyId){ _legacyPay(); return; }
+              ensureRazorpay(function(_rzReady){
+                if(!_rzReady){ _legacyPay(); return; }
+                try{
+                  var rz=new Razorpay({
+                    key:ord.keyId, order_id:ord.orderId, amount:ord.amount, currency:ord.currency||'INR',
+                    name:'HOD — House of Dopamine',
+                    description:'Table Tab — '+(cv.tableId||cv.ref||''),
+                    prefill:{name:sanitize(cv.name||''),contact:sanitize(cv.phone||'')},
+                    theme:{color:'#FF90E8'},
+                    handler:function(resp){
+                      var pid=(resp&&resp.razorpay_payment_id)||'';
+                      var oid=(resp&&resp.razorpay_order_id)||ord.orderId;
+                      var sig=(resp&&resp.razorpay_signature)||'';
+                      if(!pid||!sig){
+                        alert('\u274c Payment status unclear. Please try again or use Pay at Table.');
+                        poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
+                        return;
+                      }
+                      fetch(window.VERIFY_TABLE_BILL_PAYMENT_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+                        razorpay_order_id:oid, razorpay_payment_id:pid, razorpay_signature:sig
+                      })}).then(function(r){return r.json();}).then(function(vr){
+                        if(vr&&vr.ok&&vr.marked){
+                          overlay.remove();
+                          submitOrder(cv,bal,{mode:'online',paymentId:pid,amount:tt,rounds:tabRounds});
+                        }else if(vr&&vr.ok&&vr.duplicate){
+                          // The charge went through but the table was ALREADY
+                          // settled by an earlier payment → genuine duplicate.
+                          // Don't re-open the bill; tell the guest + show the
+                          // payment id so the team can refund it (server already
+                          // logged a refund-required audit event).
+                          overlay.remove();
+                          alert('\u2705 Your table is already settled. We received an extra payment ('+pid+') and our team will refund it.');
+                        }else{
+                          // Charge confirmed by Razorpay but the server could not
+                          // mark the table paid → keep BILL DUE + show the payment-id
+                          // fallback so the captain settles it manually (never lose
+                          // the round, never falsely flip to paid).
+                          _showPaymentIdFallback(pid);
+                          try{ submitOrder(cv,bal,{mode:'bill_requested',paymentId:pid,amount:tt,rounds:tabRounds,pendingOnlinePaymentId:pid}); }catch(_){}
+                        }
+                      }).catch(function(){
+                        _showPaymentIdFallback(pid);
+                        try{ submitOrder(cv,bal,{mode:'bill_requested',paymentId:pid,amount:tt,rounds:tabRounds,pendingOnlinePaymentId:pid}); }catch(_){}
+                      });
+                    },
+                    modal:{ondismiss:function(){poBtn.disabled=false;poBtn.innerHTML='💳  Pay Online  —  ₹'+tt;}}
+                  });
+                  if(rz&&typeof rz.on==='function'){
+                    rz.on('payment.failed',function(r){
+                      var msg=(r&&r.error&&(r.error.description||r.error.reason))||'Unknown error';
+                      alert('\u274c Payment failed: '+msg+'\nPlease try again or use Pay at Table.');
+                      poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
+                    });
+                  }
+                  rz.open();
+                }catch(_e){ _legacyPay(); }
+              });
+            }).catch(function(){ _legacyPay(); });
+          };
+          try{
+            if(window.CREATE_TABLE_BILL_ORDER_URL && window.VERIFY_TABLE_BILL_PAYMENT_URL && cv.ref){ _serverPay(); }
+            else { _legacyPay(); }
+          }catch(_eP){ _legacyPay(); }
         };
         sheet.appendChild(poBtn);
 
@@ -2514,18 +2665,41 @@ function renderWalletPage(bookingRef){
         ptBtn.onclick=function(){
           if(ptBtn.disabled)return;
           ptBtn.disabled=true;ptBtn.textContent='Notifying captain...';
-          // Mark bill_requested on reservation so captain gets alerted
-          if(firestore&&cv.ref){
-            firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
-              .then(function(snap){snap.forEach(function(d){d.ref.update({paymentStatus:'bill_requested',orderTotal:tt,tabTotal:tt});});}).catch(function(){});
-            firestore.collection('covers').doc(cv.ref).set({paymentStatus:'bill_requested',orderTotal:tt},{merge:true}).catch(function(){});
-          }
-          // Stop the wallet listener BEFORE updating DOM — prevents onSnapshot from re-rendering over the feedback screen
-          if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
-          overlay.remove();
-          // Show captain on way + feedback
-          inner.innerHTML='';
-          showCaptainFeedback(inner, tt, false);
+          // ── Confirm UI (captain on the way + feedback). Shared by the server
+          //    and legacy paths so the guest sees the SAME screen either way.
+          var _ptConfirm=function(){
+            if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
+            overlay.remove();
+            inner.innerHTML='';
+            showCaptainFeedback(inner, tt, false);
+          };
+          // ── LEGACY direct-write (pre-v8 fallback). Marks bill_requested on
+          //    the reservation + cover straight from the browser. Post-v8 rules
+          //    DENY this; that's why the server path runs first.
+          var _ptLegacy=function(){
+            if(firestore&&cv.ref){
+              firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
+                .then(function(snap){snap.forEach(function(d){d.ref.update({paymentStatus:'bill_requested',orderTotal:tt,tabTotal:tt});});}).catch(function(){});
+              firestore.collection('covers').doc(cv.ref).set({paymentStatus:'bill_requested',orderTotal:tt},{merge:true}).catch(function(){});
+            }
+            _ptConfirm();
+          };
+          // ── SERVER-FIRST (Phase 3): requestBill recomputes the total + stamps
+          //    bill_requested on the cover + linked table doc(s). FAIL-OPEN: any
+          //    non-OK / outage falls back to the legacy direct-write so the
+          //    captain is always alerted.
+          try{
+            if(window.REQUEST_BILL_URL && cv.ref){
+              var _ptCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
+              fetch(window.REQUEST_BILL_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+                coverDocId:_ptCoverId, bookingRef:cv.ref||'', linkedTableRef:cv.linkedTableRef||''
+              })}).then(function(r){return r.json();}).then(function(resp){
+                if(resp&&resp.ok&&resp.notified){ _ptConfirm(); }
+                else if(resp&&resp.reason==='already_settled'){ _ptConfirm(); }
+                else { _ptLegacy(); }
+              }).catch(function(){ _ptLegacy(); });
+            } else { _ptLegacy(); }
+          }catch(_ePt){ _ptLegacy(); }
         };
         sheet.appendChild(ptBtn);
 
