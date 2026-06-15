@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.294";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-14)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.295";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-15)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -733,6 +733,12 @@ var HOD_FUNCTIONS_BASE = 'https://asia-south1-hod-tickets.cloudfunctions.net';
 // without trusting any client-supplied input.
 var CREATE_ORDER_URL = HOD_FUNCTIONS_BASE + '/createWalletOrder';
 var VERIFY_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/verifyRechargePayment';
+// 🆕 2026-06-15 v3.295 (Phase 2) — My Bookings server lookup. The browser POSTs
+// just { phone } and gets back ONLY that phone's docs (indexed phoneNorm== query
+// server-side), instead of downloading hundreds of other guests' rows and
+// filtering client-side. Fail-open: the lookup handler falls back to the old
+// direct Firestore queries if this endpoint is unreachable.
+var MYBOOKINGS_LOOKUP_URL = HOD_FUNCTIONS_BASE + '/myBookingsLookup';
 //
 // kind: 'topup' (regular wallet recharge) | 'diff_paid' (table-booking
 //       cover-charge top-up — also clears pendingTopUp on the cover doc)
@@ -4463,23 +4469,50 @@ function renderMyBookings(){
     if(_cached && (Date.now()-_cached.ts)<300000){
       _fetch=Promise.resolve(_cached.results);
     }else{
-      // 🆕 2026-06-12 v3.271 — WAIT for Firebase to be ready BEFORE issuing the
-      // table-reservation + guest-list queries. Previously the `firestore ? … : []`
-      // ternaries were evaluated synchronously at tap time; on a fresh page load /
-      // slow venue wifi Firebase wasn't ready yet, so those two queries silently
-      // returned [] → "no bookings" on the FIRST tap, working only on the second.
-      _fetch=ensureFirestoreReady(5).then(function(_ready){
-        var pBks=new Promise(function(res){loadBookingsFromFirebase(function(bks){res(bks||[]);});});
-        var pTbl=firestore?firestore.collection('tableReservations').where('date','>=',_cutoff90).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
-        var pGL=firestore?firestore.collection('guestlist').orderBy('joinedAt','desc').limit(300).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
-        return Promise.all([pBks,pTbl,pGL]).then(function(r){
-          // Only cache when Firebase actually served the data — never cache a
-          // partial/empty result captured while Firebase was still initialising,
-          // or it would stick as "no bookings" for 5 minutes.
-          try{if(firestore)window[_ck]={ts:Date.now(),results:r};}catch(_e){}
-          return r;
+      // 🆕 2026-06-15 v3.295 (Phase 2 — server lookup) — was: the browser
+      // downloaded recent bookings (≤200) + ALL tableReservations in the last 90d
+      // + recent guestlist (≤300) and filtered client-side by phone. That cost
+      // hundreds of reads per tap AND shipped OTHER guests' name/phone/email to
+      // the device (filtered out only after arriving). Now we POST just the phone
+      // to myBookingsLookup, which runs indexed phoneNorm== queries server-side and
+      // returns ONLY this phone's docs in the SAME [bookings,tables,guestlist] shape
+      // — so all the mapping/sort/render below is unchanged.
+      //
+      // FAIL-OPEN: if the function is unreachable we fall back to the OLD direct
+      // Firestore queries (_legacy), so My Bookings can never go blank on a CF
+      // outage. _legacy keeps the v3.271 "wait for Firebase ready first" guard.
+      var _legacy=function(){
+        return ensureFirestoreReady(5).then(function(_ready){
+          var pBks=new Promise(function(res){loadBookingsFromFirebase(function(bks){res(bks||[]);});});
+          var pTbl=firestore?firestore.collection('tableReservations').where('date','>=',_cutoff90).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
+          var pGL=firestore?firestore.collection('guestlist').orderBy('joinedAt','desc').limit(300).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
+          return Promise.all([pBks,pTbl,pGL]).then(function(r){
+            // Only cache when Firebase actually served the data — never cache a
+            // partial/empty result captured while Firebase was still initialising.
+            try{if(firestore)window[_ck]={ts:Date.now(),results:r};}catch(_e){}
+            return r;
+          });
         });
-      });
+      };
+      _fetch=fetch(MYBOOKINGS_LOOKUP_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone10})})
+        .then(function(resp){if(!resp.ok)throw new Error('lookup http '+resp.status);return resp.json();})
+        .then(function(j){
+          if(!j||j.ok!==true)throw new Error('lookup bad payload');
+          var r=[j.bookings||[],j.tables||[],j.guestlist||[]];
+          // Transition safety net: if the server found NOTHING in all three, run
+          // ONE legacy direct-query before concluding "no bookings". This guards
+          // a guest whose pre-existing docs haven't been phoneNorm-backfilled yet
+          // (the server would honestly return empty for them). _legacy caches its
+          // result, so the cost of this path is bounded by the 5-min cache; once
+          // the backfill has run, real guests return non-empty and never hit it.
+          if(!r[0].length && !r[1].length && !r[2].length){return _legacy();}
+          try{window[_ck]={ts:Date.now(),results:r};}catch(_e){}
+          return r;
+        })
+        .catch(function(_e){
+          console.warn('[My Bookings] server lookup failed — falling back to direct query:',_e&&_e.message);
+          return _legacy();
+        });
     }
     _fetch.then(function(results){
       lookupBtn.textContent='Find My Bookings →';lookupBtn.disabled=false;
