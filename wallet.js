@@ -243,12 +243,18 @@ function renderWalletPage(bookingRef){
     // activated AND has no orders (entry-only pre-check-in case) — the screen
     // should fall through to the door/check-in waiting state instead.
     var _cvDate2=cv.date||cv.eventDate||(cv.activatedAt?cv.activatedAt.split('T')[0]:'');
-    var _opNow=new Date();
-    var _opAnchor=new Date(_opNow);
-    if(_opNow.getHours()<12){_opAnchor.setDate(_opAnchor.getDate()-1);}
-    var _todayStr2=_opAnchor.getFullYear()+'-'+String(_opAnchor.getMonth()+1).padStart(2,'0')+'-'+String(_opAnchor.getDate()).padStart(2,'0');
+    // 🆕 2026-06-16 v3.304 (Khushi) — wallet now goes INACTIVE at 3:00 AM IST the
+    // morning AFTER the operational night (i.e. when the party ends), NOT noon the
+    // next day. Mirrors POS getCoverExpiryFor: 3:00 IST on day (d+1) of cv.date
+    // = Date.UTC(y,m-1,d+1,3,0,0) − 5h30m IST offset. cv.expiresAt (stamped by POS
+    // covers = already 3 AM) ALWAYS wins; covers with NO expiresAt (online /
+    // cloud-function created) fall back to this SAME 3 AM cutoff derived from
+    // cv.date. Fail-open: an unparseable/blank date → null → never shows expired.
+    var _hodDateExpiry=function(ds){var p=String(ds||'').split('-').map(Number);if(p.length<3||!p[0]||!p[1]||!p[2])return null;return new Date(Date.UTC(p[0],p[1]-1,p[2]+1,3,0,0)-(5*60+30)*60000);};
     var _hasActivity=Number(cv.coverActivated||0)>0||Number(cv.coverBalance||0)>0||(Array.isArray(cv.tabRounds)&&cv.tabRounds.length>0)||cv.paymentStatus==='paid';
-    var _isWalletExpired=_hasActivity&&((cv.expiresAt&&new Date(cv.expiresAt)<new Date())||(_cvDate2&&_cvDate2<_todayStr2));
+    var _nowMs2=Date.now();
+    var _dateExp2=cv.expiresAt?null:_hodDateExpiry(_cvDate2);
+    var _isWalletExpired=_hasActivity&&((cv.expiresAt&&new Date(cv.expiresAt).getTime()<_nowMs2)||(_dateExp2&&_dateExp2.getTime()<_nowMs2));
     if(_isWalletExpired){
       var expDiv=document.createElement('div');
       expDiv.style.cssText='text-align:center;padding:40px 20px;color:#3D3D3D;';
@@ -3627,12 +3633,16 @@ function renderCustomerWallet(bookingRef){
       // local date) so the balance never zeroes before the cover truly expires.
       // The club runs past midnight (till ~2AM): at midnight getHours()<12 so the
       // anchor = the operational night = cv.date → balance HOLDS, never resets.
+      // 🆕 2026-06-16 v3.304 (Khushi) — was a NOON-anchored date rollover (kept the
+      // card "alive" until 12pm next day); now mirrors the main wallet render: the
+      // cover goes INACTIVE at 3:00 AM IST the morning after the operational night
+      // (party end). expiresAt (POS covers = 3 AM) wins; no-expiresAt covers fall
+      // back to the SAME 3 AM cutoff derived from cv.date (= getCoverExpiryFor).
       var cvDate=cv.date||cv.eventDate||(cv.activatedAt?cv.activatedAt.split('T')[0]:'');
-      var _opNowB=new Date();
-      var _opAnchorB=new Date(_opNowB);
-      if(_opNowB.getHours()<12){_opAnchorB.setDate(_opAnchorB.getDate()-1);}
-      var todayStr=_opAnchorB.getFullYear()+'-'+String(_opAnchorB.getMonth()+1).padStart(2,'0')+'-'+String(_opAnchorB.getDate()).padStart(2,'0');
-      var isExpired=(cv.expiresAt&&new Date(cv.expiresAt)<new Date())||(cvDate&&cvDate<todayStr);
+      var _coverExpiryFromDateB=function(ds){var p=String(ds||'').split('-').map(Number);if(p.length<3||!p[0]||!p[1]||!p[2])return null;return new Date(Date.UTC(p[0],p[1]-1,p[2]+1,3,0,0)-(5*60+30)*60000);};
+      var _nowMsB=Date.now();
+      var _dateExpB=cv.expiresAt?null:_coverExpiryFromDateB(cvDate);
+      var isExpired=(cv.expiresAt&&new Date(cv.expiresAt).getTime()<_nowMsB)||(_dateExpB&&_dateExpB.getTime()<_nowMsB);
       if(isExpired){bal=0;} // show 0 balance for past events
       var pct=total>0?Math.round((used/total)*100):0;
 
