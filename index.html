@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.304";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-16)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.307";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-17)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -5100,10 +5100,16 @@ var _HOD_TBL_PRICING={
   groundPremium:{price:2500,startMin:1260},
   groundVvip:{price:2500,startMin:1260},
   dining:{price:2500,startMin:1260},
-  rooftop:{price:2500,startMin:1260}
+  rooftop:{price:2500,startMin:1260},
+  // Per-table PRICE overrides (price only) keyed by table id (C1–C4, VIP1, VIP2).
+  // >0 wins over the tier price; 0 or missing → use the tier price. Fail-open.
+  tableOverrides:{}
 };
+// Whitelist of tables that may carry a per-table price override (Ground floor only).
+// Dining/Rooftop stay tier-priced — any stale/garbage override key for them is ignored.
+var _HOD_OV_TABLES={C1:1,C2:1,C3:1,C4:1,VIP1:1,VIP2:1};
 function _hodApplyTier(d,key){try{var o=d&&d[key];if(o&&typeof o==='object'){if(typeof o.price==='number'&&o.price>=0)_HOD_TBL_PRICING[key].price=o.price;if(typeof o.startMin==='number'&&o.startMin>=0)_HOD_TBL_PRICING[key].startMin=o.startMin;}}catch(_){}}
-function _hodLoadTablePricing(){try{if(typeof firestore==='undefined'||!firestore)return;firestore.collection('appSettings').doc('tablePricing').get().then(function(s){try{if(s&&s.exists){var d=s.data()||{};if(typeof d.enabled==='boolean')_HOD_TBL_PRICING.enabled=d.enabled;if(typeof d.ground==='number'){_HOD_TBL_PRICING.groundPremium.price=d.ground;_HOD_TBL_PRICING.groundVvip.price=d.ground;}if(typeof d.dining==='number')_HOD_TBL_PRICING.dining.price=d.dining;if(typeof d.rooftop==='number')_HOD_TBL_PRICING.rooftop.price=d.rooftop;_hodApplyTier(d,'groundPremium');_hodApplyTier(d,'groundVvip');_hodApplyTier(d,'dining');_hodApplyTier(d,'rooftop');}}catch(_){}}).catch(function(){});}catch(_){}}
+function _hodLoadTablePricing(){try{if(typeof firestore==='undefined'||!firestore)return;firestore.collection('appSettings').doc('tablePricing').get().then(function(s){try{if(s&&s.exists){var d=s.data()||{};if(typeof d.enabled==='boolean')_HOD_TBL_PRICING.enabled=d.enabled;if(typeof d.ground==='number'){_HOD_TBL_PRICING.groundPremium.price=d.ground;_HOD_TBL_PRICING.groundVvip.price=d.ground;}if(typeof d.dining==='number')_HOD_TBL_PRICING.dining.price=d.dining;if(typeof d.rooftop==='number')_HOD_TBL_PRICING.rooftop.price=d.rooftop;_hodApplyTier(d,'groundPremium');_hodApplyTier(d,'groundVvip');_hodApplyTier(d,'dining');_hodApplyTier(d,'rooftop');if(d.tableOverrides&&typeof d.tableOverrides==='object'){var _to={};for(var _k in d.tableOverrides){if(Object.prototype.hasOwnProperty.call(d.tableOverrides,_k)&&_HOD_OV_TABLES[_k]){var _pv=d.tableOverrides[_k];if(typeof _pv==='number'&&_pv>=0)_to[_k]=_pv;}}_HOD_TBL_PRICING.tableOverrides=_to;}}}catch(_){}}).catch(function(){});}catch(_){}}
 function _hodFloorPriceKey(f){return f==='dance'?'ground':f;}
 function _hodCoverCat(_floor,_isVip){if(_floor==='dance'||_floor==='ground')return _isVip?'groundVvip':'groundPremium';if(_floor==='dining')return 'dining';if(_floor==='rooftop')return 'rooftop';return 'groundPremium';}
 function _hodIsWeekendIso(iso){try{var d=new Date(iso+'T12:00:00');var wd=d.getDay();return wd===5||wd===6||wd===0;}catch(_){return false;}}
@@ -5810,7 +5816,11 @@ function renderTableFloorPlan(){
         // (2026-06-03) — the match is over; weekends now apply cover at 9 PM+ only.
         var _sm=(typeof _c.startMin==='number')?_c.startMin:1260;
         if(typeof _t2m!=='function' || _t2m(_arr)<_sm) return 0;
-        var _v=_c.price;
+        // Per-table custom price wins over the tier price (price only; same weekend
+        // + start-time rules apply). 0/missing override → fall back to tier price.
+        var _tid=(table&&table.id)||'';
+        var _ov=(_HOD_OV_TABLES[_tid] && _HOD_TBL_PRICING.tableOverrides && typeof _HOD_TBL_PRICING.tableOverrides[_tid]==='number')?_HOD_TBL_PRICING.tableOverrides[_tid]:0;
+        var _v=(typeof _ov==='number' && _ov>0)?_ov:_c.price;
         return (typeof _v==='number' && _v>0)?_v:0;
       }catch(_e){ return 0; }
     }
