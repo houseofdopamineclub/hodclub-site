@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.307";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-17)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.308";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-17)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -5695,11 +5695,12 @@ function renderTableFloorPlan(){
       // 🆕 v3.148 — popup the MOMENT a 9 PM-or-later slot is picked on a weekend (any floor).
       try{
         var _arr=arrivalI.value; if(!_arr) return;
+        var _flat=_coverFlatFor(dateI.value,_arr);
         var _ph=_coverPerHeadFor(dateI.value,_arr);
-        if(_ph<=0) return;
+        if(_flat<=0 && _ph<=0) return;
         var V=_collect(true);
-        if(V){ _rcbShowPay(_ph*V.ps,V); }
-        else { errD.style.color='#FF90E8'; errD.textContent='⚠️ Cover charges apply at venue across all floors — ₹'+_ph.toLocaleString('en-IN')+'/head for '+_arr+' (100% redeemable on F&B). Enter your details, then tap Reserve.'; errD.style.display='block'; }
+        if(V){ if(_flat>0){ _rcbShowPay(_flat,V,true); } else { _rcbShowPay(_ph*V.ps,V); } }
+        else { errD.style.color='#FF90E8'; errD.textContent=(_flat>0)?('⚠️ Cover charge applies at venue across all floors — ₹'+_flat.toLocaleString('en-IN')+' per table for '+_arr+' (100% redeemable on F&B). Enter your details, then tap Reserve.'):('⚠️ Cover charges apply at venue across all floors — ₹'+_ph.toLocaleString('en-IN')+'/head for '+_arr+' (100% redeemable on F&B). Enter your details, then tap Reserve.'); errD.style.display='block'; }
       }catch(_e){}
     }});
     function _rebuildArrival(formDate){
@@ -5816,12 +5817,27 @@ function renderTableFloorPlan(){
         // (2026-06-03) — the match is over; weekends now apply cover at 9 PM+ only.
         var _sm=(typeof _c.startMin==='number')?_c.startMin:1260;
         if(typeof _t2m!=='function' || _t2m(_arr)<_sm) return 0;
-        // Per-table custom price wins over the tier price (price only; same weekend
-        // + start-time rules apply). 0/missing override → fall back to tier price.
+        // 🆕 2026-06-17 — Per-head TIER price ONLY. The per-table override is a FLAT
+        // table charge (handled by _coverFlatFor) and must NOT be multiplied by pax.
+        var _v=_c.price;
+        return (typeof _v==='number' && _v>0)?_v:0;
+      }catch(_e){ return 0; }
+    }
+    // 🆕 2026-06-17 — PER-TABLE override = a FLAT charge for the whole table (e.g.
+    // ₹5,000 whether 1/2/3/4 guests), NOT per head. Returns the flat amount when an
+    // override is set for THIS table (same enabled + weekend + start-time gates),
+    // else 0 → caller falls back to per-head × pax. Fail-open to 0.
+    function _coverFlatFor(_iso,_arr){
+      try{
+        if(!_HOD_TBL_PRICING.enabled) return 0;
+        if(!_hodIsWeekendIso(_iso)) return 0;
+        var _cat=_hodCoverCat(activeFloor,(table&&table.vip));
+        var _c=_HOD_TBL_PRICING[_cat]||{};
+        var _sm=(typeof _c.startMin==='number')?_c.startMin:1260;
+        if(typeof _t2m!=='function' || _t2m(_arr)<_sm) return 0;
         var _tid=(table&&table.id)||'';
         var _ov=(_HOD_OV_TABLES[_tid] && _HOD_TBL_PRICING.tableOverrides && typeof _HOD_TBL_PRICING.tableOverrides[_tid]==='number')?_HOD_TBL_PRICING.tableOverrides[_tid]:0;
-        var _v=(typeof _ov==='number' && _ov>0)?_ov:_c.price;
-        return (typeof _v==='number' && _v>0)?_v:0;
+        return (typeof _ov==='number' && _ov>0)?_ov:0;
       }catch(_e){ return 0; }
     }
     function _collect(soft){
@@ -5845,6 +5861,8 @@ function renderTableFloorPlan(){
     }
     confBtn.onclick=function(){
       var V=_collect(false); if(!V) return;
+      var _flat=_coverFlatFor(V.bookDate,V.arrival);
+      if(_flat>0){ _rcbShowPay(_flat,V,true); return; }
       var _ph=_coverPerHeadFor(V.bookDate,V.arrival);
       if(_ph>0){ _rcbShowPay(_ph*V.ps,V); return; }
       _finalizeReserve(null,0,V);
@@ -5854,7 +5872,7 @@ function renderTableFloorPlan(){
     // _payId: null = free reservation; "pay_*" = Razorpay paid online (pre-
     // credits a redeemable cover); "cash_pending_*" = reserve-now-pay-at-venue
     // (₹0 cover, door collects cash on arrival, mirrors the v3.45 no-phantom
-    // rule). _coverAmt = ₹2,500 × party size when charged, else 0.
+    // rule). _coverAmt = per-head × party size, OR a flat per-table override when set, else 0.
     function _finalizeReserve(_payId,_coverAmt,V){
       var name=V.name,phone=V.phone,ps=V.ps,email=V.email,arrival=V.arrival,bookDate=V.bookDate;
       var _paidOnline=!!(_payId && String(_payId).indexOf('pay_')===0);
@@ -6039,7 +6057,7 @@ function renderTableFloorPlan(){
     // UX (Pay Online via Razorpay + Reserve Now, Pay at Venue). On success it
     // calls _finalizeReserve with the right paymentId. Fail-open everywhere.
     // Per-head price is derived from the passed total (amount / party size).
-    function _rcbShowPay(amount,V){
+    function _rcbShowPay(amount,V,isFlat){
       var _phd=(V&&V.ps>0)?Math.round(amount/V.ps):amount;
       var ov=document.createElement('div');ov.id='rcb-pay-ov';
       ov.style.cssText='position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;';
@@ -6051,7 +6069,7 @@ function renderTableFloorPlan(){
         +'<div style="background:rgba(0,0,0,.04);border:2px solid #000;border-radius:8px;padding:14px 16px;margin-bottom:18px;">'
         +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:#3D3D3D;font-size:12px;">Table</span><span style="font-weight:800;font-size:13px;color:#000;">'+sanitize(table.id)+' · '+sanitize(_HOD_TABLES[activeFloor].label)+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:#3D3D3D;font-size:12px;">Date &amp; Arrival</span><span style="font-weight:800;font-size:13px;">'+sanitize(V.bookDate)+' · '+sanitize(V.arrival)+'</span></div>'
-        +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:#3D3D3D;font-size:12px;">Cover</span><span style="font-weight:800;font-size:13px;">'+V.ps+' × ₹'+_phd.toLocaleString('en-IN')+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:#3D3D3D;font-size:12px;">Cover</span><span style="font-weight:800;font-size:13px;">'+(isFlat?('₹'+amount.toLocaleString('en-IN')+' · table'):(V.ps+' × ₹'+_phd.toLocaleString('en-IN')))+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;"><span style="color:#000;font-size:13px;font-weight:800;">Total</span><span style="font-weight:900;font-size:16px;color:#000;">₹'+amount.toLocaleString('en-IN')+'</span></div>'
         +'<div style="font-size:10px;color:#3D3D3D;margin-top:8px;">100% redeemable on food &amp; drinks</div></div>';
       var payBtn=document.createElement('button');
