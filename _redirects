@@ -14,7 +14,9 @@
 # forwards the original query string to wallet.html automatically.
 /wallet   /wallet.html   200
 # Query-param links on the homepage. Each rule fires ONLY when its param exists.
-/   /wallet.html   200   Query wallet=:ref
-/   /wallet.html   200   Query verify=:ref
-/   /wallet.html   200   Query topup=:id
-/   /wallet.html   200   Query ref=:ref
+# Netlify query-param syntax is `<from>  <param>=:<name>  <to>  <status>` —
+# the param condition goes RIGHT AFTER the source path, with NO "Query" keyword.
+/   wallet=:ref   /wallet.html   200
+/   verify=:ref   /wallet.html   200
+/   topup=:id     /wallet.html   200
+/   ref=:ref      /wallet.html   200
