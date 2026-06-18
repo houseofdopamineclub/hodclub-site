@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.312";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-18)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.313";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-18)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -3479,8 +3479,8 @@ function renderStep1(ev){
 
   wrap.appendChild(el('div','f-title',['ENTER YOUR DETAILS']));
 
-  // Fields
-  var fields=[{k:'name',l:'Full Name',t:'text',ph:'Your full name'},{k:'email',l:'Email Address',t:'email',ph:'your@email.com'},{k:'phone',l:'Phone Number',t:'tel',ph:'+91 XXXXX XXXXX'}];
+  // Fields — name + email via the loop; PHONE gets a country-code dropdown below.
+  var fields=[{k:'name',l:'Full Name',t:'text',ph:'Your full name'},{k:'email',l:'Email Address',t:'email',ph:'your@email.com'}];
   fields.forEach(function(f){
     var fld=el('div','fld');
     var lbl=document.createElement('label');lbl.textContent=f.l;
@@ -3488,6 +3488,41 @@ function renderStep1(ev){
     inp.oninput=function(e){S.bdata[f.k]=e.target.value;}; // direct state update, NO re-render
     fld.appendChild(lbl);fld.appendChild(inp);wrap.appendChild(fld);
   });
+
+  // 🆕 2026-06-18 v3.313 — PHONE NUMBER now has a COUNTRY-CODE dropdown (+91
+  // default), mirroring the BOOK A TABLE form's _hodDD selector. The phone STATE
+  // (S.bdata.phone) stays BARE DIGITS — that is the canonical identity used by the
+  // EXACT-MATCH Firestore dedup query (where('phone','==',phoneDigits)), the My
+  // Bookings phone lookup, the WhatsApp send and the covers doc — so the dedup
+  // index keeps working unchanged. The selected country code is carried SEPARATELY
+  // in S.bdata.phoneCC (persisted to the booking as phoneCC + phoneDisplay for
+  // records). Seeds from any existing draft values so a re-render never wipes the
+  // in-progress number.
+  (function(){
+    var _glCC=[['+91','IN'],['+1','US/CA'],['+44','UK'],['+971','UAE'],['+65','SG'],['+61','AU'],['+49','DE'],['+33','FR'],['+81','JP'],['+86','CN'],['+966','SA'],['+974','QA'],['+968','OM'],['+973','BH'],['+965','KW'],['+852','HK'],['+60','MY'],['+66','TH'],['+62','ID'],['+63','PH'],['+27','ZA'],['+234','NG'],['+254','KE'],['+64','NZ'],['+41','CH'],['+31','NL'],['+39','IT'],['+34','ES'],['+7','RU'],['+55','BR'],['+94','LK'],['+977','NP'],['+880','BD'],['+92','PK'],['+960','MV']];
+    var seedCC=S.bdata.phoneCC||'+91';
+    var seedDigits=(typeof S.bdata.phoneDigits==='string')?S.bdata.phoneDigits:((bd.phone||'').replace(/\D/g,'').slice(-15));
+    var fld=el('div','fld');
+    var lbl=document.createElement('label');lbl.textContent='Phone Number';fld.appendChild(lbl);
+    var row=document.createElement('div');row.style.cssText='display:flex;gap:8px;';
+    var ccDD=_hodDD({
+      options:_glCC.map(function(c){return {value:c[0],label:c[0]+' '+c[1]};}),
+      value:seedCC,
+      wrapCss:'flex:0 0 108px;',
+      btnCss:'padding:11px 9px;font-size:13px;border-radius:6px;',
+      listMinWidth:150,
+      onChange:function(){S.bdata.phoneCC=ccDD.value||'+91';}
+    });
+    var pInp=document.createElement('input');pInp.type='tel';pInp.inputMode='numeric';pInp.placeholder='Phone Number';
+    pInp.value=seedDigits;pInp.style.cssText='flex:1;min-width:0;';
+    // phone STATE stays BARE DIGITS (canonical identity for dedup/lookup/WhatsApp/
+    // covers); the country code lives only in S.bdata.phoneCC. validateAndProceed
+    // re-normalizes S.bdata.phone before the booking is saved.
+    pInp.oninput=function(e){var dg=e.target.value.replace(/\D/g,'').slice(0,15);e.target.value=dg;S.bdata.phoneDigits=dg;S.bdata.phoneCC=ccDD.value||'+91';S.bdata.phone=dg;};
+    // seed state so a pre-filled draft validates without re-typing
+    S.bdata.phoneCC=seedCC;S.bdata.phoneDigits=seedDigits;S.bdata.phone=seedDigits;
+    row.appendChild(ccDD);row.appendChild(pInp);fld.appendChild(row);wrap.appendChild(fld);
+  })();
 
   // Total box — uses IDs so updateQtyDOM can update them without re-render
   var totalBox=el('div','total-box');
@@ -3525,9 +3560,19 @@ function renderStep1(ev){
     if(!d.selectedOption&&!d.entryType){S.alert='Please select an entry type or table.';render();return;}
     if(!d.name||d.name.trim().length<2){S.alert='Please enter your full name.';render();return;}
     if(!d.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)){S.alert='Please enter a valid email address.';render();return;}
-    var phoneDigits=(d.phone||'').replace(/\D/g,'');
-    if(phoneDigits.length===11&&phoneDigits[0]==='9')phoneDigits=phoneDigits.slice(1);
-    if(phoneDigits.length!==10){S.alert='Please enter a valid 10-digit Indian mobile number.';render();return;}
+    // 🆕 v3.313 — phone is now {country code + digits}; validate per the selected
+    // code. India (+91) still requires exactly 10 digits; other codes accept ≥7.
+    var _phCC=(d.phoneCC||'+91').trim();
+    var phoneDigits=((typeof d.phoneDigits==='string'&&d.phoneDigits)?d.phoneDigits:(d.phone||'')).replace(/\D/g,'');
+    if(_phCC==='+91'){
+      if(phoneDigits.length===11&&phoneDigits[0]==='9')phoneDigits=phoneDigits.slice(1);
+      if(phoneDigits.length!==10){S.alert='Please enter a valid 10-digit Indian mobile number.';render();return;}
+    } else if(phoneDigits.length<7){
+      S.alert='Please enter a valid phone number for the selected country code.';render();return;
+    }
+    // canonicalize the stored identity to BARE DIGITS so the exact-match Firestore
+    // dedup query (where('phone','==',phoneDigits)) and the booking write agree.
+    d.phone=phoneDigits;
 
     function showDupWarning(existingRef, existingType){
       // Soft warning — show existing booking, let them decide
@@ -4074,6 +4119,7 @@ function saveBooking(paymentId){
   var booking={
     id:(paymentId&&paymentId.indexOf('pay_')===0)?paymentId:uid(),ref:ref,eventId:ev.id,eventTitle:ev.title,
     name:sanitize(bd.name),email:sanitize(bd.email),phone:sanitize(bd.phone),
+    phoneCC:sanitize(bd.phoneCC||'+91'),phoneDisplay:sanitize(((bd.phoneCC||'+91')+' '+(bd.phone||'')).trim()),
     qty:bd.qty,entryType:bd.entryType||'',tableType:bd.tableType||'',
     pricePerTicket:bd.entryPrice||0,tablePrice:tableTotal,
     addons:addonsList,addonsAmount:addonsAmt,
