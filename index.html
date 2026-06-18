@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.308";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-17)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.312";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-18)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -3566,10 +3566,21 @@ function renderStep1(ev){
       // shows immediately. Fallback: if no ref (shouldn't happen), open the
       // bookings page so they at least see something.
       viewBtn.onclick=function(){
-        dupOverlay.remove();
+        // 🆕 2026-06-18 v3.312 (Khushi) — open the ticket/wallet in a NEW TAB so
+        // the in-progress booking form (name/email/phone/guest-list type) stays
+        // intact behind it. The old full-page redirect reloaded the whole site
+        // and WIPED everything the guest had typed. ONLY this "View My Existing
+        // Ticket" path changes — "Book an Additional Ticket" and "Cancel" are
+        // untouched. Fail-open: if the browser blocks the popup (win===null,
+        // rare for a direct user click) fall back to the same-tab redirect so
+        // they still see their ticket.
         if(existingRef && existingRef!=='—'){
-          window.location.href='/?wallet='+encodeURIComponent(existingRef);
+          var _url='/?wallet='+encodeURIComponent(existingRef);
+          var _win=window.open(_url,'_blank');
+          if(_win){ try{_win.opener=null;}catch(e){} dupOverlay.remove(); }
+          else { window.location.href=_url; }
         } else {
+          dupOverlay.remove();
           set({view:'myBookings'});
         }
       };
