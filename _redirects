@@ -1,0 +1,20 @@
+# ── HOD fast wallet routing (Netlify) ──────────────────────────────────────
+# Serve the lean standalone wallet.html for wallet deep-links WITHOUT touching
+# any of the ~18 hardcoded `https://hodclub.in/?wallet=` / `?verify=` builders
+# scattered across the customer site, POS, and Cloud Functions.
+#
+# These are REWRITES (status 200), so the browser URL stays exactly as the guest
+# received it (e.g. https://hodclub.in/?wallet=HOD-123) — wallet.html reads the
+# same ?wallet= / ?verify= / ?topup= query it always has. The full index.html
+# is no longer loaded for these links, cutting cold WhatsApp-webview load from
+# ~10-11s to ~2-4s. Only fires when the param is present; the bare homepage and
+# every other query (?event=, ?page=, etc.) still serve index.html untouched.
+# Path-based wallet link (BarMode emits https://hodclub.in/wallet?ref=...).
+# No query condition → also covers /wallet?wallet= and a bare /wallet; Netlify
+# forwards the original query string to wallet.html automatically.
+/wallet   /wallet.html   200
+# Query-param links on the homepage. Each rule fires ONLY when its param exists.
+/   /wallet.html   200   Query wallet=:ref
+/   /wallet.html   200   Query verify=:ref
+/   /wallet.html   200   Query topup=:id
+/   /wallet.html   200   Query ref=:ref

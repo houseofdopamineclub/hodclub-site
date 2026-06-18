@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="theme-color" content="#0a0a0a"/>
+<title>HOD Wallet</title>
+<script>window.HOD_WALLET_BUILD="v3.309";try{console.log("%c[HOD] standalone wallet build "+window.HOD_WALLET_BUILD+" (2026-06-18)","color:#FF90E8;font-weight:700");}catch(e){}</script>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin/>
+<link rel="dns-prefetch" href="https://checkout.razorpay.com"/>
+<style>
+:root{--ff:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{font-family:var(--ff);background:#0a0a0a;color:#fff;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;}
+#root{min-height:100vh;}
+#hod-wallet-boot{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;color:#bbb;font-family:var(--ff);}
+#hod-wallet-boot .sp{width:34px;height:34px;border:3px solid rgba(255,255,255,.15);border-top-color:#FF90E8;border-radius:50%;animation:hodspin .8s linear infinite;}
+@keyframes hodspin{to{transform:rotate(360deg);}}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px) scale(.93)}to{opacity:1;transform:translateY(0) scale(1)}}
+.toast-container{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;min-width:280px;}
+.toast{padding:11px 18px;border-radius:8px;font-size:12px;font-weight:700;backdrop-filter:blur(16px);border:1px solid rgba(0,0,0,.1);display:flex;align-items:center;gap:9px;animation:toastIn .35s cubic-bezier(.23,1,.32,1);white-space:nowrap;pointer-events:none;}
+.toast-social{background:rgba(255,255,255,.95);color:#000;border:2px solid #000;}
+.toast-success{background:rgba(0,200,100,.15);border-color:rgba(0,200,100,.3);color:#00C864;}
+.toast-err{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#FF5733;}
+.toast-promo{background:#FF90E8;border-color:#000;color:#000;}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px) scale(.93)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes toastOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(10px) scale(.93)}}
+</style>
+
+<!-- Razorpay checkout.js LAZY-LOADED on first pay tap (verbatim from index.html) -->
+<script>(function(){
+  var _rzpLoadPromise=null;
+  window.ensureRazorpay=function(cb){
+    if(typeof window.Razorpay!=='undefined'){ if(cb)cb(true); return; }
+    if(!_rzpLoadPromise){
+      _rzpLoadPromise=new Promise(function(resolve){
+        try{
+          var s=document.createElement('script');
+          s.src='https://checkout.razorpay.com/v1/checkout.js';
+          s.async=true;
+          s.onload=function(){ if(typeof window.Razorpay!=='undefined'){ resolve(true); } else { _rzpLoadPromise=null; resolve(false); } };
+          s.onerror=function(){ _rzpLoadPromise=null; resolve(false); };
+          document.head.appendChild(s);
+        }catch(e){ _rzpLoadPromise=null; resolve(false); }
+      });
+    }
+    _rzpLoadPromise.then(function(ok){ if(cb)cb(ok); });
+  };
+})();</script>
+
+<!-- Firebase SDK v9 compat — app + firestore + auth + app-check. Storage SDK and
+     OneSignal are intentionally OMITTED (the wallet never uses them) to keep this
+     page lean. `defer` so the ~520KB SDK never render-blocks the boot spinner. -->
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
+<script defer src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js" crossorigin="anonymous"></script>
+<!-- QR rendering (My Table card / verify QR) -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+<div id="root"><div id="hod-wallet-boot"><div class="sp"></div><div>Loading your wallet…</div></div></div>
+
+<!-- ════════ SHARED RUNTIME — pre-declare globals BEFORE the extracted slices ════════ -->
+<script>
+var DB_MODE = 'local';
+var firestore = null;
+var S = {};            // wallet.js only touches S._walletRef / S._cachedEvents / S._fbUser / S._topup*
+var _menuOvUnsub = null;
+</script>
+
+<!-- config + Cloud Function URLs (verbatim) -->
+<script>
+var FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyB6YfM1DyVq0NTEWXpMdbCYuWwr9cWwbt0",
+  authDomain:        "hod-tickets.firebaseapp.com",
+  projectId:         "hod-tickets",
+  storageBucket:     "hod-tickets.firebasestorage.app",
+  messagingSenderId: "86190418978",
+  appId:             "1:86190418978:web:8b1eafc784c4986fd3ee7b"
+};
+
+// 🆕 2026-05-28 v3.137 — L1 App Check (reCAPTCHA Enterprise) site key.
+// PASTE the reCAPTCHA Enterprise site key from Google Cloud Console here
+// (Security → reCAPTCHA Enterprise → your key → COPY ID). Leave as empty
+// string until you have it — App Check init silently skips when blank, so
+// nothing breaks.
+// 🛟 SAFE TO DEPLOY EMPTY: same effect as not having App Check at all.
+var APPCHECK_SITE_KEY = "6LcuvQAtAAAAAIENZPGxFVcVFQBLr-7CJj17NWMy";
+
+// ══════════════════════════════════════════════════
+// ⚡ RAZORPAY KEY — PASTE YOUR KEY HERE
+// Go to: dashboard.razorpay.com → Settings → API Keys
+// Use Live key (starts with rzp_live_) when ready
+// ══════════════════════════════════════════════════
+var RAZORPAY_KEY = "rzp_live_Sgf6ON1mQY95kT";
+
+// ════════════════════════════════════════════════════════════════
+// 🔒 SERVER-VERIFIED RECHARGE (Mon 11 May 2026 — Khushi feature)
+// ────────────────────────────────────────────────────────────────
+// Replaces every old `firestore.collection('covers').doc(ref).update({
+//   coverBalance: increment(amt) })` direct-write with a 2-step flow:
+//   1. POST {amount, coverRef, kind, name, phone} to createOrder
+//      → returns a Razorpay order_id.
+//   2. Open Razorpay JS with that order_id. On success, POST
+//      {razorpay_order_id, razorpay_payment_id, razorpay_signature,
+//       coverRef, amount, kind} to verifyRechargePayment, which
+//      cryptographically validates the signature and credits the wallet
+//      with `serverVerified:true` (so POS Bar Mode shows a green tick
+//      before bartender activates the KOT).
+//
+// FALLBACK CHAIN — if anything fails, the customer is NEVER charged
+// without seeing a clear next step:
+//   - createOrder fails  → toast + button re-enabled (zero charge).
+//   - Razorpay open fails → toast + button re-enabled (zero charge).
+//   - User dismisses Razorpay → button re-enabled (zero charge).
+//   - Razorpay success but verify fails → "Payment received (ID: …) —
+//     show this to the bartender" toast (10s). Razorpay's webhook also
+//     fires server-side as a backstop and credits the wallet within
+//     ~5 seconds, so the bartender will see the green tick anyway.
+//
+// Endpoints (asia-south1):
+var HOD_FUNCTIONS_BASE = 'https://asia-south1-hod-tickets.cloudfunctions.net';
+// V2 Mon 11 May — call createWalletOrder (NOT createOrder). The new
+// endpoint writes a server-side {orderId → coverRef, amount, kind} ledger
+// so verifyRechargePayment + razorpayWebhook can resolve the wallet
+// without trusting any client-supplied input.
+var CREATE_ORDER_URL = HOD_FUNCTIONS_BASE + '/createWalletOrder';
+var VERIFY_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/verifyRechargePayment';
+// 🆕 2026-06-15 v3.295 (Phase 2) — My Bookings server lookup. The browser POSTs
+// just { phone } and gets back ONLY that phone's docs (indexed phoneNorm== query
+// server-side), instead of downloading hundreds of other guests' rows and
+// filtering client-side. Fail-open: the lookup handler falls back to the old
+// direct Firestore queries if this endpoint is unreachable.
+var MYBOOKINGS_LOOKUP_URL = HOD_FUNCTIONS_BASE + '/myBookingsLookup';
+// 🆕 2026-06-15 v3.296 (Phase 3) — customer MONEY/PAYMENT writes move server-side.
+// The browser no longer writes tabRounds / tabTotal / paymentStatus / amountPaid
+// directly to Firestore; it POSTs to these Cloud Functions which recompute the
+// TRUE prices/totals server-side (selfOrderPlace + requestBill), and verify the
+// Razorpay charge before marking a table paid (createTableBillOrder +
+// verifyTableBillPayment). EVERY call is fail-open: on any non-OK response or
+// outage the client falls back to its original direct-write path, so a function
+// outage can never stop a guest from ordering, calling for a bill, or paying.
+// Once these are verified live, Firestore rules v8 block the browser writes.
+var SELF_ORDER_PLACE_URL          = HOD_FUNCTIONS_BASE + '/selfOrderPlace';
+var REQUEST_BILL_URL              = HOD_FUNCTIONS_BASE + '/requestBill';
+var CREATE_TABLE_BILL_ORDER_URL   = HOD_FUNCTIONS_BASE + '/createTableBillOrder';
+var VERIFY_TABLE_BILL_PAYMENT_URL = HOD_FUNCTIONS_BASE + '/verifyTableBillPayment';
+</script>
+
+<!-- POS menu overrides (OOS/discount) live listener + getEffectivePrice (verbatim) -->
+<script>
+var POS_MENU_OVERRIDES = {};
+var _menuOvUnsub = null;
+function _ovKey(name){
+  return String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+function _ovFor(itemName){ return POS_MENU_OVERRIDES[_ovKey(itemName)] || null; }
+function _effPrice(itemName, basePrice){
+  var ov = _ovFor(itemName);
+  if(!ov) return basePrice;
+  if(ov.discountPercent) return Math.max(0, Math.round((basePrice - basePrice*ov.discountPercent/100)*100)/100);
+  if(ov.discountAmount)  return Math.max(0, Math.round((basePrice - ov.discountAmount)*100)/100);
+  return basePrice;
+}
+function startMenuOverridesListener(){
+  // 🆕 2026-05-26 v3.39 (Khushi: "READS GOING IN MILLIONS, 1M/HR ALONE IN
+  // 9-10PM SLOT") — CHANGED from onSnapshot → 30s poll + tab-focus refresh.
+  //
+  // ROOT CAUSE (corrected — the v3.25 comment under-estimated by ~100×):
+  //   onSnapshot fires the FULL COLLECTION READ on every doc change × every
+  //   connected client. With staff actively toggling DISC/SC/OOS during an
+  //   event (~50-100 toggles/hr) and ~134 customers holding wallets open,
+  //   the real math is:
+  //     30 docs × 134 customers × 100 toggles/hr = 402,000 reads/hr
+  //   The 1M reads in tonight's 9-10pm slot matches this almost exactly.
+  //
+  // NEW MODEL (poll + foreground rebind):
+  //   (a) one-shot get() on page load (immediate prime)
+  //   (b) setInterval every 30s while tab is visible
+  //   (c) extra get() when customer brings tab to foreground
+  //       (visibilitychange — covers "customer puts phone down then picks
+  //       up again to order" path, which is the moment they need fresh
+  //       OOS/discount state)
+  //   (d) pause polling while tab hidden (no background reads)
+  //
+  // Worst-case math (same load as above):
+  //   134 customers × ~5 foreground-returns/hr × 30 docs = 20K reads/hr.
+  //   Even with every customer on a busy tab: 134 × 120 polls/hr × 30 = 480K
+  //   but realistic active visibility ratio drops it ~80% → ~96K/hr. Still
+  //   a 4-5× improvement on the 402K/hr leak, and falls toward 20K/hr the
+  //   instant most customers tab away.
+  //
+  // SAFETY: 30s max staleness is acceptable because the covers/order rules
+  // on the POS server reject OOS items at order-time anyway — the customer
+  // sees the cart fail with the bartender's reason, then refreshes. Khushi's
+  // original "INSTANTLY" requirement (v3.25) was UI nicety, not safety.
+  //
+  // 🛟 FALLBACK: if firestore.get() fails, POS_MENU_OVERRIDES stays at last
+  // good value (or empty on first load) so menu still renders at base prices.
+  if(!firestore) return;
+  // Idempotency guard — initFirebase() runs twice (immediate + window.load),
+  // so without this we'd attach two visibilitychange handlers and double-poll.
+  if(window.__hodMenuOvAttached) return;
+  window.__hodMenuOvAttached=true;
+  var _polling=false, _intervalId=null;
+  // 🆕 2026-05-27 v3.103 (Khushi LIVE) — `_liveUnsub` holds the onSnapshot
+  // detach handle for the ACTIVE wallet-menu live listener. Attached only
+  // while `#wallet-menu-content` is mounted (bar-tab customer browsing menu);
+  // detached when they navigate away. While attached, the 30s poll is gated
+  // off (would duplicate reads). See `_syncLiveListener` below for lifecycle.
+  var _liveUnsub=null;
+  var _stopped=false;
+  function _menuMounted(){
+    try{ return !!document.getElementById('wallet-menu-content'); }
+    catch(e){ return false; }
+  }
+  function _applyOverrides(snap){
+    var next={};
+    snap.forEach(function(d){ next[d.id] = d.data() || {}; });
+    POS_MENU_OVERRIDES = next;
+    try{
+      var mc = document.getElementById('wallet-menu-content');
+      if(mc && typeof window.__rebuildWalletMenu === 'function') window.__rebuildWalletMenu();
+    }catch(e){}
+  }
+  function _refresh(){
+    if(_stopped) return;
+    if(_polling) return;
+    // While live onSnapshot is attached, it's already keeping POS_MENU_OVERRIDES
+    // fresh — a parallel get() would just duplicate reads.
+    if(_liveUnsub) return;
+    // 🆕 2026-05-27 v3.103 — also skip the poll when the wallet menu UI is NOT
+    // mounted. Customers on home / events / booking pages never see menu data,
+    // so spending reads on them is pure waste. This matches the v3.39 menu-
+    // firestore poll's `_menuUiVisible()` gate at line ~810 (same predicate).
+    if(!_menuMounted()) return;
+    _polling=true;
+    try{
+      firestore.collection('posMenuOverrides').get().then(function(snap){
+        _applyOverrides(snap);
+      }).catch(function(err){ console.warn('posMenuOverrides poll error', err); })
+        .then(function(){ _polling=false; });
+    }catch(e){ _polling=false; console.warn('posMenuOverrides refresh threw', e); }
+  }
+  function _startPoll(){
+    if(_intervalId) return;
+    _intervalId = setInterval(function(){
+      if(document.visibilityState==='visible') _refresh();
+    }, 30000);
+  }
+  // 🆕 2026-05-27 v3.103 (Khushi LIVE) — INSTANT menu sync while the customer
+  // is on the wallet menu page. Khushi LIVE: "menu on wallets are not synching,
+  // refresh is required". She toggled an OOS item in admin → expected instant
+  // disappearance on the wallet; got nothing until manual refresh.
+  //
+  // ROOT CAUSE — v3.39's pure-poll model has 30s max staleness AND skips
+  // entirely when tab is backgrounded. Two open tabs on the same desktop
+  // (admin + wallet) often BOTH stay visible per the browser's
+  // visibilityState API, so the visibilitychange foreground-rebind never
+  // fires either. Khushi sees stale menu indefinitely until she hits refresh.
+  //
+  // FIX — re-introduce onSnapshot, but scope its lifetime tightly:
+  //   • Attach ONLY when `#wallet-menu-content` is mounted (i.e. customer
+  //     is actively browsing the menu; bar-tab patrons only).
+  //   • Detach the moment that element is removed (navigation away).
+  //   • While attached, the 30s poll is gated off (_refresh no-ops).
+  //
+  // COST MATH — at peak (~30 wallets simultaneously on the menu page):
+  //   30 viewers × 30 docs initial-read = 900 reads (one-time on mount)
+  // + 30 viewers × ~10 OOS/disc toggles/hr × 1 delta-doc = 300 reads/hr
+  //   = ~1,200 reads/hr total — DRAMATICALLY cheaper than the 30s poll
+  //   it replaces (~108K reads/hr at the same viewer count) AND instant.
+  //
+  // 🛟 FAIL-OPEN — if onSnapshot errors (auth blip, network), POS_MENU_OVERRIDES
+  // keeps its last good value and the 30s poll resumes the next tick because
+  // _liveUnsub is reset to null in the error path. Customer worst-case sees
+  // stale-by-30s menu, not blank menu.
+  function _attachLive(){
+    if(_stopped) return;
+    if(_liveUnsub) return;
+    try{
+      _liveUnsub = firestore.collection('posMenuOverrides').onSnapshot(
+        function(snap){ _applyOverrides(snap); },
+        function(err){
+          console.warn('posMenuOverrides live listener error', err);
+          try{ if(_liveUnsub){ _liveUnsub(); } }catch(e){}
+          _liveUnsub = null;
+        }
+      );
+    }catch(e){
+      console.warn('posMenuOverrides live attach threw', e);
+      _liveUnsub = null;
+    }
+  }
+  function _detachLive(){
+    if(!_liveUnsub) return;
+    try{ _liveUnsub(); }catch(e){}
+    _liveUnsub = null;
+  }
+  function _syncLiveListener(){
+    if(_stopped){ _detachLive(); return; }
+    var mounted = _menuMounted();
+    var visible = document.visibilityState === 'visible';
+    if(mounted && visible){ _attachLive(); }
+    else { _detachLive(); }
+  }
+  // Poll the DOM every 2s — cheap (no Firestore reads), and 2s of menu-mount
+  // latency before the live listener attaches is invisible to the customer
+  // (they'll see updates from the initial _refresh prime anyway).
+  var _liveSyncIv = setInterval(_syncLiveListener, 2000);
+  // Also re-sync immediately on visibility change so tab-away detaches the
+  // listener instantly (don't pay reads for a backgrounded customer). Store
+  // the handler so `_menuOvUnsub` can remove it cleanly (otherwise a retained
+  // listener could fan back out and reattach after teardown).
+  var _liveVisHandler=null;
+  try{
+    _liveVisHandler = function(){ _syncLiveListener(); };
+    document.addEventListener('visibilitychange', _liveVisHandler);
+  }catch(e){}
+  function _stopPoll(){
+    if(!_intervalId) return;
+    clearInterval(_intervalId); _intervalId=null;
+  }
+  _refresh();      // (a) prime
+  _startPoll();    // (b) 30s while visible
+  // (c) refresh on foreground return — 🆕 v3.62 — 2s debounce so rapid
+  // phone lock/unlock (or iOS Safari's spurious visibility flips) don't
+  // fan out to 134 customers × N flips/sec = burst reads. The first flip
+  // schedules a single refresh 2s later; subsequent flips inside that
+  // window reset the timer. _stopPoll still fires immediately on hide.
+  var _visTimer=null;
+  try{
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState==='visible'){
+        if(_visTimer){clearTimeout(_visTimer);}
+        _visTimer=setTimeout(function(){
+          _visTimer=null;
+          _refresh();
+          _startPoll();
+        }, 2000);
+      } else {
+        if(_visTimer){clearTimeout(_visTimer);_visTimer=null;}
+        _stopPoll();   // (d) pause while hidden
+      }
+    });
+  }catch(e){}
+  // Keep _menuOvUnsub as a stop handle so future re-init paths don't double up
+  _menuOvUnsub = function(){
+    _stopped=true;
+    _stopPoll();
+    _detachLive();
+    if(_liveSyncIv){ clearInterval(_liveSyncIv); _liveSyncIv=null; }
+    if(_liveVisHandler){
+      try{ document.removeEventListener('visibilitychange', _liveVisHandler); }catch(e){}
+      _liveVisHandler=null;
+    }
+  };
+}
+</script>
+
+<!-- helpers: sanitize, showToast, generateLocalQR (verbatim) -->
+<script>
+function sanitize(str){return(str||'').replace(/[<>'"&]/g,function(c){return{'<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;','&':'&amp;'}[c];});}
+function showToast(msg,type,dur){
+  var cont=document.getElementById('toast-container');
+  if(!cont){cont=document.createElement('div');cont.id='toast-container';cont.className='toast-container';document.body.appendChild(cont);}
+  var t=document.createElement('div');t.className='toast toast-'+(type||'social');
+  var ic={social:'👀',success:'✅',err:'⚠️',promo:'🎁'};
+  t.innerHTML='<span style="font-size:14px">'+(ic[type]||'💬')+'</span><span>'+msg+'</span>';
+  cont.appendChild(t);
+  var d=dur||3800;
+  setTimeout(function(){t.style.animation='toastOut .3s ease forwards';setTimeout(function(){if(t.parentNode)t.parentNode.removeChild(t);},300);},d);
+}
+function generateLocalQR(elId,data){
+  setTimeout(function(){
+    var qEl=document.getElementById(elId);
+    if(qEl&&typeof QRCode!=='undefined'&&!qEl.hasAttribute('data-qr')){
+      qEl.setAttribute('data-qr','1');
+      var w=qEl.clientWidth||140, h=qEl.clientHeight||140;
+      var sz=Math.max(96,Math.min(w,h)-8);
+      new QRCode(qEl,{text:data,width:sz,height:sz,colorDark:'#000000',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
+    }
+  },500);
+}
+</script>
+
+<!-- menu data + live-menu poll + breakdown math (verbatim) -->
+<script>
+var HOD_FOOD_MENU_FALLBACK=[{"cat":"Misc","items":[{"n":"Mushroom Cappuccino Soup","p":228,"t":"food","alc":false,"v":true},{"n":"Tomato Basil Soup","p":185,"t":"food","alc":false,"v":true},{"n":"Manchow Soup - Veg","p":185,"t":"food","alc":false,"v":true},{"n":"Manchow Soup - Chicken","p":228,"t":"food","alc":false,"v":false}]},{"cat":"Salads","items":[{"n":"Indian Farmhouse Salad","p":235,"t":"food","alc":false,"v":true},{"n":"Caesar Sald Veg","p":285,"t":"food","alc":false,"v":true},{"n":"Caesar Salad Chicken","p":299,"t":"food","alc":false,"v":false},{"n":"Watermelon Feta Salad","p":285,"t":"food","alc":false,"v":true},{"n":"Booster Salad Veg","p":235,"t":"food","alc":false,"v":true},{"n":"Booster Salad Chicken","p":299,"t":"food","alc":false,"v":false}]},{"cat":"Bar Bites","items":[{"n":"Salted French Fries","p":235,"t":"food","alc":false,"v":true},{"n":"Peri Peri French Fries","p":285,"t":"food","alc":false,"v":true},{"n":"Corn Salt & Pepper","p":295,"t":"food","alc":false,"v":true},{"n":"Noughty Nutties","p":299,"t":"food","alc":false,"v":true},{"n":"Bbq Style Cajun Potato","p":299,"t":"food","alc":false,"v":true},{"n":"Peanut Masala","p":299,"t":"food","alc":false,"v":true},{"n":"Egg Pakoda","p":199,"t":"food","alc":false,"v":false},{"n":"Egg Bhurji","p":199,"t":"food","alc":false,"v":false},{"n":"Boild Egg","p":149,"t":"food","alc":false,"v":false}]},{"cat":"Chaat","items":[{"n":"Chicken Tikka Chick Peas Chat","p":329,"t":"food","alc":false,"v":false},{"n":"Nipattu Avocado Chat","p":329,"t":"food","alc":false,"v":true}]},{"cat":"Chargrilled","items":[{"n":"Harissa Paneer Tikka","p":410,"t":"food","alc":false,"v":true},{"n":"Chimichuri Paneer Tikka","p":405,"t":"food","alc":false,"v":true},{"n":"Zafran Malai Brocolli","p":375,"t":"food","alc":false,"v":true},{"n":"Tahina Stuffed Mushroom","p":401,"t":"food","alc":false,"v":true},{"n":"Guntur Chicken Tikka","p":405,"t":"food","alc":false,"v":false},{"n":"Asian Chicken Tikka","p":405,"t":"food","alc":false,"v":false},{"n":"Balsamic Pepper Chicken Tikka","p":405,"t":"food","alc":false,"v":false},{"n":"Mexicon Chilli Cheese Kabab","p":405,"t":"food","alc":false,"v":false},{"n":"Sole Fish Tikka","p":459,"t":"food","alc":false,"v":false},{"n":"Mutton Seekh Kabab With Pita","p":499,"t":"food","alc":false,"v":false},{"n":"Moilee Prawns Tandoori","p":565,"t":"food","alc":false,"v":false},{"n":"Pindiwala Bhatti Da Murgh","p":475,"t":"food","alc":false,"v":false},{"n":"Peri Peri Tandoori Wings","p":401,"t":"food","alc":false,"v":false},{"n":"Murgh Malai Tikka","p":399,"t":"food","alc":false,"v":false}]},{"cat":"Platters","items":[{"n":"Veg Platters","p":1499,"t":"food","alc":false,"v":true},{"n":"Nonveg Platters","p":2299,"t":"food","alc":false,"v":false}]},{"cat":"Oriental","items":[{"n":"Togorasi Lotus Stem Chips","p":325,"t":"food","alc":false,"v":true},{"n":"Tangy Mushroom","p":299,"t":"food","alc":false,"v":true},{"n":"Cheese Wonton","p":401,"t":"food","alc":false,"v":true},{"n":"Korean Chilli Potato","p":299,"t":"food","alc":false,"v":true},{"n":"Roasted Brussels And Tofu","p":401,"t":"food","alc":false,"v":true},{"n":"Stir Fried Mushroom And Broccoli With Bok Choy","p":401,"t":"food","alc":false,"v":true},{"n":"Schezwan Cottage Cheese","p":349,"t":"food","alc":false,"v":true},{"n":"Egg Chilli","p":249,"t":"food","alc":false,"v":false},{"n":"Chicken Tikka Chilli","p":401,"t":"food","alc":false,"v":false},{"n":"Drums Of Heaven","p":399,"t":"food","alc":false,"v":false},{"n":"Beer Chilli Chicken","p":401,"t":"food","alc":false,"v":false},{"n":"Steamed Fish","p":409,"t":"food","alc":false,"v":false},{"n":"Chicken Techha","p":399,"t":"food","alc":false,"v":false},{"n":"Asian Style Lemon Chicken With Long Beans","p":399,"t":"food","alc":false,"v":false}]},{"cat":"Bao","items":[{"n":"Chilli Cilantro Mushroom Bao","p":375,"t":"food","alc":false,"v":true},{"n":"Korean Chicken Bao","p":401,"t":"food","alc":false,"v":false},{"n":"Tempura Tofu Bao","p":399,"t":"food","alc":false,"v":false}]},{"cat":"Dimsum","items":[{"n":"Veg Gyoza","p":299,"t":"food","alc":false,"v":true},{"n":"Chicken Gyoza","p":329,"t":"food","alc":false,"v":false},{"n":"Veg Chilli Oil Dumpling","p":399,"t":"food","alc":false,"v":true},{"n":"Spicy Celery Chicken Dimsum","p":405,"t":"food","alc":false,"v":false}]},{"cat":"International Starters","items":[{"n":"Corn Ribs","p":290,"t":"food","alc":false,"v":false},{"n":"Nachos Veg","p":299,"t":"food","alc":false,"v":true},{"n":"Crisy Fried Onion Ring","p":285,"t":"food","alc":false,"v":true},{"n":"Tex -Mex Cheese Poppers","p":401,"t":"food","alc":false,"v":true},{"n":"Peri Peri Grilled Paneer","p":401,"t":"food","alc":false,"v":true},{"n":"Babycorn Fritters","p":299,"t":"food","alc":false,"v":true},{"n":"Paneer Fritters","p":399,"t":"food","alc":false,"v":true},{"n":"Cheese Garlic Bread","p":285,"t":"food","alc":false,"v":true},{"n":"Pull Apart Cheese Bread","p":299,"t":"food","alc":false,"v":true},{"n":"Butter Garlic Mushroom & Brocolli","p":349,"t":"food","alc":false,"v":true},{"n":"Nachos Chicken","p":349,"t":"food","alc":false,"v":false},{"n":"Avocado Ricotta Chicken Crostini","p":319,"t":"food","alc":false,"v":false},{"n":"Hot & Spicy Chicken Wings","p":401,"t":"food","alc":false,"v":false},{"n":"Chicken Popcorn","p":349,"t":"food","alc":false,"v":false},{"n":"Crunchy Threaded Chicken","p":349,"t":"food","alc":false,"v":false},{"n":"Butter Garlic Prawns & Brocolli","p":459,"t":"food","alc":false,"v":false},{"n":"Fish & Chips","p":519,"t":"food","alc":false,"v":false}]},{"cat":"Pasta","items":[{"n":"Alfredo Sauce Penne Pasta Veg","p":509,"t":"food","alc":false,"v":true},{"n":"Alfredo Sauce Penne Pasta Chicken","p":509,"t":"food","alc":false,"v":false},{"n":"Arrabiata Sauce Penne Pasta Veg","p":399,"t":"food","alc":false,"v":true},{"n":"Arrabiata Sauce Penne Pasta Chicken","p":509,"t":"food","alc":false,"v":false},{"n":"Spaghetti Aglio E Olio Veg","p":399,"t":"food","alc":false,"v":true},{"n":"Spaghetti Aglio E Olio Chicken","p":509,"t":"food","alc":false,"v":false},{"n":"Spaghetti Pesto Sauce Veg","p":399,"t":"food","alc":false,"v":true},{"n":"Spaghetti Pesto Sauce Chicken","p":509,"t":"food","alc":false,"v":false}]},{"cat":"International Mains","items":[{"n":"Grilled Chicken With Mushroom Pepper Sauce","p":401,"t":"food","alc":false,"v":true},{"n":"Grilled Fish With Lemon Butter Sauce","p":449,"t":"food","alc":false,"v":false}]},{"cat":"Coastal","items":[{"n":"Ghee Roast Mushroom","p":349,"t":"food","alc":false,"v":true},{"n":"Ghee Roast Paneer","p":401,"t":"food","alc":false,"v":true},{"n":"Ghee Roast Egg","p":305,"t":"food","alc":false,"v":true},{"n":"Ghee Roast Chicken","p":405,"t":"food","alc":false,"v":false},{"n":"Ghee Roast Mutton","p":519,"t":"food","alc":false,"v":false},{"n":"Ghee Roast Prawns","p":559,"t":"food","alc":false,"v":false},{"n":"Natti Style Pepper Fry Mushroom","p":401,"t":"food","alc":false,"v":true},{"n":"Natti Style Pepper Fry Paneer","p":401,"t":"food","alc":false,"v":true},{"n":"Natti Style Egg Pepper Dry","p":305,"t":"food","alc":false,"v":true},{"n":"Natti Style Pepper Fry Chicken","p":459,"t":"food","alc":false,"v":false},{"n":"Natti Style Pepper Fry Mutton","p":519,"t":"food","alc":false,"v":false},{"n":"Natti Style Pepper Fry Prawns","p":569,"t":"food","alc":false,"v":false},{"n":"Mushroom Urval","p":401,"t":"food","alc":false,"v":true},{"n":"Paneer Urval","p":401,"t":"food","alc":false,"v":true},{"n":"Chicken Urval","p":405,"t":"food","alc":false,"v":false},{"n":"Mutton Urval","p":519,"t":"food","alc":false,"v":false},{"n":"Pranws Urval","p":519,"t":"food","alc":false,"v":false},{"n":"Cashew Curry Leaf Paneer","p":401,"t":"food","alc":false,"v":true},{"n":"Cashew Curry Leaf Chicken","p":401,"t":"food","alc":false,"v":false}]},{"cat":"Pizza","items":[{"n":"Italian Veggie Pizza","p":516,"t":"food","alc":false,"v":true},{"n":"Clasic Margarita","p":509,"t":"food","alc":false,"v":true},{"n":"Mushroom Corn Pizza","p":516,"t":"food","alc":false,"v":true},{"n":"Bbq Chicken Pizza","p":629,"t":"food","alc":false,"v":false},{"n":"Fiery Chicken Pizza","p":629,"t":"food","alc":false,"v":false},{"n":"Pesto Seafood Pizza","p":680,"t":"food","alc":false,"v":false}]},{"cat":"Main Course","items":[{"n":"Double Dal Tadka","p":239,"t":"food","alc":false,"v":true},{"n":"Sabji Meloni","p":299,"t":"food","alc":false,"v":true},{"n":"Kadai Paneer With Kamal Kakdi","p":401,"t":"food","alc":false,"v":true},{"n":"Paneer Khurchan","p":401,"t":"food","alc":false,"v":true},{"n":"Lasooni Palak Paneer","p":401,"t":"food","alc":false,"v":true},{"n":"Mushroom Chicken Ghotala","p":401,"t":"food","alc":false,"v":false},{"n":"Hod Special Chicken Curry","p":401,"t":"food","alc":false,"v":false},{"n":"Murgh Patiyala","p":401,"t":"food","alc":false,"v":false},{"n":"Kadai Chicken With Kamal Kakdi","p":401,"t":"food","alc":false,"v":false},{"n":"Palak Chicken","p":401,"t":"food","alc":false,"v":false},{"n":"Rogni Raiwala Meat","p":516,"t":"food","alc":false,"v":false},{"n":"Manglorean Style Fish Curry","p":649,"t":"food","alc":false,"v":false},{"n":"Manglorean Style Pomfret Fish","p":649,"t":"food","alc":false,"v":false},{"n":"Manglorean Style Kane Fish Curry","p":399,"t":"food","alc":false,"v":false},{"n":"Silken Tofu Cubs Vibrant And Spicy Schezwan Sauce With Jasmine Rice","p":419,"t":"food","alc":false,"v":false},{"n":"Massaman Curry Veg With Jasmine Rice","p":401,"t":"food","alc":false,"v":false},{"n":"Massaman Curry Chicken With Jasmine Rice","p":425,"t":"food","alc":false,"v":false}]},{"cat":"Biryani & Rice","items":[{"n":"Steam Rice","p":179,"t":"food","alc":false,"v":true},{"n":"Jeera Rice","p":179,"t":"food","alc":false,"v":true},{"n":"Curd Rice","p":229,"t":"food","alc":false,"v":true},{"n":"Dal Kichdi","p":249,"t":"food","alc":false,"v":true},{"n":"Palak Kichdi","p":249,"t":"food","alc":false,"v":true},{"n":"Veg Biryani","p":349,"t":"food","alc":false,"v":true},{"n":"Chicken Dum Biryani","p":401,"t":"food","alc":false,"v":false},{"n":"Mutton Biryani","p":520,"t":"food","alc":false,"v":false}]},{"cat":"Rice & Noodles","items":[{"n":"Veg Fried Rice","p":299,"t":"food","alc":false,"v":true},{"n":"Egg Fried Rice","p":285,"t":"food","alc":false,"v":false},{"n":"Chicken Fried Rice","p":359,"t":"food","alc":false,"v":false},{"n":"Schezwan Veg Fried Rice -","p":299,"t":"food","alc":false,"v":true},{"n":"Schezwan Egg Fried Rice","p":285,"t":"food","alc":false,"v":false},{"n":"Schezwan Chicken Fried Rice","p":359,"t":"food","alc":false,"v":false},{"n":"Brunt Garlic Cilantro Fried Rice - Veg","p":299,"t":"food","alc":false,"v":true},{"n":"Brunt Garlic Cilantro Fried Rice - Egg","p":285,"t":"food","alc":false,"v":false},{"n":"Brunt Garlic Cilantro Fried Rice - Chicken","p":359,"t":"food","alc":false,"v":false},{"n":"Hakka Noodle - Veg","p":299,"t":"food","alc":false,"v":true},{"n":"Hakka Noodle - Egg","p":285,"t":"food","alc":false,"v":false},{"n":"Hakka Noodle - Chicken","p":359,"t":"food","alc":false,"v":false},{"n":"Schezwan Noodle - Veg","p":299,"t":"food","alc":false,"v":true},{"n":"Schezwan Noodle - Egg","p":285,"t":"food","alc":false,"v":false},{"n":"Schezwan Noodle - Chicken","p":359,"t":"food","alc":false,"v":false},{"n":"Brunt Garlic Cilantro Noodles - Veg","p":299,"t":"food","alc":false,"v":true},{"n":"Brunt Garlic Cilantro Noodles - Egg","p":285,"t":"food","alc":false,"v":false},{"n":"Brunt Garlic Cilantro Noodles Chicken","p":359,"t":"food","alc":false,"v":false}]},{"cat":"Breads","items":[{"n":"Roti - Plain","p":55,"t":"food","alc":false,"v":true},{"n":"Roti - Butter","p":65,"t":"food","alc":false,"v":true},{"n":"Roti - Green Chilli","p":65,"t":"food","alc":false,"v":true},{"n":"Naan - Plain","p":75,"t":"food","alc":false,"v":true},{"n":"Naan - Butter","p":79,"t":"food","alc":false,"v":true},{"n":"Naan - Garlic","p":79,"t":"food","alc":false,"v":true},{"n":"Cheese Garlic Naan","p":125,"t":"food","alc":false,"v":true},{"n":"Lachha Parantha - Plain","p":75,"t":"food","alc":false,"v":true},{"n":"Lachha Parantha - Butter","p":79,"t":"food","alc":false,"v":true},{"n":"Lachha Parantha - Pudina","p":79,"t":"food","alc":false,"v":true},{"n":"Kulcha - Plain","p":59,"t":"food","alc":false,"v":true},{"n":"Kulcha - Butter","p":69,"t":"food","alc":false,"v":true}]},{"cat":"Desserts","items":[{"n":"Sizzling Brownie With Ice Cream","p":399,"t":"food","alc":false,"v":true},{"n":"Coconut Caramel Custard","p":299,"t":"food","alc":false,"v":true},{"n":"Pistachio Tres Laches","p":299,"t":"food","alc":false,"v":true},{"n":"Tirsamisu Pull Me Up","p":399,"t":"food","alc":false,"v":true},{"n":"Lotus Biscoff Cheese Cake","p":399,"t":"food","alc":false,"v":true},{"n":"Chilli Gauva Ice Cream","p":279,"t":"food","alc":false,"v":true},{"n":"Gilkond Ice Cream","p":279,"t":"food","alc":false,"v":true},{"n":"Vanilla Ice Cream","p":229,"t":"food","alc":false,"v":true}]}];
+var HOD_BAR_MENU_FALLBACK=[{"cat":"Fresh Craft Beer","items":[{"n":"Toit Tint Wit (330 Ml)","p":402,"t":"drink","alc":true},{"n":"Toit Tint Wit (500 Ml)","p":517,"t":"drink","alc":true},{"n":"Toit Tint Wit (Pitcher)","p":1380,"t":"drink","alc":true},{"n":"Toit Tint Wit (Tower)","p":2530,"t":"drink","alc":true},{"n":"Toit Hefeweizen (330Ml)","p":410,"t":"drink","alc":true},{"n":"Toit Hefeweizen (500 Ml)","p":530,"t":"drink","alc":true},{"n":"Toit Hefeweizen (Pitcher)","p":1499,"t":"drink","alc":true},{"n":"Toit Hefeweizen (Tower)","p":2650,"t":"drink","alc":true}]},{"cat":"Breezers","items":[{"n":"Cranberry","p":422,"t":"drink","alc":true},{"n":"Orange","p":422,"t":"drink","alc":true},{"n":"Jamaican Passion","p":422,"t":"drink","alc":true},{"n":"Watermellon","p":422,"t":"drink","alc":true}]},{"cat":"Bottle Beer","items":[{"n":"Kingfisher Ultra Wit","p":400,"t":"drink","alc":true},{"n":"Kingfisher Ultra Max","p":460,"t":"drink","alc":true},{"n":"Hoegaarden","p":520,"t":"drink","alc":true},{"n":"Corona","p":570,"t":"drink","alc":true},{"n":"Heiniken","p":520,"t":"drink","alc":true},{"n":"Budwiser Magnum","p":460,"t":"drink","alc":true},{"n":"Budwiser Premium","p":400,"t":"drink","alc":true},{"n":"Kingfisher Ultra","p":400,"t":"drink","alc":true},{"n":"Tuborg","p":400,"t":"drink","alc":true},{"n":"Bro Code","p":480,"t":"drink","alc":true},{"n":"Boroka Gin & Tonic","p":450,"t":"drink","alc":true},{"n":"Panthera","p":480,"t":"drink","alc":true}]},{"cat":"Can Beer (330ml)","items":[{"n":"Budwiser Magnum","p":399,"t":"drink","alc":true},{"n":"Budwiser Preimum","p":379,"t":"drink","alc":true}]},{"cat":"Can Beer (500ml)","items":[{"n":"Kingfisher Ultra","p":600,"t":"drink","alc":true},{"n":"Kingfisher Ultra Max","p":380,"t":"drink","alc":true}]},{"cat":"Single Malt","items":[{"n":"Amruth Fusion (30ml)","p":862,"t":"drink","alc":true},{"n":"Amruth Fusion (Bottle)","p":17250,"t":"drink","alc":true},{"n":"Jack Daniels Single Barrle (30ml)","p":920,"t":"drink","alc":true},{"n":"Jack Daniels Single Barrle (Bottle)","p":18400,"t":"drink","alc":true},{"n":"Glenlivet 12 Yrs (30ml)","p":918,"t":"drink","alc":true},{"n":"Glenlivet 12 Yrs (Bottle)","p":18360,"t":"drink","alc":true},{"n":"Glenfiddich 12 Yrs (30ml)","p":850,"t":"drink","alc":true},{"n":"Glenfiddich 12 Yrs (Bottle)","p":17000,"t":"drink","alc":true},{"n":"Jura (30ml)","p":810,"t":"drink","alc":true},{"n":"Jura (Bottle)","p":16200,"t":"drink","alc":true},{"n":"Laphroaig 10 Yrs (30ml)","p":805,"t":"drink","alc":true},{"n":"Laphroaig 10 Yrs (Bottle)","p":16100,"t":"drink","alc":true},{"n":"Paul John Mithuna (30ml)","p":2250,"t":"drink","alc":true},{"n":"Paul John Mithuna (Bottle)","p":45000,"t":"drink","alc":true},{"n":"Paul John Nirvana (30ml)","p":529,"t":"drink","alc":true},{"n":"Paul John Nirvana (Bottle)","p":10580,"t":"drink","alc":true},{"n":"Paul John Brilliance (30ml)","p":529,"t":"drink","alc":true},{"n":"Paul John Brilliance (Bottle)","p":10580,"t":"drink","alc":true}]},{"cat":"American/Irish Whisky","items":[{"n":"Jack Daniels (30ml)","p":719,"t":"drink","alc":true},{"n":"Jack Daniels (Bottle)","p":14380,"t":"drink","alc":true},{"n":"Jim Beam (30ml)","p":550,"t":"drink","alc":true},{"n":"Jim Beam (Bottle)","p":11000,"t":"drink","alc":true},{"n":"Jameson (30ml)","p":559,"t":"drink","alc":true},{"n":"Jameson (Bottle)","p":11180,"t":"drink","alc":true}]},{"cat":"Scotch & IMFL Whisky","items":[{"n":"Jw Blue Lable (30ml)","p":1700,"t":"drink","alc":true},{"n":"Jw Blue Lable (Bottle)","p":34000,"t":"drink","alc":true},{"n":"Jw Gold Lable (30ml)","p":918,"t":"drink","alc":true},{"n":"Jw Gold Lable (Bottle)","p":18360,"t":"drink","alc":true},{"n":"Jw Double Black (30ml)","p":902,"t":"drink","alc":true},{"n":"Jw Double Black (Bottle)","p":18040,"t":"drink","alc":true},{"n":"Chivas Regal (30ml)","p":823,"t":"drink","alc":true},{"n":"Chivas Regal (Bottle)","p":16460,"t":"drink","alc":true},{"n":"Jw Red Lable (30ml)","p":550,"t":"drink","alc":true},{"n":"Jw Red Lable (Bottle)","p":11000,"t":"drink","alc":true},{"n":"Ballentine (30ml)","p":450,"t":"drink","alc":true},{"n":"Ballentine (Bottle)","p":9000,"t":"drink","alc":true},{"n":"Black And White (30ml)","p":410,"t":"drink","alc":true},{"n":"Black And White (Bottle)","p":8200,"t":"drink","alc":true},{"n":"Teachers 50 (30ml)","p":440,"t":"drink","alc":true},{"n":"Teachers 50 (Bottle)","p":8800,"t":"drink","alc":true},{"n":"Teachers Highland Cream (30ml)","p":370,"t":"drink","alc":true},{"n":"Teachers Highland Cream (Bottle)","p":7400,"t":"drink","alc":true},{"n":"Black Dog Gold Reserve (30ml)","p":520,"t":"drink","alc":true},{"n":"Black Dog Gold Reserve (Bottle)","p":10400,"t":"drink","alc":true},{"n":"100 Pipers (30ml)","p":410,"t":"drink","alc":true},{"n":"100 Pipers (Bottle)","p":8200,"t":"drink","alc":true},{"n":"Blenders Pride (30ml)","p":330,"t":"drink","alc":true},{"n":"Blenders Pride (Bottle)","p":6600,"t":"drink","alc":true},{"n":"Black Bottle (30ml)","p":510,"t":"drink","alc":true},{"n":"Black Bottle (Bottle)","p":10200,"t":"drink","alc":true},{"n":"Black Velvet (30ml)","p":460,"t":"drink","alc":true},{"n":"Black Velvet (Bottle)","p":9200,"t":"drink","alc":true},{"n":"Dewars 12 Yrs (30ml)","p":690,"t":"drink","alc":true},{"n":"Dewars 12 Yrs (Bottle)","p":13800,"t":"drink","alc":true},{"n":"Dewars White Lable (30ml)","p":410,"t":"drink","alc":true},{"n":"Dewars White Lable (Bottle)","p":8200,"t":"drink","alc":true},{"n":"Evan Williams (30ml)","p":500,"t":"drink","alc":true},{"n":"Evan Williams (Bottle)","p":10000,"t":"drink","alc":true},{"n":"Jw Blonde (30ml)","p":550,"t":"drink","alc":true},{"n":"Jw Blonde (Bottle)","p":11000,"t":"drink","alc":true},{"n":"J&B Rare (30ml)","p":460,"t":"drink","alc":true},{"n":"J&B Rare (Bottle)","p":9200,"t":"drink","alc":true},{"n":"Scottish Leader (30ml)","p":370,"t":"drink","alc":true},{"n":"Scottish Leader (Bottle)","p":7400,"t":"drink","alc":true},{"n":"Oak Smith (30ml)","p":317,"t":"drink","alc":true},{"n":"Oak Smith (Bottle)","p":6340,"t":"drink","alc":true}]},{"cat":"Vodka","items":[{"n":"Greey Goose (30ml)","p":895,"t":"drink","alc":true},{"n":"Greey Goose (Bottle)","p":17900,"t":"drink","alc":true},{"n":"Absolut (30ml)","p":460,"t":"drink","alc":true},{"n":"Absolut (Bottle)","p":9200,"t":"drink","alc":true},{"n":"Stoli (30ml)","p":600,"t":"drink","alc":true},{"n":"Stoli (Bottle)","p":12000,"t":"drink","alc":true},{"n":"Beluga (30ml)","p":1150,"t":"drink","alc":true},{"n":"Beluga (Bottle)","p":23000,"t":"drink","alc":true},{"n":"Smirnoff Red","p":400,"t":"drink","alc":true},{"n":"Smirnoff Mango Mirchi","p":400,"t":"drink","alc":true},{"n":"Smirnoff Jamun","p":400,"t":"drink","alc":true},{"n":"Smirnoff Lime","p":400,"t":"drink","alc":true},{"n":"Roberto Cavali (30ml)","p":1150,"t":"drink","alc":true},{"n":"Roberto Cavali (Bottle)","p":23000,"t":"drink","alc":true},{"n":"Zig Zag (30ml)","p":41,"t":"drink","alc":true},{"n":"Zig Zag (Bottle)","p":5000,"t":"drink","alc":true}]},{"cat":"Rum","items":[{"n":"Bacardi White","p":370,"t":"drink","alc":true},{"n":"Bacardi Lemon","p":370,"t":"drink","alc":true},{"n":"Bacardi Orange","p":370,"t":"drink","alc":true},{"n":"Old Monkk Dark","p":230,"t":"drink","alc":true},{"n":"Old Monkk Coffee","p":402,"t":"drink","alc":true}]},{"cat":"Gin","items":[{"n":"Bombay Sapphire (30ml)","p":608,"t":"drink","alc":true},{"n":"Bombay Sapphire (Bottle)","p":12160,"t":"drink","alc":true},{"n":"Beefeater (30ml)","p":510,"t":"drink","alc":true},{"n":"Beefeater (Bottle)","p":10200,"t":"drink","alc":true},{"n":"Great Indian Gin (30ml)","p":550,"t":"drink","alc":true},{"n":"Great Indian Gin (Bottle)","p":11000,"t":"drink","alc":true}]},{"cat":"Cognac & Brandy","items":[{"n":"Hennessey Vsop (30ml)","p":805,"t":"drink","alc":true},{"n":"Hennessey Vsop (Bottle)","p":16100,"t":"drink","alc":true},{"n":"Morpheus (30ml)","p":330,"t":"drink","alc":true},{"n":"Morpheus (Bottle)","p":6600,"t":"drink","alc":true},{"n":"Mansion House (30ml)","p":270,"t":"drink","alc":true},{"n":"Mansion House (Bottle)","p":5400,"t":"drink","alc":true}]},{"cat":"Tequila","items":[{"n":"Patron Silver (30ml)","p":1287,"t":"drink","alc":true},{"n":"Patron Silver (Bottle)","p":25740,"t":"drink","alc":true},{"n":"Jose Cuervo Silver (30ml)","p":575,"t":"drink","alc":true},{"n":"Jose Cuervo Silver (Bottle)","p":2300,"t":"drink","alc":true},{"n":"Camino Gold (30ml)","p":450,"t":"drink","alc":true},{"n":"Camino Gold (Bottle)","p":9240,"t":"drink","alc":true},{"n":"Camino Silver (30ml)","p":550,"t":"drink","alc":true},{"n":"Camino Silver (Bottle)","p":11000,"t":"drink","alc":true},{"n":"Desmondji 51 (30ml)","p":550,"t":"drink","alc":true},{"n":"Desmondji 51 (Bottle)","p":11000,"t":"drink","alc":true}]},{"cat":"Liqueurs","items":[{"n":"Absente 49 (30ml)","p":450,"t":"drink","alc":true},{"n":"Absente 49 (Bottle)","p":9000,"t":"drink","alc":true},{"n":"Jagermiester (30ml)","p":800,"t":"drink","alc":true},{"n":"Jagermiester (Bottle)","p":16000,"t":"drink","alc":true},{"n":"Jagermiester Orange (30ml)","p":800,"t":"drink","alc":true},{"n":"Jagermiester Orange (Bottle)","p":16000,"t":"drink","alc":true},{"n":"Baileys Irish Cream (30ml)","p":690,"t":"drink","alc":true},{"n":"Baileys Irish Cream (Bottle)","p":13800,"t":"drink","alc":true},{"n":"Sambucca (30ml)","p":450,"t":"drink","alc":true},{"n":"Sambucca (Bottle)","p":9000,"t":"drink","alc":true},{"n":"Kahlua Coffee Liqueur (30ml)","p":450,"t":"drink","alc":true},{"n":"Kahlua Coffee Liqueur (Bottle)","p":9000,"t":"drink","alc":true}]},{"cat":"Sparkling Wines","items":[{"n":"Chandon Brut","p":4025,"t":"drink","alc":true},{"n":"Sula Brut","p":4025,"t":"drink","alc":true}]},{"cat":"Wines","items":[{"n":"Jacob Greek Red \\ White (Glass)","p":690,"t":"drink","alc":true},{"n":"Jacob Greek Red \\ White (Bottle)","p":3450,"t":"drink","alc":true},{"n":"Sula Red \\ White \\ Rosse","p":575,"t":"drink","alc":true}]},{"cat":"Signature Mocktails","items":[{"n":"Innocent Passion","p":345,"t":"drink","alc":false},{"n":"Cassis Cooler","p":345,"t":"drink","alc":false},{"n":"Funky Toffy","p":345,"t":"drink","alc":false},{"n":"Paradise Iceland","p":345,"t":"drink","alc":false}]},{"cat":"Tall & Handsome","items":[{"n":"Bull Frog (Glass)","p":850,"t":"drink","alc":true},{"n":"Bull Frog (Bottle)","p":3000,"t":"drink","alc":true},{"n":"Long Island Ice Tea (Glass)","p":800,"t":"drink","alc":true},{"n":"Long Island Ice Tea (Bottle)","p":2800,"t":"drink","alc":true},{"n":"Long Beach Ice Tea (Glass)","p":800,"t":"drink","alc":true},{"n":"Long Beach Ice Tea (Bottle)","p":2800,"t":"drink","alc":true}]},{"cat":"Cocktails","items":[{"n":"Tequila Sunrise","p":650,"t":"drink","alc":true},{"n":"Margarita","p":630,"t":"drink","alc":true},{"n":"Martini","p":600,"t":"drink","alc":true},{"n":"Whisky Sour","p":570,"t":"drink","alc":true},{"n":"Sex On The Beach","p":570,"t":"drink","alc":true},{"n":"Cosmopolitan","p":570,"t":"drink","alc":true},{"n":"Pinacolada","p":575,"t":"drink","alc":true},{"n":"Mojito","p":575,"t":"drink","alc":true},{"n":"Daiquiri","p":575,"t":"drink","alc":true},{"n":"Mai Tai","p":575,"t":"drink","alc":true},{"n":"Cajun Kick","p":600,"t":"drink","alc":true}]},{"cat":"Tequila","items":[{"n":"Ginger War","p":555,"t":"drink","alc":true}]},{"cat":"Rum","items":[{"n":"Basil Blast","p":555,"t":"drink","alc":true}]},{"cat":"Vodka","items":[{"n":"Daddy Hod","p":555,"t":"drink","alc":true}]},{"cat":"Shooters","items":[{"n":"Jager Bomb / Orange","p":800,"t":"drink","alc":true},{"n":"B52","p":550,"t":"drink","alc":true},{"n":"Kamakazi","p":430,"t":"drink","alc":true},{"n":"Death Note","p":430,"t":"drink","alc":true},{"n":"Get Laid","p":430,"t":"drink","alc":true}]},{"cat":"Flamers","items":[{"n":"Flaming Lamborgini","p":2500,"t":"drink","alc":true},{"n":"Hod On Fire","p":2500,"t":"drink","alc":true}]},{"cat":"Mocktails","items":[{"n":"Virgin Mojito","p":345,"t":"drink","alc":false},{"n":"Virgin Colada","p":345,"t":"drink","alc":false},{"n":"Fruit Punch","p":345,"t":"drink","alc":false},{"n":"Ice Tea","p":345,"t":"drink","alc":false},{"n":"Guava Mary","p":345,"t":"drink","alc":false}]},{"cat":"Soft Drinks","items":[{"n":"Red Bull","p":350,"t":"drink","alc":false},{"n":"Ginger Ale","p":170,"t":"drink","alc":false},{"n":"Tonic Water","p":170,"t":"drink","alc":false},{"n":"Diet Coke","p":150,"t":"drink","alc":false},{"n":"Fresh Lime Soda","p":200,"t":"drink","alc":false},{"n":"Fresh Lime Water","p":150,"t":"drink","alc":false},{"n":"Canned Juices","p":170,"t":"drink","alc":false},{"n":"Coke","p":100,"t":"drink","alc":false},{"n":"Sprite","p":100,"t":"drink","alc":false},{"n":"Soda","p":75,"t":"drink","alc":false}]}];
+var HOD_SMOKE_MENU_FALLBACK=[{"cat":"Cigarettes","items":[{"n":"Cigarette 10 pc","p":460,"t":"drink","alc":false}]}];
+HOD_FOOD_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t===undefined)it.t='food';if(it.alc===undefined)it.alc=false;});});
+HOD_BAR_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t===undefined)it.t='drink';if(it.alc===undefined)it.alc=true;});});
+HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t===undefined)it.t='drink';if(it.alc===undefined)it.alc=false;});});
+
+(function(){
+  // KILL-SWITCH: append ?legacy=1 to URL to disable live Firestore menu entirely.
+  // Use this to A/B test whether flicker is caused by this code.
+  try{
+    var qs=(location.search||'')+'&'+(location.hash||'').replace(/^#/,'?').replace(/^\?/,'');
+    if(/[?&](legacy|nofs|nofirestore)=1/.test(qs)){
+      console.log('[menu-firestore] kill-switch active — using baked-in menus only');
+      window.HOD_FOOD_MENU=HOD_FOOD_MENU_FALLBACK;
+      window.HOD_BAR_MENU=HOD_BAR_MENU_FALLBACK;
+      window.HOD_SMOKE_MENU=HOD_SMOKE_MENU_FALLBACK;
+      return;
+    }
+  }catch(e){}
+  var LS_PREFIX='hod.menu.cache.v1.';
+  var TAB_DEFAULT_T={food:'food',liquor:'drink',nab:'drink',smoke:'drink'};
+  var TAB_DEFAULT_ALC={food:false,liquor:true,nab:false,smoke:false};
+  var TABS=['food','liquor','nab','smoke'];
+  var FALLBACKS={food:HOD_FOOD_MENU_FALLBACK,liquor:HOD_BAR_MENU_FALLBACK.filter(function(c){return c.items.some(function(i){return i.alc===true;});}),nab:HOD_BAR_MENU_FALLBACK.filter(function(c){return c.items.every(function(i){return i.alc!==true;});}),smoke:HOD_SMOKE_MENU_FALLBACK};
+  var _serverCats={food:null,liquor:null,nab:null,smoke:null};
+  var _lastEmittedHash={food:null,bar:null,smoke:null};
+  var _barRebuildPending=false;
+  function lsGet(tab){try{var raw=localStorage.getItem(LS_PREFIX+tab);if(!raw)return null;var p=JSON.parse(raw);return p&&Array.isArray(p.categories)?p.categories:null;}catch(e){return null;}}
+  function lsSet(tab,cats){try{localStorage.setItem(LS_PREFIX+tab,JSON.stringify({categories:cats,savedAt:Date.now()}));}catch(e){}}
+  function tagItems(tab,cats){if(!Array.isArray(cats))return cats;var dt=TAB_DEFAULT_T[tab],da=TAB_DEFAULT_ALC[tab];return cats.map(function(c){return {cat:c.cat,items:(c.items||[]).map(function(it){var out={};for(var k in it)if(Object.prototype.hasOwnProperty.call(it,k))out[k]=it[k];if(out.t===undefined)out.t=dt;if(out.alc===undefined)out.alc=da;return out;})};});}
+  function visibleOnly(cats){if(!Array.isArray(cats))return cats;return cats.map(function(c){return {cat:c.cat,items:(c.items||[]).filter(function(it){return it&&it.oos!==true;})};}).filter(function(c){return c.items.length>0;});}
+  function hash(obj){try{return JSON.stringify(obj);}catch(e){return String(Math.random());}}
+  function applyToWindow(tab){
+    var cats=_serverCats[tab]||lsGet(tab)||FALLBACKS[tab];
+    cats=tagItems(tab,cats);
+    var vis=visibleOnly(cats);
+    if(tab==='food'){
+      var h=hash(vis);
+      if(_lastEmittedHash.food===h)return;
+      _lastEmittedHash.food=h;
+      window.HOD_FOOD_MENU=vis;
+      try{window.dispatchEvent(new CustomEvent('hod-menu-updated',{detail:{tab:'food'}}));}catch(e){}
+    }else if(tab==='smoke'){
+      var hs=hash(vis);
+      if(_lastEmittedHash.smoke===hs)return;
+      _lastEmittedHash.smoke=hs;
+      window.HOD_SMOKE_MENU=vis;
+      try{window.dispatchEvent(new CustomEvent('hod-menu-updated',{detail:{tab:'smoke'}}));}catch(e){}
+    }else if(tab==='liquor'||tab==='nab'){
+      if(_barRebuildPending)return;
+      _barRebuildPending=true;
+      Promise.resolve().then(function(){
+        _barRebuildPending=false;
+        var liqSrc=_serverCats.liquor||lsGet('liquor');
+        var nabSrc=_serverCats.nab||lsGet('nab');
+        var combined;
+        if(!liqSrc && !nabSrc){
+          // No server / cache data yet -> preserve original baked-in BAR_MENU order.
+          combined=tagItems('liquor',HOD_BAR_MENU_FALLBACK);
+        }else{
+          var liq=tagItems('liquor',liqSrc||FALLBACKS.liquor);
+          var nab=tagItems('nab',nabSrc||FALLBACKS.nab);
+          combined=visibleOnly(liq).concat(visibleOnly(nab));
+        }
+        var hb=hash(visibleOnly(combined));
+        if(_lastEmittedHash.bar===hb)return;
+        _lastEmittedHash.bar=hb;
+        window.HOD_BAR_MENU=visibleOnly(combined);
+        try{window.dispatchEvent(new CustomEvent('hod-menu-updated',{detail:{tab:'bar'}}));}catch(e){}
+      });
+    }
+  }
+  // Prime globals BEFORE first paint so existing render code sees menus immediately.
+  TABS.forEach(applyToWindow);
+  // Pre-seed last-emitted hashes to current values so first server snapshot
+  // matching cache doesn't re-trigger a render.
+  _lastEmittedHash.food=hash(visibleOnly(tagItems('food',_serverCats.food||lsGet('food')||FALLBACKS.food)));
+  _lastEmittedHash.smoke=hash(visibleOnly(tagItems('smoke',_serverCats.smoke||lsGet('smoke')||FALLBACKS.smoke)));
+  _lastEmittedHash.bar=hash(visibleOnly(tagItems('liquor',HOD_BAR_MENU_FALLBACK)));
+
+  // 🆕 2026-05-26 v3.39 (Khushi: "READS GOING IN MILLIONS") — switched from
+  // 3-tab onSnapshot to one-shot get() + 30s poll + visibilitychange. With
+  // ~134 connected customers, every staff menu edit was broadcasting 3 docs
+  // (~50KB each = 100-item `categories` arrays) to every connected wallet.
+  // Now: prime once, refresh every 30s ONLY while tab is visible, extra
+  // refresh on foreground return. Customer never sees a stale menu for more
+  // than 30s after coming back, and background tabs cost zero reads.
+  var _attached=false, _menuPollIv=null;
+  function _refreshOneTab(db, tab){
+    try{
+      db.collection('venueMenu').doc(tab).get().then(function(snap){
+        if(!snap||!snap.exists)return;
+        var data=snap.data()||{};
+        var cats=data.categories;
+        if(!Array.isArray(cats))return;
+        // NB: TABS = ['food','liquor','nab','smoke'] but the prime hashes at
+        // line ~770 were seeded with 'food'/'bar'/'smoke' keys (old listener
+        // shape). Rather than reconcile the mismatch, we skip the hash-skip
+        // guard here and let applyToWindow re-render on each 30s poll. The
+        // render is cheap (4 small menu blocks, no scroll-reset), and the
+        // polling rate makes any flicker imperceptible.
+        _serverCats[tab]=cats;
+        lsSet(tab,cats);
+        applyToWindow(tab);
+      }).catch(function(err){console.warn('[menu-firestore] get failed',tab,err);});
+    }catch(e){console.warn('[menu-firestore] _refreshOneTab threw',tab,e);}
+  }
+  function _refreshAllTabs(db){ TABS.forEach(function(t){_refreshOneTab(db,t);}); }
+  // 🆕 v3.62 — gate menu polls behind UI visibility. Customers sitting on
+  // the home / event list / ticket booking page have no need for live menu
+  // data; the menu only renders inside `#wallet-menu-content`. Without
+  // this gate, every connected customer was costing 4 collections × 120
+  // polls/hr = 480 reads/hr each for data they never see. 134 customers
+  // × 480 = 64K reads/hr eliminated.
+  function _menuUiVisible(){
+    try{ return !!document.getElementById('wallet-menu-content'); }
+    catch(e){ return false; }
+  }
+  function _maybeRefreshAllTabs(db){
+    if(!_menuUiVisible()) return;
+    _refreshAllTabs(db);
+  }
+  function attach(){
+    if(_attached)return;
+    if(!window.firebase||!window.firebase.apps||window.firebase.apps.length===0)return;
+    try{
+      var db=window.firebase.firestore();
+      _attached=true;
+      _maybeRefreshAllTabs(db);  // prime (only if menu UI mounted)
+      if(!_menuPollIv){
+        // NOTE: 30s is INTENTIONAL — this full-menu poll is how a menu-item
+        // ADD/DELETE in the backend syncs to open wallets in ~near-real-time
+        // (posMenuOverrides only carries OOS/discount, NOT item add/remove).
+        // Do NOT slow this for read-cost without a real-time replacement for
+        // item add/delete. (Read-cost optimisation parked 2026-06-15.)
+        _menuPollIv=setInterval(function(){
+          if(document.visibilityState==='visible') _maybeRefreshAllTabs(db);
+        },30000);
+      }
+      try{
+        document.addEventListener('visibilitychange',function(){
+          if(document.visibilityState==='visible') _maybeRefreshAllTabs(db);
+        });
+      }catch(e){}
+      console.log('[menu-firestore] poll-mode menu refresh attached (30s + foreground)');
+    }catch(e){/* not ready yet */}
+  }
+  // Try every 250ms for up to 30s, then back off.
+  var tries=0;
+  var iv=setInterval(function(){
+    attach();
+    if(_attached||++tries>120){clearInterval(iv);}
+  },250);
+  // Also try immediately on DOMContentLoaded / load just in case.
+  if(document.readyState!=='loading'){setTimeout(attach,0);}
+  else{document.addEventListener('DOMContentLoaded',function(){setTimeout(attach,0);});}
+})();
+// Back-compat: keep the old global names used by hodGetMenuByTab() below.
+// They're re-pointed live by the IIFE above on every Firestore update.
+// Split bar menu into LIQUOR (alcoholic) and NAB (non-alcoholic beverages)
+// for the new 4-tab Digitory layout. Returns the menu data for the active
+// tab; falls back to BAR for unknown tabs.
+function hodGetMenuByTab(tab){
+  // 2026-05-13 — guard against ReferenceError when the live-menu Firestore
+  // IIFE hasn't finished priming window.HOD_*_MENU yet (the bar globals are
+  // assigned in a microtask, and a fast tap on Liquor/NAB/Smoke before that
+  // microtask flushes used to throw "HOD_BAR_MENU is not defined" and crash
+  // the whole wallet). Reading via window.* + falling back to the baked-in
+  // _FALLBACK arrays makes this never throw, regardless of init order.
+  var FOOD = (typeof window!=='undefined' && window.HOD_FOOD_MENU) || (typeof HOD_FOOD_MENU_FALLBACK!=='undefined' ? HOD_FOOD_MENU_FALLBACK : []);
+  var BAR  = (typeof window!=='undefined' && window.HOD_BAR_MENU)  || (typeof HOD_BAR_MENU_FALLBACK !=='undefined' ? HOD_BAR_MENU_FALLBACK  : []);
+  var SMK  = (typeof window!=='undefined' && window.HOD_SMOKE_MENU)|| (typeof HOD_SMOKE_MENU_FALLBACK!=='undefined' ? HOD_SMOKE_MENU_FALLBACK: []);
+  if(tab==='food') return _hodApplyLiveCats(FOOD);
+  if(tab==='smoke') return _hodApplyLiveCats(SMK);
+  var split=[];
+  BAR.forEach(function(c){
+    var matched=(c.items||[]).filter(function(it){
+      var isNab=it.alc===false;
+      return tab==='nab' ? isNab : !isNab;
+    });
+    if(matched.length) split.push({cat:c.cat,items:matched});
+  });
+  return _hodApplyLiveCats(split);
+}
+// 2026-06-14 — LIVE MENU CATEGORIES (admin Menu CRM). Mirror of the POS
+// filterMenuByLiveCategories so the customer wallet matches Bar + Captain:
+// when 1+ categories are toggled LIVE, the customer menu shows ONLY items whose
+// name matches a live-category item (with the category discount applied). When
+// none are live (or the read fails / rules block it) → full menu (fail-open).
+var HOD_LIVE_CATEGORIES=[];
+function _hodLiveCatMap(){
+  // lowercased item name -> max discount% across the LIVE categories it appears in
+  var m={};
+  (HOD_LIVE_CATEGORIES||[]).forEach(function(c){
+    if(!c||c.isLive!==true) return;
+    (c.items||[]).forEach(function(it){
+      var k=String((it&&it.name)||'').toLowerCase().trim();
+      if(!k) return;
+      var d=Number(c.discountPercent||0);
+      if(m[k]===undefined||d>m[k]) m[k]=d;
+    });
+  });
+  return m;
+}
+function _hodApplyLiveCats(menuData){
+  try{
+    var map=_hodLiveCatMap();
+    var keys=Object.keys(map);
+    if(keys.length===0) return menuData; // fail-open → full menu
+    var out=[];
+    (menuData||[]).forEach(function(c){
+      var hits=[];
+      (c.items||[]).forEach(function(it){
+        var k=String((it&&it.n)||'').toLowerCase().trim();
+        if(!(k in map)) return;
+        var d=map[k];
+        if(d>0){ var nit={}; for(var p in it){ if(Object.prototype.hasOwnProperty.call(it,p)) nit[p]=it[p]; } nit.p=Math.round(it.p*(1-d/100)*100)/100; hits.push(nit); }
+        else hits.push(it);
+      });
+      if(hits.length) out.push({cat:c.cat,items:hits});
+    });
+    return out;
+  }catch(e){ return menuData; } // fail-open on any error
+}
+function _hodLoadLiveCats(){
+  try{
+    if(typeof firestore==='undefined'||!firestore) return;
+    firestore.collection('menuCategories').get().then(function(snap){
+      var live=[];
+      snap.forEach(function(d){ var c=d.data()||{}; if(c&&c.isLive===true) live.push(c); });
+      HOD_LIVE_CATEGORIES=live;
+      // repaint the open wallet menu (if any) so a toggle reflects without reload
+      try{ if(typeof window.__rebuildWalletMenu==='function') window.__rebuildWalletMenu(); }catch(e){}
+    }).catch(function(){ HOD_LIVE_CATEGORIES=[]; /* fail-open: drop filter → full menu */ try{ if(typeof window.__rebuildWalletMenu==='function') window.__rebuildWalletMenu(); }catch(e){} });
+  }catch(e){}
+}
+var HOD_GST_RATE=0.05, HOD_SC_RATE=0.10;
+function hodComputeBreakdown(items, discPct, scOn){
+  // 🆕 2026-06-07 — DISCOUNT + SC-toggle aware (mirrors the POS
+  // computeHodBreakdownAdjusted EXACTLY). With discPct=0 & scOn!==false this is
+  // mathematically IDENTICAL to the original (alcohol GST-exempt, 2-decimal
+  // SC/GST, single final whole-rupee round) so every existing caller that passes
+  // only `items` is unchanged. The bartender's bill-level discount is persisted
+  // on the cover (billDiscountPct / billScOn) and passed in ONLY at the
+  // final-bill views, so the customer's "VIEW BILL" total matches the bar's bill
+  // to the rupee (kills the ₹2,000 bar vs ₹2,105 phone mismatch).
+  var foodSub=0, alcSub=0, nonAlcSub=0;
+  (items||[]).forEach(function(it){
+    var line=(it.p||0)*(it.qty||0);
+    var t=it.t||'drink';
+    if(t==='food')foodSub+=line;
+    else if(it.alc===false)nonAlcSub+=line;
+    else alcSub+=line;
+  });
+  var subtotal=foodSub+alcSub+nonAlcSub;
+  var pct=Math.min(100, Math.max(0, discPct||0));
+  var factor=(100-pct)/100;
+  var dFood=foodSub*factor, dAlc=alcSub*factor, dNonAlc=nonAlcSub*factor;
+  var discountedSub=dFood+dAlc+dNonAlc;
+  var discount=Math.round((subtotal-discountedSub)*100)/100;
+  var scApplied=(scOn===false)?false:true;
+  var sc=scApplied?Math.round(discountedSub*HOD_SC_RATE*100)/100:0;
+  var gstBase=dFood+dNonAlc+sc; // alcohol is GST-exempt
+  var gst=Math.round(gstBase*HOD_GST_RATE*100)/100;
+  var cgst=Math.round(gst*50)/100;
+  var sgst=Math.round((gst-cgst)*100)/100;
+  var raw=discountedSub+sc+gst;
+  var grandTotal=Math.round(raw);
+  var roundOff=Math.round((grandTotal-raw)*100)/100;
+  return {foodSubtotal:foodSub, alcSubtotal:alcSub, nonAlcSubtotal:nonAlcSub,
+          drinkSubtotal:alcSub+nonAlcSub, subtotal:subtotal,
+          serviceCharge:sc, gst:gst, cgst:cgst, sgst:sgst,
+          roundOff:roundOff, grandTotal:grandTotal,
+          discount:discount, discountPct:pct};
+}
+</script>
+
+<!-- ════════ TRIMMED BOOT — initFirebase (no events listener), render, wallet.js loader ════════ -->
+<script>
+// initFirebase() — IDENTICAL to index.html EXCEPT the events listener is dropped
+// (the wallet does not read events, so this avoids extra Firestore reads). App Check
+// is still skipped on preview hosts (prevents the reCAPTCHA reload loop), Firestore
+// is still forced to long-polling (webview-safe, the core 10-15s→2s fix), and the
+// menu-overrides listener + live categories + menu-repaint listener are all kept so
+// the order menu behaves exactly as it does on the full site.
+function initFirebase(){
+  try{
+    if(typeof firebase !== 'undefined' && FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('PASTE')){
+      if(!firebase.apps || firebase.apps.length===0){
+        firebase.initializeApp(FIREBASE_CONFIG);
+        // 🆕 2026-05-28 v3.137 — L1 App Check (reCAPTCHA Enterprise).
+        // Must run AFTER initializeApp but BEFORE firestore()/auth() are
+        // touched, so the very first request carries an App Check token.
+        // 🛟 FAIL-OPEN: if key blank, compat SDK missing, or activate()
+        // throws — we swallow and continue. Customer site STILL WORKS,
+        // just without the App Check header (= today's state).
+        try{
+          // 🛟 v3.198 — ROOT-CAUSE FIX for the preview "page keeps reloading" loop.
+          // The reCAPTCHA Enterprise key is allow-listed ONLY for the live domain
+          // (hodclub.in). On the Replit/dev PREVIEW host (*.replit.dev / localhost)
+          // App Check's token auto-refresh REJECTS every ~30-60s
+          // (appCheck/recaptcha-error → "cancelled"), and the Replit/Vite dev
+          // runtime-error overlay turns each rejection into a full PAGE RELOAD →
+          // an endless reload loop while reviewing. Skipping App Check on preview
+          // hosts removes the trigger entirely. The LIVE site keeps full App Check.
+          var _h=(location.hostname||'').toLowerCase();
+          var _isPreviewHost=(_h==='localhost'||_h==='127.0.0.1'||/\.replit\.dev$/.test(_h)||/\.repl\.co$/.test(_h)||/\.replit\.app$/.test(_h));
+          if(_isPreviewHost){
+            console.log('ℹ️ App Check skipped on preview host ('+_h+') — prevents reCAPTCHA reload loop; LIVE site (hodclub.in) keeps App Check');
+          } else if(APPCHECK_SITE_KEY && APPCHECK_SITE_KEY.length > 10 && firebase.appCheck){
+            firebase.appCheck().activate(
+              new firebase.appCheck.ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY),
+              true  // isTokenAutoRefreshEnabled
+            );
+            console.log('✅ App Check active (reCAPTCHA Enterprise)');
+          } else {
+            console.log('ℹ️ App Check skipped — APPCHECK_SITE_KEY blank');
+          }
+        }catch(e){ console.warn('App Check init failed (continuing without):', e); }
+      }
+      firestore = firebase.firestore();
+      // 🆕 2026-06-02 — Firestore realtime LISTEN (onSnapshot) over WebChannel can
+      // stall ~30s on phones / venue wifi / proxied networks before falling back to
+      // long-polling — this is the customer ticket-wallet "takes 30s to load" bug
+      // (one-shot get() reads are fast; only the wallet's onSnapshot listener stalls).
+      //
+      // ⚡ 2026-06-07 v3.210 — auto-detect WASN'T enough: the wallet link is opened
+      // INSIDE WhatsApp's in-app browser (a webview that almost always blocks the
+      // fast WebChannel stream), and on a COLD deep-link the wallet's onSnapshot is
+      // the very FIRST Firestore read — so auto-detect spends 10-15s *detecting*
+      // that WebChannel is buffered before it falls back. That detection latency IS
+      // the "QR takes 10-15s to load" the customer sees. Forcing long-polling skips
+      // the detection entirely → the first read goes straight to the reliable
+      // channel → the QR paints in ~1-2s. Trade-off: marginally more overhead on a
+      // perfect open-Chrome network, but this venue's traffic is almost entirely
+      // WhatsApp/Instagram webviews where long-polling is the correct transport.
+      // Money logic untouched. Must be set before any Firestore read.
+      // NOTE: no `merge:true` here — it is not a valid Firestore settings field
+      // and stricter SDK builds can throw on it, which the catch below would
+      // silently swallow → the long-polling fix would never apply.
+      try{ firestore.settings({ experimentalForceLongPolling:true }); console.info('✅ Firestore FORCE long-polling ON (webview-safe)'); }catch(_e){ console.warn('Firestore settings skipped:', _e&&_e.message); }
+      firebase.auth().onAuthStateChanged(function(user){
+        S._fbUser = user || null;
+      });
+      DB_MODE = 'firebase';
+      // Start persistent real-time events listener ONCE
+      // 🔴 2026-05-09 — live OOS + discount overrides from POS Admin → Menu.
+      // Keyed by slug(name) so it bridges menu-data.ts ↔ hod-menu.ts ↔ this wallet.
+      // Customer sees OOS items disappear and discounts auto-apply (with reason).
+      startMenuOverridesListener();
+      // 2026-06-14 — LIVE MENU CATEGORIES (admin Menu CRM). One-shot read now + on
+      // tab-focus (cheap, menuCategories is tiny & rarely changes). Fail-open.
+      _hodLoadLiveCats();
+      try{ document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') _hodLoadLiveCats(); }); }catch(_e){}
+      // 🆕 2026-06-14 v3.294 (Khushi) — AUTO-REPAINT the open wallet menu when the
+      // menu DATA changes. The 30s poll (startMenuOverridesListener replaced the old
+      // onSnapshot to kill the "reads in millions" cost) updates window.HOD_*_MENU in
+      // the background and fires 'hod-menu-updated' (hash-guarded — ONLY on a real
+      // change), but nothing was listening, so a deleted/added item lingered on screen
+      // until a manual refresh. This listener repaints the mounted menu the moment a
+      // change lands → add/delete now reflect on their own within ≤30s. ZERO new reads
+      // (it only re-renders already-fetched data). __rebuildWalletMenu no-ops when the
+      // wallet is closed. Debounced so the 3 near-simultaneous food/smoke/bar dispatches
+      // collapse into ONE rebuild.
+      try{
+        if(!window.__hodMenuRepaintBound){
+          window.__hodMenuRepaintBound=true; // single-attach guard (init could re-run)
+          var _hodMenuRepaintT=null;
+          window.addEventListener('hod-menu-updated', function(){
+            if(_hodMenuRepaintT) return;
+            _hodMenuRepaintT=setTimeout(function(){
+              _hodMenuRepaintT=null;
+              try{ if(typeof window.__rebuildWalletMenu==='function') window.__rebuildWalletMenu(); }catch(_e){}
+            },80);
+          });
+        }
+      }catch(_e){}
+      console.log('✅ Firebase connected — real-time database active');
+    } else if(typeof firebase === 'undefined'){
+      console.log('ℹ️ Firebase SDK not loaded yet — using localStorage');
+    }
+  }catch(e){console.warn('Firebase init error:',e);}
+}
+
+// Minimal render(): wallet.js owns renderWalletPage / renderTopUp and re-calls this
+// render() after every onSnapshot update — same contract as index.html's render().
+// wallet.js is an IIFE that exposes its render fns on window._renderWalletPage /
+// window._renderTopUp (renderWalletPage itself is a closure, NOT a global) — mirror
+// exactly how index.html's render() delegates to those exposed globals.
+function render(){
+  var root=document.getElementById('root'); if(!root) return;
+  var fn = (S.view==='topup') ? window._renderTopUp : window._renderWalletPage;
+  if(typeof fn!=='function'){ return; } // wallet.js not loaded yet — keep the boot spinner
+  try{
+    var node = (S.view==='topup')
+      ? window._renderTopUp(S._topupBookingId, S._topupDiff||0)
+      : window._renderWalletPage(S._walletRef);
+    root.replaceChildren(node);
+  }catch(e){
+    root.innerHTML='<div style="padding:30px;font-family:var(--ff);color:#FF5733;background:#0a0a0a;min-height:100vh;">'
+      +'<div style="font-size:16px;font-weight:700;margin-bottom:10px;">Wallet error</div>'
+      +'<div style="color:#bbb;font-size:13px;">'+((e&&e.message)||e)+'</div>'
+      +'<div style="margin-top:14px;"><a href="https://hodclub.in/" style="color:#FF90E8;">Open HOD home</a></div></div>';
+    try{ console.error('wallet render error', e); }catch(_e){}
+  }
+}
+
+// Wallet module loader (wallet.js is shared verbatim with the full site).
+var _walletLoaded=false, _walletLoading=false;
+function _loadWalletJs(cb){
+  if(_walletLoaded){ cb&&cb(); return; }
+  if(_walletLoading) return;
+  _walletLoading=true;
+  var s=document.createElement('script');
+  s.src='wallet.js?v=v3.309';
+  s.onload=function(){ _walletLoaded=true; cb&&cb(); };
+  s.onerror=function(){
+    _walletLoading=false;
+    var root=document.getElementById('root');
+    if(root) root.innerHTML='<div style="padding:30px;font-family:var(--ff);color:#FF5733;">Could not load wallet. Please check your connection and reload.</div>';
+  };
+  document.body.appendChild(s);
+}
+
+// Deep-link routing — same params index.html honours (?wallet= / ?verify= / ?topup= / ?ref=).
+(function(){
+  try{
+    var p=new URLSearchParams(window.location.search||'');
+    if(p.get('topup')){
+      S.view='topup'; S._topupBookingId=p.get('topup'); S._topupDiff=parseInt(p.get('diff'))||0;
+    } else if(p.get('wallet')){
+      S.view='wallet'; S._walletRef=decodeURIComponent(p.get('wallet'));
+    } else if(p.get('verify')){
+      S.view='wallet'; S._walletRef=decodeURIComponent(p.get('verify'));
+    } else if(p.get('ref')){
+      S.view='wallet'; S._walletRef=decodeURIComponent(p.get('ref'));
+    } else {
+      S.view='wallet'; S._walletRef=null; // renderWalletPage shows its own "not found" state
+    }
+  }catch(e){ S.view='wallet'; S._walletRef=null; }
+})();
+
+// Boot: load wallet.js + (re)init Firebase the instant the deferred SDK is ready,
+// then render. All paths idempotent (initFirebase no-ops once DB_MODE==='firebase').
+function _hodBootFirebase(){
+  if(DB_MODE!=='firebase'){
+    initFirebase();
+  }
+  render();
+}
+_loadWalletJs(function(){ render(); });
+initFirebase(); // likely 'local' on first run (deferred SDK not executed yet)
+document.addEventListener('DOMContentLoaded', _hodBootFirebase);
+window.addEventListener('load', _hodBootFirebase);
+</script>
+</body>
+</html>
