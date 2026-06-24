@@ -158,14 +158,43 @@ function renderWalletPage(bookingRef){
 
   // 🆕 2026-06-08 (Khushi) — SHARED per-round location badge. Bar self-orders
   // carry a 'bar' source ('customer_self_order_bar' / 'recharge_at_bar'); table
-  // self-orders carry 'customer_self_order'. Legacy rounds with no source get NO
-  // badge (never a wrong label). Used by BOTH the YOUR TAB list and the VIEW BILL
-  // modal so EVERY round clearly shows where it was placed, no matter the mode.
+  // self-orders carry 'customer_self_order'. Untagged/legacy rounds default to the
+  // bar badge (see v3.384 note below). Used by BOTH the YOUR TAB list and the VIEW
+  // BILL modal so EVERY round clearly shows where it was placed, no matter the mode.
   function hodRoundLocBadge(r){
     var s=String((r&&r.source)||'').toLowerCase();
-    if(s.indexOf('bar')!==-1) return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
+    // 🆕 2026-06-24 v3.384 (Khushi) — only an EXPLICIT table self-order
+    // ('customer_self_order') gets the "At your table" badge. EVERY other round —
+    // a 'bar' source OR a legacy/untagged round with no source — is a bar
+    // redemption and gets "🍸 Redeemed at bar". Previously untagged rounds (e.g.
+    // Round 1) showed NO badge while the bar rounds R2/R3 did, which looked broken.
     if(s==='customer_self_order') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍽️ At your table</span>';
-    return '';
+    return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
+  }
+
+  // 🆕 2026-06-24 (Khushi) — after an ONLINE recharge the old feedback was a tiny
+  // green toast line the customer couldn't see. Show a FULL-SCREEN success popup
+  // they must dismiss ("PLACE ORDER") so it's unmissable. Fail-open: any DOM
+  // error falls back to the old toast.
+  function hodRechargeSuccessPopup(amount){
+    try{
+      var _ov=document.createElement('div');
+      _ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
+      var _md=document.createElement('div');
+      _md.style.cssText='background:#fff;border:2px solid #000;border-radius:14px;padding:32px 24px;width:100%;max-width:360px;text-align:center;box-shadow:6px 6px 0 #16A34A;font-family:var(--ff);';
+      var _amt=Math.round(Number(amount)||0).toLocaleString('en-IN');
+      _md.innerHTML='<div style="font-size:54px;line-height:1;margin-bottom:12px;">✅</div>'
+        +'<div style="font-size:22px;font-weight:900;color:#16A34A;letter-spacing:.3px;margin-bottom:8px;">RECHARGE SUCCESSFUL</div>'
+        +'<div style="font-size:16px;color:#000;font-weight:800;margin-bottom:6px;">₹'+_amt+' added to your wallet</div>'
+        +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:20px;">You\u2019re all set \u2014 place your order now.</div>';
+      var _ok=document.createElement('button');
+      _ok.style.cssText='width:100%;padding:15px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.4px;';
+      _ok.innerHTML='\uD83D\uDED2 PLACE ORDER';
+      _ok.onclick=function(){_ov.remove();};
+      _md.appendChild(_ok);_ov.appendChild(_md);
+      _ov.onclick=function(e){if(e.target===_ov)_ov.remove();};
+      document.body.appendChild(_ov);
+    }catch(_e){ try{showToast('✅ Recharged ₹'+amount+'! Place your order now.','success',4000);}catch(__e){} }
   }
 
   function renderWalletContent(cv){
@@ -369,7 +398,7 @@ function renderWalletPage(bookingRef){
           name:cv.name||'', phone:cv.phone||'',
           description:'Wallet Recharge ₹'+_rcAmt, payBtn:rcPayBtn,
           onSuccess:function(newBalance){
-            showToast('✅ Recharged ₹'+_rcAmt+'! Wallet updated.','success',4000);
+            hodRechargeSuccessPopup(_rcAmt);
           },
           onError:function(msg){
             rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';
@@ -1629,7 +1658,7 @@ function renderWalletPage(bookingRef){
                 description:'Wallet Recharge ₹'+_selRcAmt, payBtn:_rcPayBtn2,
                 onSuccess:function(newBalance){
                   _ov.remove();
-                  showToast('✅ Recharged ₹'+_selRcAmt+'! Place your order now.','success',4000);
+                  hodRechargeSuccessPopup(_selRcAmt);
                 },
                 onError:function(msg){
                   _ov.remove();
