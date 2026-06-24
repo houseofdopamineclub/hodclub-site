@@ -28,7 +28,7 @@
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.313";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-18)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.380";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-24)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -4583,7 +4583,6 @@ function renderMyBookings(){
     // 🔴 2026-05-24 COST FIX: tableReservations + guestlist were unbounded.
     // tableReservations has 'date' (YYYY-MM-DD) → filter last 90d + upcoming.
     // guestlist has no date field → use orderBy joinedAt desc + limit 300.
-    var _cutoff90 = (function(){ var d=new Date(); d.setDate(d.getDate()-90); return d.toISOString().slice(0,10); })();
     // 🆕 2026-06-12 v3.257 READ-COST: 5-min in-memory cache so repeated taps of
     // "Find My Bookings" for the SAME phone don't refire the 3 queries each time
     // (cleared on reload; a brand-new booking shows after 5min or a refresh).
@@ -4606,159 +4605,73 @@ function renderMyBookings(){
       // returns ONLY this phone's docs in the SAME [bookings,tables,guestlist] shape
       // — so all the mapping/sort/render below is unchanged.
       //
-      // FAIL-OPEN: if the function is unreachable we fall back to the OLD direct
-      // Firestore queries (_legacy), so My Bookings can never go blank on a CF
-      // outage. _legacy keeps the v3.271 "wait for Firebase ready first" guard.
-      var _legacy=function(){
-        return ensureFirestoreReady(5).then(function(_ready){
-          var pBks=new Promise(function(res){loadBookingsFromFirebase(function(bks){res(bks||[]);});});
-          var pTbl=firestore?firestore.collection('tableReservations').where('date','>=',_cutoff90).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
-          var pGL=firestore?firestore.collection('guestlist').orderBy('joinedAt','desc').limit(300).get().then(function(snap){var arr=[];snap.forEach(function(d){arr.push(Object.assign({id:d.id},d.data()));});return arr;}).catch(function(){return [];}):Promise.resolve([]);
-          return Promise.all([pBks,pTbl,pGL]).then(function(r){
-            // Only cache when Firebase actually served the data — never cache a
-            // partial/empty result captured while Firebase was still initialising.
-            try{if(firestore)window[_ck]={ts:Date.now(),results:r};}catch(_e){}
-            return r;
-          });
-        });
-      };
+      // ON FAILURE: show an explicit retry/error state — never fall back to broad
+      // Firestore reads that ship other guests' data to the device.
       _fetch=fetch(MYBOOKINGS_LOOKUP_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone10})})
         .then(function(resp){if(!resp.ok)throw new Error('lookup http '+resp.status);return resp.json();})
         .then(function(j){
           if(!j||j.ok!==true)throw new Error('lookup bad payload');
-          var r=[j.bookings||[],j.tables||[],j.guestlist||[]];
-          // Transition safety net: if the server found NOTHING in all three, run
-          // ONE legacy direct-query before concluding "no bookings". This guards
-          // a guest whose pre-existing docs haven't been phoneNorm-backfilled yet
-          // (the server would honestly return empty for them). _legacy caches its
-          // result, so the cost of this path is bounded by the 5-min cache; once
-          // the backfill has run, real guests return non-empty and never hit it.
-          if(!r[0].length && !r[1].length && !r[2].length){return _legacy();}
+          // 🆕 v3.352 — server now returns a pre-normalized + sorted `combined`
+          // array so the client is a pure renderer. When present, wrap it as the
+          // fourth element so the handler below can detect and use it directly.
+          var r=[j.bookings||[],j.tables||[],j.guestlist||[],j.combined||null];
           try{window[_ck]={ts:Date.now(),results:r};}catch(_e){}
           return r;
         })
         .catch(function(_e){
-          console.warn('[My Bookings] server lookup failed — falling back to direct query:',_e&&_e.message);
-          return _legacy();
+          console.warn('[My Bookings] server lookup failed:',_e&&_e.message);
+          return null; // signal error state to the render handler below
         });
     }
     _fetch.then(function(results){
       lookupBtn.textContent='Find My Bookings →';lookupBtn.disabled=false;
-      var myBks=(results[0]||[]).filter(function(b){return (b.phone||'').replace(/\D/g,'').endsWith(phone10);});
-      // 🆕 2026-06-12 v3.271 — match table reservations on EITHER `phone` OR
-      // `customerPhone`: customer-site BOOK A TABLE writes `phone`, but POS/Door
-      // walk-in & captain table writes use `customerPhone` — those tables (e.g.
-      // FD6 booked at the door) never matched here and went missing from My Bookings.
-      var myTbls=(results[1]||[]).filter(function(t){return ((t.phone||t.customerPhone||'')+'').replace(/\D/g,'').endsWith(phone10);}).map(function(t){
-        return {ref:t.bookingRef||t.id,name:t.customerName||t.name||'',phone:t.phone||t.customerPhone||'',email:t.email||'',date:t.date||'',time:t.arrivalTime||'',
-          eventTitle:'🪑 '+(t.tableId||'')+' · '+(t.floorLabel||''),entryType:'table',total:0,checkedIn:!!t.actualArrivalTime,
-          paymentId:t.paymentId||'',bookedAt:t.bookedAt||t.createdAt||''};
-      });
-      var myGL=(results[2]||[]).filter(function(g){return (g.phone||'').replace(/\D/g,'').endsWith(phone10);}).map(function(g){
-        var ev4=(S._cachedEvents||[]).find(function(e){return e.id===g.eventId;});
-        return {ref:g.ref||g.id,name:g.name||'',phone:g.phone||'',email:g.email||'',date:ev4?ev4.date:'',time:ev4?ev4.time:'',
-          eventTitle:'📋 Guest List — '+(ev4?ev4.title:'HOD Event'),entryType:g.type||'guest',total:0,checkedIn:g.checkedIn||false,
-          paymentId:'',bookedAt:g.joinedAt||''};
-      });
-      var mine=myBks.concat(myTbls).concat(myGL);
-      // 🔴 2026-05-21 (Khushi LIVE-BUG) — test phones had 360 historical bookings,
-      // recent ones drowning at the bottom. Fix:
-      //   1. Drop anything older than 60 days (Khushi's test phone + real users
-      //      both benefit — old scanned tickets are noise).
-      //   2. Normalize dates to comparable timestamps so the sort actually puts
-      //      newest first (was string-comparing mixed ISO-date + ISO-datetime).
-      var _cutoffMs=Date.now()-60*86400000;
-      function _ts(b){
-        var d=b.date||(b.bookedAt||'').split('T')[0]||'';
-        // Try date first (YYYY-MM-DD); fallback to bookedAt full timestamp.
-        var t=Date.parse(d);
-        if(isNaN(t)) t=Date.parse(b.bookedAt||'');
-        return isNaN(t)?0:t;
-      }
-      // 🆕 2026-06-12 v3.272 — sort by when the booking was MADE (bookedAt), not by
-      // event/reservation date. A table you just booked for tonight was sorting
-      // BELOW any ticket held for a future-dated event (date-sort put the future
-      // event first), so "my most recent booking" wasn't on top. bookedAt is present
-      // on all three sources (bookings, tableReservations, guestlist.joinedAt);
-      // fall back to the date timestamp when bookedAt is missing.
-      function _bts(b){var t=Date.parse(b.bookedAt||'');return isNaN(t)?_ts(b):t;}
-      var mineAll=mine.slice();
-      mine=mine.filter(function(b){var t=_ts(b);return t===0||t>=_cutoffMs;});
-      mine.sort(function(a,b){return _bts(b)-_bts(a);}); // most-recently-BOOKED first
-      var _hiddenCount=mineAll.length-mine.length;
-      resultsDiv.innerHTML='';
-      if(!mine.length){
-        resultsDiv.innerHTML='<div style="text-align:center;padding:40px 20px;color:#3D3D3D;"><div style="font-size:36px;margin-bottom:12px">🎟️</div><div>No bookings found for this number.</div>'
-          +(_hiddenCount>0?'<div style="font-size:11px;color:#3D3D3D;margin-top:8px;">('+_hiddenCount+' older bookings hidden)</div>':'')
-          +'</div>';
+      if(results===null){
+        // Server unreachable — show retry prompt. Never fall back to broad reads.
+        resultsDiv.innerHTML='<div style="text-align:center;padding:32px 16px;"><div style="font-size:28px;margin-bottom:10px">⚠️</div><div style="font-weight:700;font-size:14px;color:#000;margin-bottom:8px;">Couldn\'t load bookings. Please try again.</div><div style="font-size:12px;color:#3D3D3D;">If the problem continues, reach us on WhatsApp or Instagram.</div></div>';
+        try{delete window[_ck];}catch(_e){}
         return;
       }
-      var countDiv=document.createElement('div');
-      countDiv.style.cssText='font-size:12px;font-weight:800;color:#000;letter-spacing:1px;margin-bottom:14px;';
-      countDiv.textContent='Showing '+mine.length+' recent booking'+(mine.length>1?'s':'')
-        +(_hiddenCount>0?' · '+_hiddenCount+' older hidden':'');
-      resultsDiv.appendChild(countDiv);
-      mine.forEach(function(b){
+      // 🆕 v3.352 — shared card renderer used by both the new combined path and
+      // the legacy normalization path below. Appends to `resultsDiv` (closure).
+      function _renderCard(b){
         var card2=document.createElement('div');
         card2.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:20px;margin-bottom:16px;';
         var isCI=b.checkedIn===true;
-        // 🆕 2026-05-27 v3.83 (Khushi LIVE-NIGHT) — My Bookings card redesign:
-        // full guest info (name/phone/email) + bigger event title + readable
-        // ref + payment status badge + bigger fonts throughout. Scanner QR
-        // unchanged (v3.81 quiet-zone fix preserved).
-        var isPaid=!!(b.paymentId && String(b.paymentId).indexOf('pay_')===0);
-        var isCashPending=!!(b.paymentId && String(b.paymentId).indexOf('cash_')===0);
+        var isPaid=!!(b.paymentId&&String(b.paymentId).indexOf('pay_')===0);
+        var isCashPending=!!(b.paymentId&&String(b.paymentId).indexOf('cash_')===0);
         var payBadge=isPaid
-          ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(35,160,148,.1);border:2px solid #23A094;color:#23A094;letter-spacing:.5px;">✓ PAID</span>'
-          : isCashPending
-            ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(245,158,11,.12);border:2px solid #000;color:#F59E0B;letter-spacing:.5px;">⏳ PAY AT VENUE</span>'
-            : (b.total===0
-              ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;letter-spacing:.5px;">FREE</span>'
-              : '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.05);border:1px solid rgba(0,0,0,.15);color:#3D3D3D;letter-spacing:.5px;">PENDING</span>');
+          ?'<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(35,160,148,.1);border:2px solid #23A094;color:#23A094;letter-spacing:.5px;">✓ PAID</span>'
+          :isCashPending
+            ?'<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(245,158,11,.12);border:2px solid #000;color:#F59E0B;letter-spacing:.5px;">⏳ PAY AT VENUE</span>'
+            :(b.total===0
+              ?'<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;letter-spacing:.5px;">FREE</span>'
+              :'<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.05);border:1px solid rgba(0,0,0,.15);color:#3D3D3D;letter-spacing:.5px;">PENDING</span>');
         var statusBadge=isCI
-          ? '<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(0,200,100,.12);border:1px solid rgba(0,200,100,.4);color:#00C864;letter-spacing:.5px;">✓ CHECKED IN</span>'
-          : '<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;letter-spacing:.5px;">CONFIRMED</span>';
+          ?'<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:rgba(0,200,100,.12);border:1px solid rgba(0,200,100,.4);color:#00C864;letter-spacing:.5px;">✓ CHECKED IN</span>'
+          :'<span style="font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;letter-spacing:.5px;">CONFIRMED</span>';
         var amtText=(b.total===0?'FREE':'₹'+((b.total||0).toLocaleString('en-IN')));
         card2.innerHTML=''
-          // Header: status + payment badges (right) — title row
           +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">'
           +'<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;">Booking</div>'
           +'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+statusBadge+payBadge+'</div>'
           +'</div>'
-          // Event title — big + bold
           +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:14px;line-height:1.25;">'+sanitize(b.eventTitle||'—')+'</div>'
-          // Guest info block (name/phone/email) — readable
           +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:14px;margin-bottom:12px;">'
           +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;margin-bottom:8px;">Guest</div>'
           +'<div style="font-size:15px;font-weight:700;color:#000;margin-bottom:6px;">'+sanitize(b.name||'—')+'</div>'
           +(b.phone?'<div style="font-size:13px;color:#3D3D3D;font-weight:600;margin-bottom:'+(b.email?'4px':'0')+';">📱 '+sanitize(b.phone)+'</div>':'')
           +(b.email?'<div style="font-size:13px;color:#3D3D3D;font-weight:600;word-break:break-all;">✉️ '+sanitize(b.email)+'</div>':'')
           +'</div>'
-          // Booking facts grid: date, time, type, amount
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
-          +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;">'
-          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Date</div>'
-          +'<div style="font-size:13px;font-weight:700;color:#000;">'+sanitize(b.date||'—')+'</div>'
+          +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Date</div><div style="font-size:13px;font-weight:700;color:#000;">'+sanitize(b.date||'—')+'</div></div>'
+          +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Time</div><div style="font-size:13px;font-weight:700;color:#000;">'+sanitize(b.time||'—')+'</div></div>'
+          +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Type</div><div style="font-size:13px;font-weight:700;color:#000;">'+sanitize((b.entryType||'').toUpperCase()||'—')+'</div></div>'
+          +'<div style="background:rgba(255,144,232,.07);border:2px solid #000;border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Amount</div><div style="font-size:14px;font-weight:900;color:#000;">'+amtText+'</div></div>'
           +'</div>'
-          +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;">'
-          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Time</div>'
-          +'<div style="font-size:13px;font-weight:700;color:#000;">'+sanitize(b.time||'—')+'</div>'
-          +'</div>'
-          +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;">'
-          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Type</div>'
-          +'<div style="font-size:13px;font-weight:700;color:#000;">'+sanitize((b.entryType||'').toUpperCase()||'—')+'</div>'
-          +'</div>'
-          +'<div style="background:rgba(255,144,232,.07);border:2px solid #000;border-radius:8px;padding:10px 12px;">'
-          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Amount</div>'
-          +'<div style="font-size:14px;font-weight:900;color:#000;">'+amtText+'</div>'
-          +'</div>'
-          +'</div>'
-          // Ticket reference (own row, monospace, readable)
           +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;margin-bottom:14px;">'
           +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Ticket Reference</div>'
           +'<div style="font-family:monospace;font-size:14px;font-weight:800;color:#000;letter-spacing:1px;word-break:break-all;">'+sanitize(b.ref||'—')+'</div>'
           +'</div>'
-          // QR — fat white quiet zone, scannable from 30cm+ (v3.81)
           +'<div style="text-align:center;padding-top:6px;">'
           +'<div style="display:inline-block;padding:28px;background:#FFFFFF;border-radius:8px;margin-bottom:10px;line-height:0;">'
           +'<div id="qr-'+sanitize(b.ref||'x')+'" style="width:200px;height:200px;"></div>'
@@ -4766,12 +4679,43 @@ function renderMyBookings(){
           +'<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;">Show at Entrance</div>'
           +'</div>';
         resultsDiv.appendChild(card2);
-        // ── LOCAL QR (no external API)
         generateLocalQR('qr-'+sanitize(b.ref||'x'),'https://hodclub.in?verify='+b.ref);
-        // ── Cover wallet
         var walletWrap=renderCustomerWallet(b.ref||'');
         card2.appendChild(walletWrap);
-      });
+      }
+
+      // Server must return `combined` (added in v3.352). If absent — either an
+      // old cached response or a partial server payload — treat as error: clear
+      // the cache and show the retry UI. This closes the path where stale broad-read
+      // cached data (from before server-side filtering was deployed) could reach
+      // the renderer and expose other guests' names/phones.
+      var _serverCombined=results[3]||null;
+      if(!_serverCombined){
+        resultsDiv.innerHTML='<div style="text-align:center;padding:32px 16px;"><div style="font-size:28px;margin-bottom:10px">⚠️</div><div style="font-weight:700;font-size:14px;color:#000;margin-bottom:8px;">Couldn\'t load bookings. Please try again.</div><div style="font-size:12px;color:#3D3D3D;">If the problem continues, reach us on WhatsApp or Instagram.</div></div>';
+        try{delete window[_ck];}catch(_e){}
+        return;
+      }
+      // Server pre-normalizes + sorts `combined`; 60-day cutoff is enforced
+      // server-side — client pass below is belt-and-braces only.
+      var _cutoffMs2=Date.now()-60*86400000;
+      function _ts2(b){var d=b.date||(b.bookedAt||'').split('T')[0]||'';var t=Date.parse(d);if(isNaN(t))t=Date.parse(b.bookedAt||'');return isNaN(t)?0:t;}
+      var mine=_serverCombined.filter(function(b){var t=_ts2(b);return t===0||t>=_cutoffMs2;});
+      function _bts2(b){var t=Date.parse(b.bookedAt||'');return isNaN(t)?_ts2(b):t;}
+      mine.sort(function(a,b){return _bts2(b)-_bts2(a);});
+      var _hiddenCount2=_serverCombined.length-mine.length;
+      resultsDiv.innerHTML='';
+      if(!mine.length){
+        resultsDiv.innerHTML='<div style="text-align:center;padding:40px 20px;color:#3D3D3D;"><div style="font-size:36px;margin-bottom:12px">🎟️</div><div>No bookings found for this number.</div>'
+          +(_hiddenCount2>0?'<div style="font-size:11px;color:#3D3D3D;margin-top:8px;">('+_hiddenCount2+' older bookings hidden)</div>':'')
+          +'</div>';
+        return;
+      }
+      var countDiv2=document.createElement('div');
+      countDiv2.style.cssText='font-size:12px;font-weight:800;color:#000;letter-spacing:1px;margin-bottom:14px;';
+      countDiv2.textContent='Showing '+mine.length+' recent booking'+(mine.length>1?'s':'')
+        +(_hiddenCount2>0?' · '+_hiddenCount2+' older hidden':'');
+      resultsDiv.appendChild(countDiv2);
+      mine.forEach(_renderCard);
     });
   };
   inputWrap.appendChild(inputLabel);inputWrap.appendChild(phoneInp);inputWrap.appendChild(lookupBtn);inputWrap.appendChild(resultsDiv);
@@ -6388,7 +6332,7 @@ function _loadWalletJs(cb){
   if(window._HOD_WALLET_LOADING)return;
   window._HOD_WALLET_LOADING=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.304';
+  s.src='wallet.js?v=v3.380';
   s.onload=function(){
     window._HOD_WALLET_LOADED=true;
     window._HOD_WALLET_LOADING=false;

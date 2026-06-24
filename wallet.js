@@ -254,13 +254,36 @@ function renderWalletPage(bookingRef){
     var _hasActivity=Number(cv.coverActivated||0)>0||Number(cv.coverBalance||0)>0||(Array.isArray(cv.tabRounds)&&cv.tabRounds.length>0)||cv.paymentStatus==='paid';
     var _nowMs2=Date.now();
     var _dateExp2=cv.expiresAt?null:_hodDateExpiry(_cvDate2);
-    var _isWalletExpired=_hasActivity&&((cv.expiresAt&&new Date(cv.expiresAt).getTime()<_nowMs2)||(_dateExp2&&_dateExp2.getTime()<_nowMs2));
+    // 🆕 2026-06-24 v3.380 (Khushi) — TABLE RESERVATION wallets now expire on the
+    // SAME 3 AM-after-the-night cutoff as cover wallets. Previously expiry was
+    // armed ONLY when _hasActivity was true (coverActivated / balance / rounds /
+    // paid). A pure table reservation with no pre-order + no online prepay never
+    // tripped that guard, so its pre-order menu stayed openable forever after the
+    // night ended. A table reservation ALWAYS carries a real reservation date
+    // (cv.date), so the date-based cutoff alone is safe for it (a future/tonight
+    // booking still resolves to a FUTURE expiry → falls through to the normal
+    // flow). Non-table covers keep the _hasActivity guard so a fresh entry-only
+    // booking for tonight still falls through to the door/check-in waiting screen
+    // instead of wrongly showing expired. Fail-open: blank/unparseable date →
+    // _dateExp2 null → never expired.
+    var _expiryArmed=!!cv.isTableBooking||_hasActivity;
+    var _isWalletExpired=_expiryArmed&&((cv.expiresAt&&new Date(cv.expiresAt).getTime()<_nowMs2)||(_dateExp2&&_dateExp2.getTime()<_nowMs2));
     if(_isWalletExpired){
+      var _expIsTbl=!!cv.isTableBooking;
+      var _expDate=sanitize(cv.date||cv.eventDate||'this night');
       var expDiv=document.createElement('div');
-      expDiv.style.cssText='text-align:center;padding:40px 20px;color:#3D3D3D;';
-      expDiv.innerHTML='<div style="font-size:44px;margin-bottom:12px;">⏰</div>'
-        +'<div style="font-size:16px;font-weight:800;color:#FF5733;margin-bottom:8px;">Wallet Expired</div>'
-        +'<div style="font-size:13px;">This cover has ended. Balance has been reset.</div>';
+      expDiv.style.cssText='padding:34px 18px;text-align:center;';
+      expDiv.innerHTML=
+        '<div style="background:#fff;border:2px solid #000;border-radius:14px;box-shadow:4px 4px 0 #000;padding:34px 22px;max-width:340px;margin:0 auto;">'
+        +'<div style="font-size:48px;margin-bottom:14px;line-height:1;">🌙</div>'
+        +'<div style="font-size:20px;font-weight:900;color:#000;letter-spacing:.3px;margin-bottom:10px;">Wallet Expired</div>'
+        +'<div style="font-size:13px;line-height:1.65;color:#3D3D3D;margin-bottom:20px;">'
+          +(_expIsTbl
+             ?'Your table reservation wallet for <b style="color:#000;">'+_expDate+'</b> has closed now that the night is over. We hope you had a wonderful time at H.O.D! 🥂'
+             :'Your H.O.D wallet for <b style="color:#000;">'+_expDate+'</b> has closed now that the night is over. We hope you had a wonderful time! 🥂')
+        +'</div>'
+        +'<a href="https://hodclub.in/" style="display:inline-block;background:#FF90E8;border:2px solid #000;border-radius:10px;box-shadow:3px 3px 0 #000;padding:11px 22px;font-size:13px;font-weight:900;color:#000;text-decoration:none;letter-spacing:.3px;">Book Your Next Visit →</a>'
+        +'</div>';
       inner.appendChild(expDiv);return;
     }
 
@@ -1961,7 +1984,18 @@ function renderWalletPage(bookingRef){
             });
         };
         try{
-          if(window.SELF_ORDER_PLACE_URL){
+          // 🆕 v3.329 MONEY BUG FIX — selfOrderPlace CF writes 'activated' directly
+          // to covers WITHOUT decrementing coverBalance, causing a ghost round where
+          // the guest's balance isn't deducted. Pure bar wallets (no table) MUST go
+          // through _parkOrderForBartender so the round lands as 'preparing' and
+          // BarMode's activateCoverOrder server transaction owns the balance deduction.
+          // Table wallets are unaffected (selfOrderPlace for table covers write to
+          // tableReservations and are settled by captain, not balance-deducted).
+          if(!_hasTableForGate){
+            placeBtn.disabled=false;
+            placeBtn.textContent='\uD83C\uDF79 Place Order';
+            _parkOrderForBartender('customer_self_order_bar');
+          } else if(window.SELF_ORDER_PLACE_URL){
             var _placeItems=(roundItems||[]).map(function(it){return {n:it.n,qty:it.qty,cat:it.cat};});
             fetch(window.SELF_ORDER_PLACE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
               coverDocId:coverDocId, bookingRef:cv.ref||cv.bookingId||'', name:cv.name||'', phone:cv.phone||'',
