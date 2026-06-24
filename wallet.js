@@ -183,14 +183,30 @@ function renderWalletPage(bookingRef){
       var _md=document.createElement('div');
       _md.style.cssText='background:#fff;border:2px solid #000;border-radius:14px;padding:32px 24px;width:100%;max-width:360px;text-align:center;box-shadow:6px 6px 0 #16A34A;font-family:var(--ff);';
       var _amt=Math.round(Number(amount)||0).toLocaleString('en-IN');
+      var _hasCart=false; try{ _hasCart=getCartTotal()>0; }catch(_e){}
+      var _sub=_hasCart
+        ? 'You\u2019re all set \u2014 tap <b>Place Order</b> below to send your order.'
+        : 'You\u2019re all set \u2014 browse the menu and tap <b>Place Order</b> below to send your order.';
       _md.innerHTML='<div style="font-size:54px;line-height:1;margin-bottom:12px;">✅</div>'
         +'<div style="font-size:22px;font-weight:900;color:#16A34A;letter-spacing:.3px;margin-bottom:8px;">RECHARGE SUCCESSFUL</div>'
         +'<div style="font-size:16px;color:#000;font-weight:800;margin-bottom:6px;">₹'+_amt+' added to your wallet</div>'
-        +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:20px;">You\u2019re all set \u2014 browse the menu and tap <b>Place Order</b> below to send your order.</div>';
+        +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:20px;">'+_sub+'</div>';
       var _ok=document.createElement('button');
       _ok.style.cssText='width:100%;padding:15px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.4px;';
-      _ok.innerHTML='\uD83C\uDF7D\uFE0F BROWSE MENU & ORDER';
-      _ok.onclick=function(){_ov.remove();};
+      // 🆕 2026-06-24 (Khushi) — when the guest already has items in the cart
+      // (the shortfall-recharge flow) this button now PLACES the order in ONE
+      // tap by clicking the real "Place Order" button (#tab-place-btn) — no more
+      // "browse → place order → place again" double step. The caller bumps the
+      // balance + re-renders before showing this popup, so the place button sees
+      // the new balance and won't re-prompt the shortfall. Empty cart (empty-
+      // wallet top-up) → just dismiss to the menu. Fail-open on any DOM error.
+      if(_hasCart){
+        _ok.innerHTML='\uD83C\uDF79 PLACE ORDER';
+        _ok.onclick=function(){ _ov.remove(); try{ var _pb=document.getElementById('tab-place-btn'); if(_pb){ _pb.click(); } }catch(_e){} };
+      }else{
+        _ok.innerHTML='\uD83C\uDF7D\uFE0F BROWSE MENU';
+        _ok.onclick=function(){_ov.remove();};
+      }
       _md.appendChild(_ok);_ov.appendChild(_md);
       _ov.onclick=function(e){if(e.target===_ov)_ov.remove();};
       document.body.appendChild(_ov);
@@ -398,6 +414,7 @@ function renderWalletPage(bookingRef){
           name:cv.name||'', phone:cv.phone||'',
           description:'Wallet Recharge ₹'+_rcAmt, payBtn:rcPayBtn,
           onSuccess:function(newBalance){
+            try{ cv.coverBalance=(cv.coverBalance||0)+_rcAmt; renderWalletContent(cv); }catch(_e){}
             hodRechargeSuccessPopup(_rcAmt);
           },
           onError:function(msg){
@@ -1658,6 +1675,7 @@ function renderWalletPage(bookingRef){
                 description:'Wallet Recharge ₹'+_selRcAmt, payBtn:_rcPayBtn2,
                 onSuccess:function(newBalance){
                   _ov.remove();
+                  try{ cv.coverBalance=(cv.coverBalance||0)+_selRcAmt; renderWalletContent(cv); }catch(_e){}
                   hodRechargeSuccessPopup(_selRcAmt);
                 },
                 onError:function(msg){
