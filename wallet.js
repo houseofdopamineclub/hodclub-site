@@ -1008,20 +1008,12 @@ function renderWalletPage(bookingRef){
       function getTabTotal(){return tabRounds.reduce(function(s,r){return s+(r.roundTotal||0);},0);}
       function getRoundNum(){return tabRounds.length+1;}
 
-      // 🆕 2026-06-24 (Khushi) — BILL = CONFIRMED ITEMS ONLY. A customer self-order
-      // lands as a 'preparing' round; for BAR / PURE-COVER wallets it must NOT count
-      // toward the bill (Running Tab / Your Tab / View Bill) until the bartender taps
-      // PRINT KOT + BILL (→ status 'activated'). Genuine TABLE rounds awaiting the
-      // captain stay on the bill (he settles everything in person). Mirrors the YOUR
-      // TAB status-badge predicate in renderRoundsHistory (bar/pure-cover preparing
-      // shows "🟡 Ordered" and is held off the bill).
-      function _isRoundBillable(r){
-        if(!r) return false;
-        if(r.status!=='preparing') return true;
-        var _pc=!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
-        var _br=String((r&&r.source)||'').toLowerCase().indexOf('bar')!==-1;
-        return !(_pc||_br);
-      }
+      // 🔁 2026-06-24 (Khushi) — REVERTED the self-order bill-gating. The BILL must
+      // count EVERY ordered round, including a 'preparing' one. Excluding preparing
+      // rounds for bar/pure-cover wallets hid real, OWED items: a guest who had
+      // ordered ₹1332 of drinks showed ₹0 billed until the bartender tapped PRINT
+      // KOT+BILL — a money-leakage risk. Bill = ALL ordered items, always.
+      function _isRoundBillable(r){ return !!r; }
       function _billableItems(){var a=[];tabRounds.forEach(function(r){if(_isRoundBillable(r)){(r.items||[]).forEach(function(i){a.push(i);});}});return a;}
 
       function updateTabFooter(){
