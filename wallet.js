@@ -186,10 +186,10 @@ function renderWalletPage(bookingRef){
       _md.innerHTML='<div style="font-size:54px;line-height:1;margin-bottom:12px;">✅</div>'
         +'<div style="font-size:22px;font-weight:900;color:#16A34A;letter-spacing:.3px;margin-bottom:8px;">RECHARGE SUCCESSFUL</div>'
         +'<div style="font-size:16px;color:#000;font-weight:800;margin-bottom:6px;">₹'+_amt+' added to your wallet</div>'
-        +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:20px;">You\u2019re all set \u2014 place your order now.</div>';
+        +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:20px;">You\u2019re all set \u2014 browse the menu and tap <b>Place Order</b> below to send your order.</div>';
       var _ok=document.createElement('button');
       _ok.style.cssText='width:100%;padding:15px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.4px;';
-      _ok.innerHTML='\uD83D\uDED2 PLACE ORDER';
+      _ok.innerHTML='\uD83C\uDF7D\uFE0F BROWSE MENU & ORDER';
       _ok.onclick=function(){_ov.remove();};
       _md.appendChild(_ok);_ov.appendChild(_md);
       _ov.onclick=function(e){if(e.target===_ov)_ov.remove();};
