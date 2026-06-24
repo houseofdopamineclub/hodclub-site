@@ -841,8 +841,7 @@ function renderWalletPage(bookingRef){
         var open=taxBoxTop.style.display==='block';
         if(open){taxBoxTop.style.display='none';taxHintTop.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25be</span>';return;}
         try{
-          var allItems=[];
-          (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
+          var allItems=_billableItems();
           // Also include unplaced cart items so the breakdown matches what
           // the customer is about to confirm.
           Object.values(cart).forEach(function(it){allItems.push(it);});
@@ -1009,6 +1008,22 @@ function renderWalletPage(bookingRef){
       function getTabTotal(){return tabRounds.reduce(function(s,r){return s+(r.roundTotal||0);},0);}
       function getRoundNum(){return tabRounds.length+1;}
 
+      // 🆕 2026-06-24 (Khushi) — BILL = CONFIRMED ITEMS ONLY. A customer self-order
+      // lands as a 'preparing' round; for BAR / PURE-COVER wallets it must NOT count
+      // toward the bill (Running Tab / Your Tab / View Bill) until the bartender taps
+      // PRINT KOT + BILL (→ status 'activated'). Genuine TABLE rounds awaiting the
+      // captain stay on the bill (he settles everything in person). Mirrors the YOUR
+      // TAB status-badge predicate in renderRoundsHistory (bar/pure-cover preparing
+      // shows "🟡 Ordered" and is held off the bill).
+      function _isRoundBillable(r){
+        if(!r) return false;
+        if(r.status!=='preparing') return true;
+        var _pc=!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
+        var _br=String((r&&r.source)||'').toLowerCase().indexOf('bar')!==-1;
+        return !(_pc||_br);
+      }
+      function _billableItems(){var a=[];tabRounds.forEach(function(r){if(_isRoundBillable(r)){(r.items||[]).forEach(function(i){a.push(i);});}});return a;}
+
       function updateTabFooter(){
         var ct=getCartTotal();
         var tt=getTabTotal();
@@ -1024,8 +1039,7 @@ function renderWalletPage(bookingRef){
         // below still shows the live cart at menu price.
         var placedGrand;
         try{
-          var _allPlaced=[];
-          tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_allPlaced.push(i);});});
+          var _allPlaced=_billableItems();
           placedGrand=_allPlaced.length?hodComputeBreakdown(_allPlaced, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;
         }catch(_e){placedGrand=tt;}
         var _placedDisplay=placedGrand;
@@ -2070,8 +2084,7 @@ function renderWalletPage(bookingRef){
       // Captain's paid → bill_requested and re-open a closed tab).
       checkoutBtn.onclick=function(){
         if(checkoutBtn.disabled)return;
-        var _ttAll=[];
-        (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){_ttAll.push(i);});});
+        var _ttAll=_billableItems();
         var _billTt;
         try{_billTt=_ttAll.length?hodComputeBreakdown(_ttAll, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;}catch(_e){_billTt=getTabTotal();}
         if(!_billTt && !getCartTotal()){showToast('Place an order first, then call your captain to settle.','err',2800);return;}
@@ -2202,8 +2215,7 @@ function renderWalletPage(bookingRef){
         var tt=getTabTotal();
         var bd=null;
         try{
-          var _all=[];
-          tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_all.push(i);});});
+          var _all=_billableItems();
           // 🆕 2026-06-07 — YOUR TAB grand reflects the bartender's discount/SC
           // so it matches the bar + the VIEW BILL preview. Per-round totals below
           // stay at menu price (the discount is a single bill-level line).
@@ -2240,14 +2252,17 @@ function renderWalletPage(bookingRef){
         var roundsHtml=_sortedRounds.map(function(r,idx){
           var sc=statusC[r.status]||'#5c3f0a';
           var sl=statusL[r.status]||r.status;
-          // 🆕 2026-06-12 v3.267 (Khushi) — BAR rounds have NO captain "mark served"
-          // button, so an 'activated' bar round would otherwise be stuck on the
-          // "🔵 Preparing" label forever (it can never advance to "✅ Served"). Keep
-          // bar rounds on "🟡 Ordered" until they're actually served/paid so the
-          // guest never sees a status the bar flow can't progress. Table rounds are
-          // untouched — the captain advances those with his "mark served" button.
+          // 🆕 2026-06-24 (Khushi) — Bar/cashier AND pure COVER wallets have NO
+          // "mark served" step (no KDS, no captain), so a 'served' status there is
+          // ONLY the auto-mark heuristic (guest ordered again) — never a real staff
+          // confirmation. Show "🟡 Ordered" for EVERY such round (even auto-served),
+          // keeping only '💳 Paid' as a terminal money state. Genuine TABLE bookings
+          // (isTableBooking / linkedTableRef / tableId) keep the captain's Served/Paid
+          // progression — he has a "mark served" button to advance those.
           var _isBarRound=String((r&&r.source)||'').toLowerCase().indexOf('bar')!==-1;
-          if(_isBarRound && r.status!=='served' && r.status!=='paid'){ sc=statusC['preparing']; sl=statusL['preparing']; }
+          var _isPureCover=!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
+          if((_isBarRound||_isPureCover) && r.status!=='paid'){ sc=statusC['preparing']; sl=statusL['preparing']; }
+          var _notBilled=!_isRoundBillable(r);
           var rBd=null;
           try{rBd=hodComputeBreakdown(r.items||[]);}catch(_e){rBd=null;}
           var rTotal=rBd?rBd.grandTotal:(r.roundTotal||0);
@@ -2271,6 +2286,7 @@ function renderWalletPage(bookingRef){
             +'<span style="font-size:11px;font-weight:800;color:'+sc+';background:rgba(255,255,255,.55);padding:3px 9px;border-radius:12px;letter-spacing:.4px;">'+sl+'</span>'
             +'<span style="font-size:17px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+rTotal+'</span>'
             +'</span></div>'
+            +(_notBilled?'<div style="font-size:11px;color:#a85800;font-style:italic;margin:2px 0 8px;">⏳ Waiting for the bar to confirm — added to your bill once they print KOT + BILL</div>':'')
             +ilist+'</div>';
         }).join('');
 
@@ -2308,8 +2324,7 @@ function renderWalletPage(bookingRef){
       // SGST · GRAND TOTAL. No Place Order — just CLOSE.
       function showBillOnlyModal(){
         if(!tabRounds.length)return;
-        var allItems=[];
-        tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
+        var allItems=_billableItems();
         // 🆕 2026-06-07 — honor the bartender's persisted bill-level discount + SC
         // toggle so this preview matches the bar's bill to the rupee.
         var _bDisc=Number(cv.billDiscountPct||0), _bSc=(cv.billScOn!==false);
@@ -2329,7 +2344,7 @@ function renderWalletPage(bookingRef){
         // (see renderRoundsHistory). Sort by placedAt; label each rendered round with
         // a running counter (skips empty rounds) so the bill reads R1, R2, R3 … with
         // no dup/gap, instead of the unreliable stored roundNum.
-        var _billRounds=tabRounds.slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
+        var _billRounds=tabRounds.filter(_isRoundBillable).slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
         var _billNo=0;
         var itemsRows=_billRounds.map(function(r){
           var _rItems=(r.items||[]);

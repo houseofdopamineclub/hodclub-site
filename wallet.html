@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <meta name="theme-color" content="#0a0a0a"/>
 <title>HOD Wallet</title>
-<script>window.HOD_WALLET_BUILD="v3.309";try{console.log("%c[HOD] standalone wallet build "+window.HOD_WALLET_BUILD+" (2026-06-18)","color:#FF90E8;font-weight:700");}catch(e){}</script>
+<script>window.HOD_WALLET_BUILD="v3.385";try{console.log("%c[HOD] standalone wallet build "+window.HOD_WALLET_BUILD+" (2026-06-24)","color:#FF90E8;font-weight:700");}catch(e){}</script>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin/>
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin/>
 <link rel="dns-prefetch" href="https://checkout.razorpay.com"/>
@@ -804,7 +804,7 @@ function _loadWalletJs(cb){
   if(_walletLoading) return;
   _walletLoading=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.309';
+  s.src='wallet.js?v=v3.386';
   s.onload=function(){ _walletLoaded=true; cb&&cb(); };
   s.onerror=function(){
     _walletLoading=false;
