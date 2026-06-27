@@ -46,7 +46,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.389";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-24)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.390";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-24)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -2685,7 +2685,7 @@ function buildEvCard(ev,idx){
   // Banner 1:1
   var banner=el('div','ev-banner');
   if(ev.image&&(ev.image.startsWith('data:')||ev.image.startsWith('http'))){
-    var img=document.createElement('img');img.src=ev.image;img.alt=ev.title;banner.appendChild(img);
+    var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.src=ev.image;img.alt=ev.title;banner.appendChild(img);
   } else {
     banner.appendChild(buildBannerVis(ev));
   }
@@ -2989,7 +2989,7 @@ function renderModal(){
   if(S.step===3){modal.appendChild(renderSuccess(ev));bg.appendChild(modal);return bg;}
 
   var banner=el('div','m-banner');
-  if(ev.image&&(ev.image.startsWith('data:')||ev.image.startsWith('http'))){var img=document.createElement('img');img.src=ev.image;img.alt=ev.title;banner.appendChild(img);}
+  if(ev.image&&(ev.image.startsWith('data:')||ev.image.startsWith('http'))){var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.src=ev.image;img.alt=ev.title;banner.appendChild(img);}
   else{var vis=buildBannerVis(ev);vis.style.height='100%';banner.appendChild(vis);}
   modal.appendChild(banner);
 
