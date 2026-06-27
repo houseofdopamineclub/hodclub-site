@@ -46,7 +46,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.395";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-27)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.397";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-27)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -3678,19 +3678,16 @@ function renderStep1(ev){
       // shows immediately. Fallback: if no ref (shouldn't happen), open the
       // bookings page so they at least see something.
       viewBtn.onclick=function(){
-        // 🆕 2026-06-18 v3.312 (Khushi) — open the ticket/wallet in a NEW TAB so
-        // the in-progress booking form (name/email/phone/guest-list type) stays
-        // intact behind it. The old full-page redirect reloaded the whole site
-        // and WIPED everything the guest had typed. ONLY this "View My Existing
-        // Ticket" path changes — "Book an Additional Ticket" and "Cancel" are
-        // untouched. Fail-open: if the browser blocks the popup (win===null,
-        // rare for a direct user click) fall back to the same-tab redirect so
-        // they still see their ticket.
+        // 🆕 2026-06-27 (Khushi) — show the existing ticket as an IN-APP OVERLAY on
+        // top of the booking form (see _openExistingTicketOverlay). Previously this
+        // opened a NEW TAB, but incognito blocks new tabs → the fallback redirected
+        // the SAME tab and wiped the half-filled form, so pressing Back landed the
+        // guest on the events page. The overlay keeps the form mounted behind it, and
+        // its ← Back returns the guest to exactly the form they were filling. ONLY this
+        // path changes — "Book an Additional Ticket" and "Cancel" are untouched.
         if(existingRef && existingRef!=='—'){
-          var _url='/?wallet='+encodeURIComponent(existingRef);
-          var _win=window.open(_url,'_blank');
-          if(_win){ try{_win.opener=null;}catch(e){} dupOverlay.remove(); }
-          else { window.location.href=_url; }
+          dupOverlay.remove();
+          _openExistingTicketOverlay(existingRef);
         } else {
           dupOverlay.remove();
           set({view:'myBookings'});
@@ -6531,13 +6528,61 @@ function renderTopUp(bookingId,diffAmt){
     +'<div style="font-size:12px;color:#aaa;">One moment please</div>';
   return d;
 }
+// 🆕 2026-06-27 (Khushi) — "View My Existing Ticket" now opens the ticket as an
+// IN-APP OVERLAY layered ON TOP of the half-filled booking form, instead of a new
+// tab. New-tab opens are blocked in incognito → the old fallback redirected the SAME
+// tab to /?wallet=, reloading the whole site and WIPING everything the guest had
+// typed; pressing Back then dumped them on the events page. The booking modal stays
+// mounted behind this overlay (form values live in S.bdata, never re-rendered), so
+// the ← Back button here returns the guest to EXACTLY the form they were filling.
+function _openExistingTicketOverlay(ref){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:#F4F4F0;z-index:10001;overflow-y:auto;-webkit-overflow-scrolling:touch;';
+  var bar=document.createElement('div');
+  bar.style.cssText='position:sticky;top:0;z-index:5;display:flex;align-items:center;padding:12px 14px;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:2px solid #000;';
+  var back=document.createElement('button');
+  back.textContent='← Back to booking';
+  back.style.cssText='padding:10px 16px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-weight:900;font-size:13px;cursor:pointer;font-family:var(--ff);';
+  back.onclick=function(){ov.remove();};
+  bar.appendChild(back);
+  ov.appendChild(bar);
+  var body=document.createElement('div');
+  body.innerHTML='<div style="padding:60px 20px;text-align:center;color:#888;"><div style="font-size:36px;margin-bottom:14px;">📦</div><div style="font-size:15px;font-weight:600;">Loading your ticket…</div></div>';
+  ov.appendChild(body);
+  document.body.appendChild(ov);
+  // fail-open: _loadWalletJs only fires its callback on script ONLOAD — on a network
+  // error (onerror) or a concurrent in-flight load it silently drops the callback, so
+  // the overlay would otherwise sit on "Loading your ticket…" forever. A one-shot done
+  // flag + 9s watchdog guarantees we ALWAYS reach the fallback "Open ticket page →"
+  // link if the renderer never resolves. The guest is never stranded.
+  var done=false;
+  function _fallback(){
+    if(done)return;done=true;
+    body.innerHTML='<div style="padding:50px 24px;text-align:center;color:#000;">'
+      +'<div style="font-size:14px;font-weight:700;margin-bottom:12px;">Could not load your ticket here.</div>'
+      +'<a href="/?wallet='+encodeURIComponent(ref)+'" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-weight:900;text-decoration:none;font-family:var(--ff);">Open ticket page →</a>'
+      +'</div>';
+  }
+  var _wd=setTimeout(_fallback,9000);
+  _loadWalletJs(function(){
+    if(done)return;
+    try{
+      var content=(typeof window._renderWalletPage==='function')?window._renderWalletPage(ref):null;
+      if(!content)throw new Error('wallet renderer unavailable');
+      done=true;clearTimeout(_wd);body.innerHTML='';body.appendChild(content);
+    }catch(e){ clearTimeout(_wd);_fallback(); }
+  });
+}
 function renderCustomerWallet(bookingRef){
   if(typeof window._renderCustomerWallet==='function'){
     return window._renderCustomerWallet(bookingRef);
   }
   _loadWalletJs(function(){
-    // Re-render My Bookings page so the real wallet view appears
-    if(S.view==='myBookings'){render();}
+    // Re-render My Bookings page so the real wallet view appears. My Bookings is
+    // reachable BOTH as its own view (My Tickets btn) AND as a home tab
+    // (_homeTab==='mybookings'); gate on EITHER or the home-tab path stays stuck
+    // on "Loading wallet preview..." because the re-render never fires.
+    if(S.view==='myBookings' || (S.view==='home' && S._homeTab==='mybookings')){render();}
   });
   var d=document.createElement('div');
   d.style.cssText='margin-top:16px;padding:20px;text-align:center;color:#888;border:2px dashed rgba(0,0,0,.1);border-radius:12px;';
