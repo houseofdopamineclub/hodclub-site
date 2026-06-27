@@ -46,7 +46,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.392";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-27)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.395";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-27)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -3019,10 +3019,10 @@ function renderModal(){
   modal.id='booking-modal';
   // ← BACK button (top left)
   var backBtn=document.createElement('button');
-  backBtn.style.cssText='position:absolute;top:14px;left:14px;z-index:10;display:flex;align-items:center;gap:5px;padding:7px 13px;border-radius:8px;background:rgba(0,0,0,.5);border:1px solid rgba(0,0,0,.15);color:rgba(0,0,0,.8);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--ff);backdrop-filter:blur(8px);transition:all .2s;';
+  backBtn.style.cssText='position:absolute;top:14px;left:14px;z-index:10;display:flex;align-items:center;gap:5px;padding:7px 13px;border-radius:8px;background:rgba(0,0,0,.62);border:1px solid rgba(255,255,255,.35);color:#fff;cursor:pointer;font-size:12px;font-weight:700;font-family:var(--ff);backdrop-filter:blur(8px);transition:all .2s;';
   backBtn.innerHTML='← Back';
-  backBtn.onmouseenter=function(){this.style.background='rgba(0,0,0,.75)';this.style.color='#fff';};
-  backBtn.onmouseleave=function(){this.style.background='rgba(0,0,0,.5)';this.style.color='rgba(0,0,0,.8)';};
+  backBtn.onmouseenter=function(){this.style.background='rgba(0,0,0,.85)';this.style.color='#fff';};
+  backBtn.onmouseleave=function(){this.style.background='rgba(0,0,0,.62)';this.style.color='#fff';};
   backBtn.onclick=function(){
     if(S._glUnsubscribe){try{S._glUnsubscribe();}catch(e){}S._glUnsubscribe=null;}
     set({modal:null});
@@ -4627,13 +4627,71 @@ function renderMyBookings(){
   var inputLabel=document.createElement('div');
   inputLabel.style.cssText='font-size:11px;font-weight:700;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;margin-bottom:8px;';
   inputLabel.textContent='Enter your phone number to see your bookings';
+  // 🆕 2026-06-27 v3.393 — custom (Gumroad) country-code dropdown, NOT a native
+  // <select>. The lookup itself only ever uses the LAST 10 digits typed, so the
+  // code is for guest comfort/clarity; +91 is the default. Built as a button +
+  // absolutely-positioned popover so it matches the brand (black border, pink
+  // highlight) instead of the OS picker.
+  var CC_LIST=[['🇮🇳','+91'],['🇺🇸','+1'],['🇬🇧','+44'],['🇦🇪','+971'],['🇸🇬','+65'],['🇦🇺','+61'],['🇩🇪','+49'],['🇫🇷','+33']];
+  var ccCode='+91';
+  var inputRow=document.createElement('div');
+  inputRow.style.cssText='display:flex;gap:8px;align-items:stretch;';
+  var ccWrap=document.createElement('div');ccWrap.style.cssText='position:relative;flex-shrink:0;';
+  var ccBtn=document.createElement('button');ccBtn.type='button';
+  ccBtn.style.cssText='height:100%;min-height:50px;padding:0 12px;background:#fff;border:2px solid #000;border-radius:8px;color:#000;font-family:var(--ff);font-size:15px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;';
+  function _ccLabel(){var f='🇮🇳';for(var i=0;i<CC_LIST.length;i++){if(CC_LIST[i][1]===ccCode){f=CC_LIST[i][0];break;}}return f+' '+ccCode+' ▾';}
+  ccBtn.textContent=_ccLabel();
+  var ccMenu=document.createElement('div');
+  ccMenu.style.cssText='display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:#fff;border:2px solid #000;border-radius:8px;box-shadow:4px 4px 0 rgba(0,0,0,.85);overflow:hidden;min-width:128px;max-height:240px;overflow-y:auto;';
+  CC_LIST.forEach(function(cc){
+    var row=document.createElement('div');
+    row.style.cssText='padding:11px 14px;font-family:var(--ff);font-size:14px;font-weight:700;color:#000;cursor:pointer;display:flex;gap:8px;align-items:center;border-bottom:1px solid rgba(0,0,0,.08);';
+    row.textContent=cc[0]+'  '+cc[1];
+    row.onmouseenter=function(){row.style.background='#FF90E8';};
+    row.onmouseleave=function(){row.style.background='#fff';};
+    row.onclick=function(e){e.stopPropagation();ccCode=cc[1];ccBtn.textContent=_ccLabel();ccMenu.style.display='none';};
+    ccMenu.appendChild(row);
+  });
+  // Outside-click close — attached ONLY while the menu is open and removed on
+  // close, so repeated renderMyBookings re-renders (e.g. wallet.js lazy-load
+  // firing render()) never accumulate stale document listeners.
+  function _ccOutside(ev){try{if(!ccWrap.contains(ev.target)){ccMenu.style.display='none';document.removeEventListener('click',_ccOutside);}}catch(_e){}}
+  ccBtn.onclick=function(e){
+    e.stopPropagation();
+    var open=ccMenu.style.display!=='none';
+    if(open){ccMenu.style.display='none';document.removeEventListener('click',_ccOutside);}
+    else{ccMenu.style.display='block';setTimeout(function(){document.addEventListener('click',_ccOutside);},0);}
+  };
+  ccWrap.appendChild(ccBtn);ccWrap.appendChild(ccMenu);
   var phoneInp=document.createElement('input');
-  phoneInp.type='tel';phoneInp.placeholder='+91 XXXXX XXXXX';
-  phoneInp.style.cssText='width:100%;padding:14px;background:#fff;border:2px solid #000;border-radius:8px;color:#000;font-family:var(--ff);font-size:15px;outline:none;';
+  phoneInp.type='tel';phoneInp.inputMode='numeric';phoneInp.placeholder='XXXXX XXXXX';
+  phoneInp.style.cssText='flex:1;min-width:0;padding:14px;background:#fff;border:2px solid #000;border-radius:8px;color:#000;font-family:var(--ff);font-size:15px;outline:none;';
+  inputRow.appendChild(ccWrap);inputRow.appendChild(phoneInp);
   var lookupBtn=document.createElement('button');
   lookupBtn.style.cssText='width:100%;margin-top:10px;padding:13px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--ff);';
   lookupBtn.textContent='Find My Bookings →';
   var resultsDiv=document.createElement('div');resultsDiv.id='my-bk-results';resultsDiv.style.marginTop='20px';
+  // 🆕 2026-06-27 v3.393 — client-side mirror of the Cloud Function's `combined`
+  // normalization, used ONLY when the deployed function doesn't return `combined`
+  // (it predates that field). Inputs are already server-filtered to this phone, so
+  // there is no privacy concern and no extra Firestore read. Event titles fall back
+  // to the doc's own title (no events batch fetch — keeps reads at zero).
+  function _buildCombined(bookings,tables,guestlist){
+    function _ms(b){var t=Date.parse(b.bookedAt||b.createdAt||b.joinedAt||'');if(isNaN(t))t=Date.parse((b.date||'').slice(0,10));return isNaN(t)?0:t;}
+    var nb=(bookings||[]).map(function(b){return{
+      ref:b.bookingRef||b.ref||b.id,name:b.name||b.customerName||'',phone:b.phone||'',email:b.email||'',
+      date:b.date||'',time:b.time||'',eventTitle:b.title||b.eventTitle||'HOD Event',entryType:b.entryType||'ticket',
+      total:b.total||b.amount||0,checkedIn:!!(b.checkedIn||b.usedAt),paymentId:b.paymentId||'',bookedAt:b.bookedAt||b.createdAt||''};});
+    var nt=(tables||[]).map(function(t){return{
+      ref:t.bookingRef||t.ref||t.id,name:t.customerName||t.name||'',phone:t.phone||t.customerPhone||'',email:t.email||'',
+      date:t.date||'',time:t.arrivalTime||'',eventTitle:'🪑 '+(t.tableId||'')+(t.floorLabel?' · '+t.floorLabel:''),entryType:'table',
+      total:0,checkedIn:!!t.actualArrivalTime,paymentId:t.paymentId||'',bookedAt:t.bookedAt||t.createdAt||''};});
+    var ng=(guestlist||[]).map(function(g){return{
+      ref:g.ref||g.id,name:g.name||'',phone:g.phone||'',email:g.email||'',
+      date:g.date||'',time:g.time||'',eventTitle:'📋 Guest List — '+(g.eventTitle||g.title||'HOD Event'),entryType:g.type||'guest',
+      total:0,checkedIn:!!g.checkedIn,paymentId:'',bookedAt:g.joinedAt||''};});
+    return nb.concat(nt).concat(ng).sort(function(a,b){return _ms(b)-_ms(a);});
+  }
   lookupBtn.onclick=function(){
     var phone=phoneInp.value.replace(/\D/g,'');
     if(phone.length<10){alert('Please enter a valid 10-digit phone number.');return;}
@@ -4674,14 +4732,34 @@ function renderMyBookings(){
       //
       // ON FAILURE: show an explicit retry/error state — never fall back to broad
       // Firestore reads that ship other guests' data to the device.
-      _fetch=fetch(MYBOOKINGS_LOOKUP_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone10})})
-        .then(function(resp){if(!resp.ok)throw new Error('lookup http '+resp.status);return resp.json();})
+      //
+      // 🆕 2026-06-27 v3.393 — robustness: the Cloud Function can COLD-START (first
+      // call after idle takes several seconds). Previously there was no timeout and
+      // no retry, so a slow/transient call surfaced "Couldn't load bookings." even
+      // though the data was fine. We now (1) abort each attempt after 22s and (2)
+      // retry ONCE on failure before giving up. Still fail-open: never a broad read.
+      function _lookupOnce(){
+        var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+        var to=ctrl?setTimeout(function(){try{ctrl.abort();}catch(_e){}},22000):null;
+        var opt={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone10})};
+        if(ctrl)opt.signal=ctrl.signal;
+        return fetch(MYBOOKINGS_LOOKUP_URL,opt)
+          .then(function(resp){if(to)clearTimeout(to);if(!resp.ok)throw new Error('lookup http '+resp.status);return resp.json();})
+          .catch(function(e){if(to)clearTimeout(to);throw e;});
+      }
+      _fetch=_lookupOnce()
+        .catch(function(e1){console.warn('[My Bookings] lookup attempt 1 failed:',e1&&e1.message);return _lookupOnce();})
         .then(function(j){
           if(!j||j.ok!==true)throw new Error('lookup bad payload');
-          // 🆕 v3.352 — server now returns a pre-normalized + sorted `combined`
-          // array so the client is a pure renderer. When present, wrap it as the
-          // fourth element so the handler below can detect and use it directly.
-          var r=[j.bookings||[],j.tables||[],j.guestlist||[],j.combined||null];
+          // 🆕 v3.352 — server returns a pre-normalized + sorted `combined` array.
+          // 🆕 v3.393 — the CURRENTLY-DEPLOYED function predates `combined` and only
+          // returns {bookings,tables,guestlist}; the old client HARD-REQUIRED
+          // `combined` and so always showed the error even on a successful load.
+          // The server already filters to THIS phone only (server-side phoneNorm==),
+          // so building `combined` here from those arrays is SAFE — no other guest's
+          // data is involved — and adds ZERO Firestore reads.
+          var combined=j.combined||_buildCombined(j.bookings||[],j.tables||[],j.guestlist||[]);
+          var r=[j.bookings||[],j.tables||[],j.guestlist||[],combined];
           try{window[_ck]={ts:Date.now(),results:r};}catch(_e){}
           return r;
         })
@@ -4722,13 +4800,8 @@ function renderMyBookings(){
           +'<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;">Booking</div>'
           +'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+statusBadge+payBadge+'</div>'
           +'</div>'
-          +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:14px;line-height:1.25;">'+sanitize(b.eventTitle||'—')+'</div>'
-          +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:14px;margin-bottom:12px;">'
-          +'<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;margin-bottom:8px;">Guest</div>'
-          +'<div style="font-size:15px;font-weight:700;color:#000;margin-bottom:6px;">'+sanitize(b.name||'—')+'</div>'
-          +(b.phone?'<div style="font-size:13px;color:#3D3D3D;font-weight:600;margin-bottom:'+(b.email?'4px':'0')+';">📱 '+sanitize(b.phone)+'</div>':'')
-          +(b.email?'<div style="font-size:13px;color:#3D3D3D;font-weight:600;word-break:break-all;">✉️ '+sanitize(b.email)+'</div>':'')
-          +'</div>'
+          +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:6px;line-height:1.25;">'+sanitize(b.eventTitle||'—')+'</div>'
+          +'<div style="font-size:13px;font-weight:700;color:#000;margin-bottom:14px;">👤 '+sanitize(b.name||'—')+'</div>'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
           +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Date</div><div style="font-size:13px;font-weight:700;color:#000;">'+sanitize(b.date||'—')+'</div></div>'
           +'<div style="background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06);border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Time</div><div style="font-size:13px;font-weight:700;color:#000;">'+sanitize(b.time||'—')+'</div></div>'
@@ -4777,15 +4850,35 @@ function renderMyBookings(){
           +'</div>';
         return;
       }
+      // 🆕 2026-06-27 v3.393 — archive: render the most-recent cards immediately and
+      // collapse the rest behind a "Show older" button. Each card lazily draws a QR
+      // AND a full wallet sub-view, so rendering hundreds at once (a frequent guest,
+      // or a shared/test number) freezes the page. Capping the initial paint is the
+      // real safety fix; older bookings are one tap away, never lost.
+      var _RECENT_CAP=7;
       var countDiv2=document.createElement('div');
       countDiv2.style.cssText='font-size:12px;font-weight:800;color:#000;letter-spacing:1px;margin-bottom:14px;';
-      countDiv2.textContent='Showing '+mine.length+' recent booking'+(mine.length>1?'s':'')
-        +(_hiddenCount2>0?' · '+_hiddenCount2+' older hidden':'');
+      var _shownNow=Math.min(mine.length,_RECENT_CAP);
+      countDiv2.textContent='Showing '+_shownNow+' of '+mine.length+' booking'+(mine.length>1?'s':'')+' (newest first)'
+        +(_hiddenCount2>0?' · '+_hiddenCount2+' over 60 days hidden':'');
       resultsDiv.appendChild(countDiv2);
-      mine.forEach(_renderCard);
+      mine.slice(0,_RECENT_CAP).forEach(_renderCard);
+      if(mine.length>_RECENT_CAP){
+        var _older=mine.slice(_RECENT_CAP);
+        var moreBtn=document.createElement('button');
+        moreBtn.style.cssText='width:100%;margin:4px 0 8px;padding:13px;border-radius:8px;background:#fff;border:2px solid #000;color:#000;font-size:13px;font-weight:800;cursor:pointer;font-family:var(--ff);box-shadow:3px 3px 0 #000;';
+        moreBtn.textContent='Show '+_older.length+' older booking'+(_older.length>1?'s':'')+' ↓';
+        moreBtn.onclick=function(){
+          moreBtn.remove();
+          countDiv2.textContent='Showing all '+mine.length+' booking'+(mine.length>1?'s':'')+' (newest first)'
+            +(_hiddenCount2>0?' · '+_hiddenCount2+' over 60 days hidden':'');
+          _older.forEach(_renderCard);
+        };
+        resultsDiv.appendChild(moreBtn);
+      }
     });
   };
-  inputWrap.appendChild(inputLabel);inputWrap.appendChild(phoneInp);inputWrap.appendChild(lookupBtn);inputWrap.appendChild(resultsDiv);
+  inputWrap.appendChild(inputLabel);inputWrap.appendChild(inputRow);inputWrap.appendChild(lookupBtn);inputWrap.appendChild(resultsDiv);
   body2.appendChild(inputWrap);
   wrap.appendChild(body2);
   // 🆕 2026-06-12 v3.272 — if a number was looked up moments ago, re-run the lookup
