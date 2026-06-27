@@ -46,7 +46,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.397";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-27)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.399";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-27)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -6536,6 +6536,14 @@ function renderTopUp(bookingId,diffAmt){
 // mounted behind this overlay (form values live in S.bdata, never re-rendered), so
 // the ← Back button here returns the guest to EXACTLY the form they were filling.
 function _openExistingTicketOverlay(ref){
+  // 🆕 2026-06-27 (Khushi LIVE-BUG round 2) — ← Back now DETERMINISTICALLY restores the
+  // exact form the guest was filling. The first fix only did ov.remove() and relied on the
+  // booking modal still being mounted behind the overlay — but the modal is state-driven
+  // (S.modal+S.step) and rendering the wallet page can re-run render()/clear S.modal, so
+  // removing the overlay revealed the EVENTS page instead of the form. We snapshot the
+  // modal state here (bdata is the SAME object ref → every typed value is preserved) and
+  // re-apply it via set() on Back. Fail-open: if set is unavailable we still remove the overlay.
+  var _bk={modal:S.modal,step:S.step,bdata:S.bdata,view:S.view};
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:#F4F4F0;z-index:10001;overflow-y:auto;-webkit-overflow-scrolling:touch;';
   var bar=document.createElement('div');
@@ -6543,7 +6551,11 @@ function _openExistingTicketOverlay(ref){
   var back=document.createElement('button');
   back.textContent='← Back to booking';
   back.style.cssText='padding:10px 16px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-weight:900;font-size:13px;cursor:pointer;font-family:var(--ff);';
-  back.onclick=function(){ov.remove();};
+  back.onclick=function(){
+    ov.remove();
+    try{ set({modal:_bk.modal,step:_bk.step,bdata:_bk.bdata,view:_bk.view}); }
+    catch(e){ try{ S.modal=_bk.modal;S.step=_bk.step;S.bdata=_bk.bdata;S.view=_bk.view;render(); }catch(_){} }
+  };
   bar.appendChild(back);
   ov.appendChild(bar);
   var body=document.createElement('div');
@@ -6570,6 +6582,13 @@ function _openExistingTicketOverlay(ref){
       var content=(typeof window._renderWalletPage==='function')?window._renderWalletPage(ref):null;
       if(!content)throw new Error('wallet renderer unavailable');
       done=true;clearTimeout(_wd);body.innerHTML='';body.appendChild(content);
+      // Khushi 2026-06-27: this overlay already has the pink "← Back to booking"
+      // bar (which restores the half-filled form). The wallet page renders its OWN
+      // circular ← exit arrow next to the "House of Dopamine" header — redundant
+      // here AND it doesn't return to the form. Hide it ONLY inside this overlay
+      // (scoped to body) so the standalone wallet page (?wallet= deep link / My
+      // Bookings) keeps its exit arrow untouched. wallet.js is NOT modified.
+      try{ var _xb=body.querySelector('#wv-hd2-exit-btn'); if(_xb) _xb.style.display='none'; }catch(_){}
     }catch(e){ clearTimeout(_wd);_fallback(); }
   });
 }
