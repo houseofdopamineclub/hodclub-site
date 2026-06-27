@@ -46,7 +46,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.390";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-24)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.391";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-27)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -208,6 +208,16 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
 .ev-banner{width:100%;aspect-ratio:1/1;position:relative;overflow:hidden;background:#F4F4F0;}
 .ev-banner img{width:100%;height:100%;object-fit:cover;transition:transform .55s cubic-bezier(.23,1,.32,1);}
 .ev-card:hover .ev-banner img{transform:scale(1.05);}
+/* 🆕 multi-poster carousel (scroll-snap + dots) */
+.poster-carousel{position:absolute;inset:0;width:100%;height:100%;}
+.pc-track{display:flex;width:100%;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.pc-track::-webkit-scrollbar{display:none;}
+.pc-slide{flex:0 0 100%;width:100%;height:100%;scroll-snap-align:center;}
+.pc-slide img{width:100%;height:100%;object-fit:cover;display:block;transition:none;}
+.ev-card:hover .pc-slide img{transform:none;}
+.pc-dots{position:absolute;top:11px;left:0;right:0;display:flex;justify-content:center;gap:5px;z-index:4;}
+.pc-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.4);cursor:pointer;transition:transform .2s,background .2s;}
+.pc-dot.on{background:#fff;transform:scale(1.3);}
 .banner-vis{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;}
 .bv-rings{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
 .bv-ring{position:absolute;border-radius:50%;border:1px solid;animation:rotate3d linear infinite;}
@@ -2684,11 +2694,7 @@ function buildEvCard(ev,idx){
 
   // Banner 1:1
   var banner=el('div','ev-banner');
-  if(ev.image&&(ev.image.startsWith('data:')||ev.image.startsWith('http'))){
-    var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.src=ev.image;img.alt=ev.title;banner.appendChild(img);
-  } else {
-    banner.appendChild(buildBannerVis(ev));
-  }
+  banner.appendChild(buildPosterCarousel(ev));
   var grad=el('div','banner-grad');
   grad.innerHTML='<div style="font-size:8px;color:rgba(0,0,0,.5);letter-spacing:1.4px;text-transform:uppercase">'+sanitize(ev.genre||'Live DJ Night')+'</div>';
   banner.appendChild(grad);
@@ -2826,6 +2832,37 @@ function buildEvCard(ev,idx){
   card.addEventListener('mouseleave',function(){card.style.transform='';});
 
   return card;
+}
+
+// 🆕 2026-06-27 — multi-poster carousel. Prefers ev.images[] (uploaded via POS),
+// falls back to the legacy single ev.image, then to the generated visual.
+// All posters live in Firebase Storage (CDN, lazy-loaded) so there is ZERO extra
+// Firestore read cost. Returns a DOM node ready to drop into a 1:1 banner.
+function buildPosterCarousel(ev){
+  function ok(s){return s&&(String(s).indexOf('data:')===0||String(s).indexOf('http')===0);}
+  var imgs=[];
+  if(ev&&Array.isArray(ev.images)) imgs=ev.images.filter(ok);
+  if(!imgs.length&&ev&&ok(ev.image)) imgs=[ev.image];
+  if(!imgs.length) return buildBannerVis(ev);
+  if(imgs.length===1){
+    var single=document.createElement('img');single.loading='lazy';single.decoding='async';single.src=imgs[0];single.alt=ev.title||'';return single;
+  }
+  var wrap=el('div','poster-carousel');
+  var track=el('div','pc-track');
+  imgs.forEach(function(src,i){
+    var slide=el('div','pc-slide');
+    var im=document.createElement('img');im.loading=(i===0?'eager':'lazy');im.decoding='async';im.src=src;im.alt=(ev.title||'')+' '+(i+1);
+    slide.appendChild(im);track.appendChild(slide);
+  });
+  wrap.appendChild(track);
+  var dots=el('div','pc-dots');
+  imgs.forEach(function(_,i){var d=el('span','pc-dot'+(i===0?' on':''));d.addEventListener('click',function(e){e.stopPropagation();try{track.scrollTo({left:i*track.clientWidth,behavior:'smooth'});}catch(_){track.scrollLeft=i*track.clientWidth;}});dots.appendChild(d);});
+  wrap.appendChild(dots);
+  track.addEventListener('scroll',function(){
+    var idx=Math.round(track.scrollLeft/Math.max(track.clientWidth,1));
+    var kids=dots.children;for(var j=0;j<kids.length;j++){kids[j].className='pc-dot'+(j===idx?' on':'');}
+  },{passive:true});
+  return wrap;
 }
 
 function buildBannerVis(ev){
@@ -2989,8 +3026,7 @@ function renderModal(){
   if(S.step===3){modal.appendChild(renderSuccess(ev));bg.appendChild(modal);return bg;}
 
   var banner=el('div','m-banner');
-  if(ev.image&&(ev.image.startsWith('data:')||ev.image.startsWith('http'))){var img=document.createElement('img');img.loading='lazy';img.decoding='async';img.src=ev.image;img.alt=ev.title;banner.appendChild(img);}
-  else{var vis=buildBannerVis(ev);vis.style.height='100%';banner.appendChild(vis);}
+  var mpc=buildPosterCarousel(ev);try{mpc.style.height='100%';}catch(e){}banner.appendChild(mpc);
   modal.appendChild(banner);
 
   var body=el('div','m-body');
