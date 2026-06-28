@@ -46,7 +46,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.399";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-27)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.400";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-28)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -4432,7 +4432,14 @@ function renderSuccess(ev){
   // ── Generate QR after DOM insertion
   setTimeout(function(){
     var qrEl=document.getElementById('success-qr');
-    if(qrEl&&typeof QRCode!=='undefined'){
+    // 🆕 2026-06-28 (Khushi) — guard against a DOUBLED QR. The home view can
+    // re-render this success card more than once (manual get() + live listener
+    // race), and this block had no guard, so a second pass stacked a 2nd QR on
+    // top of the first ("looks like 2 scanners merged"). data-qr + innerHTML
+    // reset make the render idempotent (mirrors generateLocalQR's own guard).
+    if(qrEl&&typeof QRCode!=='undefined'&&!qrEl.hasAttribute('data-qr')){
+      qrEl.setAttribute('data-qr','1');
+      qrEl.innerHTML='';
       new QRCode(qrEl,{text:'https://hodclub.in?verify='+ref,width:150,height:150,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});
     }
   },200);
@@ -6010,8 +6017,13 @@ function renderTableFloorPlan(){
       var bookDate=dateI.value;
       function _f(msg,fix){ if(!soft){errD.style.color='#FF5733';errD.textContent=msg;errD.style.display='block';if(fix){try{fix();}catch(_x){}}} return null; }
       if(!name) return _f('Please enter your name.');
+      // 🆕 2026-06-28 (Khushi) — reject gibberish/invalid details with a CLEAR
+      // message (before, only an EMPTY name was blocked and email was never
+      // checked, so a wrong name / malformed email still booked a ticket).
+      if(name.length<2 || !/[A-Za-z]/.test(name)) return _f('Please enter a valid name.');
       if(cc==='+91' && phoneDigits.length!==10) return _f('Please enter a valid 10-digit Indian phone number.');
       if(cc!=='+91' && phoneDigits.length<7) return _f('Please enter a valid phone number for the selected country.');
+      if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return _f('Please enter a valid email address, or leave it blank.');
       if(!bookDate) return _f('Please select a date.');
       if(bookDate<_todayLocal) return _f('Please pick today or a future date.',function(){dateI.value=_todayLocal;_rebuildArrival(_todayLocal);});
       if(!arrival) return _f('Please select your arrival time.');
