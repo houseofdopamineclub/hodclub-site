@@ -977,31 +977,7 @@ function renderWalletPage(bookingRef){
 
       inner.appendChild(submitCard);
 
-      // ── Request a Song — eye-catching card after Place Order
-      // ONLY show for nightlife covers (ground floor) — NOT for dining/rooftop tables.
-      // Dining and rooftop have curated ambient music — letting customers hijack
-      // it would ruin the vibe. Aggregator bookings are all dining/rooftop too.
-      var _bookRef = cv.ref || bookingRef || '';
-      var _isAgg = cv.isAggregator || (cv.source && cv.source !== 'inhouse') || _bookRef.startsWith('AGG-');
-      var _isDiningOrRooftop = cv.isTableBooking && (cv.floor === 'dining' || cv.floor === 'rooftop' || _isAgg);
-      if(!_isDiningOrRooftop){
-        var songCard=document.createElement('div');
-        songCard.style.cssText='background:rgba(255,51,102,.15);border:2px solid rgba(255,51,102,.35);border-radius:8px;padding:20px;margin:20px 0;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(255,51,102,.08);';
-        songCard.innerHTML='<div style="text-align:center;margin-bottom:12px;"><span style="font-size:32px;">🎵</span></div>'
-          +'<div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:-.3px;">Request a Song</div>'
-          +'<div style="text-align:center;font-size:13px;color:rgba(0,0,0,.6);margin-bottom:16px;line-height:1.4;">Search any song in the world — we\'ll play it for you tonight!</div>'
-          +'<div style="text-align:center;"><div style="display:inline-flex;gap:8px;align-items:center;padding:10px 24px;background:#FF5733;border-radius:8px;font-size:14px;font-weight:700;color:#000;">Pick Your Song →</div></div>'
-          +'<div style="display:flex;justify-content:center;gap:16px;margin-top:14px;">'
-          +'<div style="font-size:10px;color:rgba(0,0,0,.4);text-transform:uppercase;letter-spacing:1px;">Free</div>'
-          +'<div style="font-size:10px;color:rgba(242,199,68,.6);text-transform:uppercase;letter-spacing:1px;">Priority ₹99</div>'
-          +'<div style="font-size:10px;color:rgba(255,51,102,.6);text-transform:uppercase;letter-spacing:1px;">VIP ₹299</div>'
-          +'</div>';
-        songCard.onclick=function(){
-          var reqUrl='request.html?ref='+encodeURIComponent(bookingRef)+'&name='+encodeURIComponent(name);
-          window.open(reqUrl,'_blank');
-        };
-        inner.appendChild(songCard);
-      }
+      // ── Request a Song card REMOVED (Khushi 2026-06-29).
 
       // ── Tab state
       var tabRounds=(cv.tabRounds&&Array.isArray(cv.tabRounds))?cv.tabRounds:[];
@@ -3377,7 +3353,7 @@ function renderWalletPage(bookingRef){
             tableId:td.tableId,floor:td.floor,floorLabel:td.floorLabel||'',
             date:td.date,arrivalTime:td.arrivalTime,partySize:td.partySize,
             actualArrivalTime:td.actualArrivalTime||null,
-            isTableBooking:true,tabRounds:td.tabRounds||[],tabTotal:td.tabTotal||0,expiresAt:null,
+            isTableBooking:true,tabRounds:td.tabRounds||[],tabTotal:td.tabTotal||0,expiresAt:td.expiresAt||null,
             // 🆕 2026-06-07 — bartender's bill-level discount/SC mirrored onto the
             // tableReservations doc (by setCoverBillDiscount) so the table guest's
             // VIEW BILL + YOUR TAB grand match the bar.
@@ -3999,5 +3975,5 @@ function renderTopUpContent(card, cv, diffAmt){
 window._renderWalletPage = renderWalletPage;
 window._renderTopUp = renderTopUp;
 window._renderCustomerWallet = renderCustomerWallet;
-console.log("[HOD] wallet.js loaded (v3.273 — all rounds show Ordered, no Preparing)");
+console.log("[HOD] wallet.js loaded (v3.401 — song request removed, table expiry fix)");
 })();
