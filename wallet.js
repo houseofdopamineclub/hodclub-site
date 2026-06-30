@@ -4010,5 +4010,5 @@ function renderTopUpContent(card, cv, diffAmt){
 window._renderWalletPage = renderWalletPage;
 window._renderTopUp = renderTopUp;
 window._renderCustomerWallet = renderCustomerWallet;
-console.log("[HOD] wallet.js loaded (v3.412 — cigarettes no SC/GST + bar self-order "Yet to redeem" badge)");
+console.log("[HOD] wallet.js loaded (v3.413 — cigarettes no SC/GST + bar self-order 'Yet to redeem' badge)");
 })();
