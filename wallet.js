@@ -169,6 +169,13 @@ function renderWalletPage(bookingRef){
     // redemption and gets "🍸 Redeemed at bar". Previously untagged rounds (e.g.
     // Round 1) showed NO badge while the bar rounds R2/R3 did, which looked broken.
     if(s==='customer_self_order') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍽️ At your table</span>';
+    // 🆕 2026-06-30 (Khushi) — a bar self-order is "🍸 Redeemed at bar" ONLY once
+    // the BARTENDER has actually redeemed it (the recharge/add-order flips the
+    // round from 'preparing' → 'activated' and debits the wallet). While the round
+    // is still 'preparing' the guest has only SELECTED items — the bartender hasn't
+    // redeemed yet — so show an amber "⏳ Yet to redeem" badge instead. Only an
+    // EXACT 'preparing' status is pre-redeem; undefined/legacy → treated as redeemed.
+    if(r&&r.status==='preparing') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">⏳ Yet to redeem</span>';
     return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
   }
 
@@ -2079,8 +2086,28 @@ function renderWalletPage(bookingRef){
             }
             return;
           }
-          try{checkoutBtn.disabled=true;checkoutBtn.style.background='#15803D';checkoutBtn.style.cursor='default';checkoutBtn.style.boxShadow='2px 2px 0 #000';checkoutBtn.innerHTML='<span style="font-size:18px;">\u2705</span><span>Captain notified \u2014 on their way</span>';}catch(_){}
-          try{showToast('A captain will be with you shortly to settle your bill \uD83C\uDF89','success',4500);}catch(_){}
+          // 🆕 PREPAID WALLET — show a CLEAR full-screen confirmation instead of
+          // the old single-line green toast (Khushi: it was invisible). Mirror
+          // the non-prepaid branch + the wallet-funded settle branch: stop the
+          // wallet listener, clear the sheet, show a big "CAPTAIN NOTIFIED — ON
+          // THEIR WAY" card + the captain-on-way / feedback flow.
+          // FAIL-OPEN: if the renderer throws, fall back to button-state + toast
+          // so the guest is never stranded.
+          try{ if(_walletUnsub){_walletUnsub();_walletUnsub=null;} }catch(_){}
+          try{
+            inner.innerHTML='';
+            var _pNote=document.createElement('div');
+            _pNote.style.cssText='width:100%;padding:18px 16px;border-radius:8px;background:rgba(34,197,94,.14);border:1.5px solid rgba(34,197,94,.45);color:#000;text-align:center;font-family:var(--ff);margin:18px 0 0;line-height:1.55;';
+            _pNote.innerHTML='<div style="font-size:30px;margin-bottom:8px;">\uD83C\uDFAB</div>'
+              +'<div style="font-size:16px;font-weight:900;color:#000;letter-spacing:.3px;margin-bottom:8px;">CAPTAIN NOTIFIED \u2014 ON THEIR WAY</div>'
+              +'<div style="font-size:13px;color:rgba(0,0,0,.78);font-weight:600;">A captain will be with you shortly to settle your bill of \u20B9'+_billTt+' from your wallet.</div>';
+            inner.appendChild(_pNote);
+            try{ window.scrollTo(0,0); }catch(_s){}
+            showCaptainFeedback(inner, _billTt, false);
+          }catch(_e){
+            try{checkoutBtn.disabled=true;checkoutBtn.style.background='#15803D';checkoutBtn.style.cursor='default';checkoutBtn.style.boxShadow='2px 2px 0 #000';checkoutBtn.innerHTML='<span style="font-size:18px;">\u2705</span><span>Captain notified \u2014 on their way</span>';}catch(_2){}
+            try{showToast('A captain will be with you shortly to settle your bill \uD83C\uDF89','success',4500);}catch(_2){}
+          }
         };
         var _alreadySettled=function(){
           try{checkoutBtn.disabled=true;checkoutBtn.style.opacity='.6';}catch(_){}
@@ -2229,7 +2256,15 @@ function renderWalletPage(bookingRef){
           // progression — he has a "mark served" button to advance those.
           var _isBarRound=String((r&&r.source)||'').toLowerCase().indexOf('bar')!==-1;
           var _isPureCover=!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
-          if((_isBarRound||_isPureCover) && r.status!=='paid'){ sc=statusC['preparing']; sl=statusL['preparing']; }
+          // 🆕 2026-06-30 (Khushi) — a bar/cover round the guest just placed is
+          // still 'preparing' (the bartender hasn't redeemed it yet). Show
+          // "🟡 Items selected" until the bartender's recharge flips it to
+          // 'activated', then it reads "🟡 Ordered" (redeemed at bar). '💳 Paid'
+          // stays terminal. TABLE rounds (not bar, not pure cover) are unaffected.
+          if((_isBarRound||_isPureCover) && r.status!=='paid'){
+            sc=statusC['preparing'];
+            sl=(r.status==='preparing')?'🟡 Items selected':statusL['preparing'];
+          }
           var _notBilled=!_isRoundBillable(r);
           var rBd=null;
           try{rBd=hodComputeBreakdown(r.items||[]);}catch(_e){rBd=null;}
@@ -3975,5 +4010,5 @@ function renderTopUpContent(card, cv, diffAmt){
 window._renderWalletPage = renderWalletPage;
 window._renderTopUp = renderTopUp;
 window._renderCustomerWallet = renderCustomerWallet;
-console.log("[HOD] wallet.js loaded (v3.401 — song request removed, table expiry fix)");
+console.log("[HOD] wallet.js loaded (v3.412 — cigarettes no SC/GST + bar self-order "Yet to redeem" badge)");
 })();

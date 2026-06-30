@@ -46,7 +46,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.401";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-29)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.412";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-06-30)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -1156,6 +1156,12 @@ function _hodLoadLiveCats(){
   }catch(e){}
 }
 var HOD_GST_RATE=0.05, HOD_SC_RATE=0.10;
+// 🆕 2026-06-30 (Khushi) — CIGARETTES / tobacco get NEITHER service charge NOR
+// GST. They live on the "smoke" tab (t:'drink', alc:false), so we match by
+// name/category (mirrors POS isHodItemTobacco) — applies retroactively to
+// already-saved rounds. Fail-safe: a non-matching item falls through to the
+// taxed buckets (never under-charges by accident).
+var HOD_TOBACCO_RE=/\bcig|cigar|cigarette|tobacco|\bpaan\b|hookah|hooka|sheesha|shisha|\bvape\b|smoke/i;
 function hodComputeBreakdown(items, discPct, scOn){
   // 🆕 2026-06-07 — DISCOUNT + SC-toggle aware (mirrors the POS
   // computeHodBreakdownAdjusted EXACTLY). With discPct=0 & scOn!==false this is
@@ -1165,23 +1171,31 @@ function hodComputeBreakdown(items, discPct, scOn){
   // on the cover (billDiscountPct / billScOn) and passed in ONLY at the
   // final-bill views, so the customer's "VIEW BILL" total matches the bar's bill
   // to the rupee (kills the ₹2,000 bar vs ₹2,105 phone mismatch).
-  var foodSub=0, alcSub=0, nonAlcSub=0;
+  var foodSub=0, alcSub=0, nonAlcSub=0, cigSub=0;
   (items||[]).forEach(function(it){
     var line=(it.p||0)*(it.qty||0);
     var t=it.t||'drink';
     if(t==='food')foodSub+=line;
+    else if(HOD_TOBACCO_RE.test(String(it.n||'')+' '+String(it.cat||'')))cigSub+=line; // cigarettes/tobacco → NO SC, NO GST
     else if(it.alc===false)nonAlcSub+=line;
     else alcSub+=line;
   });
-  var subtotal=foodSub+alcSub+nonAlcSub;
+  var subtotal=foodSub+alcSub+nonAlcSub+cigSub;
   var pct=Math.min(100, Math.max(0, discPct||0));
   var factor=(100-pct)/100;
-  var dFood=foodSub*factor, dAlc=alcSub*factor, dNonAlc=nonAlcSub*factor;
-  var discountedSub=dFood+dAlc+dNonAlc;
+  var dFood=foodSub*factor, dAlc=alcSub*factor, dNonAlc=nonAlcSub*factor, dCig=cigSub*factor;
+  var discountedSub=dFood+dAlc+dNonAlc+dCig;
   var discount=Math.round((subtotal-discountedSub)*100)/100;
   var scApplied=(scOn===false)?false:true;
-  var sc=scApplied?Math.round(discountedSub*HOD_SC_RATE*100)/100:0;
-  var gstBase=dFood+dNonAlc+sc; // alcohol is GST-exempt
+  // 🆕 2026-06-30 (Khushi) — cigarettes/tobacco carry NO service charge, so the
+  // SC base excludes them (food + alcohol + non-alc only).
+  var scBase=dFood+dAlc+dNonAlc;
+  var sc=scApplied?Math.round(scBase*HOD_SC_RATE*100)/100:0;
+  // only the ALCOHOL ITEM VALUE is GST-exempt; the SERVICE CHARGE is a taxable
+  // service → 5% GST on the FULL service charge (beer ₹450 → SC ₹45 → GST ₹2.25),
+  // never on the alcohol item value. Cigarettes carry no SC and no GST.
+  var taxableSub=dFood+dNonAlc;
+  var gstBase=taxableSub+sc; // alcohol value exempt; full service charge taxed
   var gst=Math.round(gstBase*HOD_GST_RATE*100)/100;
   var cgst=Math.round(gst*50)/100;
   var sgst=Math.round((gst-cgst)*100)/100;
@@ -1189,7 +1203,7 @@ function hodComputeBreakdown(items, discPct, scOn){
   var grandTotal=Math.round(raw);
   var roundOff=Math.round((grandTotal-raw)*100)/100;
   return {foodSubtotal:foodSub, alcSubtotal:alcSub, nonAlcSubtotal:nonAlcSub,
-          drinkSubtotal:alcSub+nonAlcSub, subtotal:subtotal,
+          cigSubtotal:cigSub, drinkSubtotal:alcSub+nonAlcSub+cigSub, subtotal:subtotal,
           serviceCharge:sc, gst:gst, cgst:cgst, sgst:sgst,
           roundOff:roundOff, grandTotal:grandTotal,
           discount:discount, discountPct:pct};
@@ -6501,7 +6515,7 @@ function _loadWalletJs(cb){
   if(window._HOD_WALLET_LOADING)return;
   window._HOD_WALLET_LOADING=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.401';
+  s.src='wallet.js?v=v3.412';
   s.onload=function(){
     window._HOD_WALLET_LOADED=true;
     window._HOD_WALLET_LOADING=false;
