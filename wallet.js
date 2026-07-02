@@ -1068,16 +1068,69 @@ function renderWalletPage(bookingRef){
         // show the screen so the guest knows to walk to the bar.
         function _parkOrderForBartender(srcTag){
           var _items=Object.values(cart);
-          try {
-            var _bRoundItems=_items.map(function(it){var _o={n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};if(it.v===true||it.v===false)_o.v=it.v;return _o;});
-            var _bNewRound={roundNum:getRoundNum(),items:_bRoundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString(),source:srcTag};
-            var _bRNote=_getRoundNote();if(_bRNote)_bNewRound.note=_bRNote;
-            var _bCoverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-            var _bUpdatedRounds=tabRounds.map(function(r){
-              if(r.status==='activated')return Object.assign({},r,{status:'served',servedAt:new Date().toISOString()});
-              return r;
-            }).concat([_bNewRound]);
-            if (firestore) {
+          // 🆕 2026-07-02 (Khushi LIVE BUG — bar self-order invisible on bartender scan).
+          // ROOT CAUSE (proven by live REST probes): published Firestore rules now BLOCK
+          // unauth covers updates that touch tabRounds/tabTotal (the server-side money
+          // lock) — so the old direct park write silently 403'd while the fail-open
+          // catch still showed the success screen. Fix: SERVER-FIRST park via the
+          // selfOrderPlace CF (verified live: writes a serverPriced 'preparing' round,
+          // does NOT touch coverBalance — the v3.329 "writes activated" concern is
+          // stale), then a small flags-only client write (hasIncomingCustomerOrder/
+          // atBar/incomingOrderNote — probes confirmed rules ALLOW these), falling back
+          // to the legacy direct write only if the CF fails. The success screen now
+          // shows a TRUTHFUL sync status instead of pretending: sending → sent /
+          // couldn't-send-tell-the-bartender. Never blocks the guest either way.
+          var _bRNote=_getRoundNote();
+          var _bCoverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
+          var _parkState='sending'; var _bsStatusEl=null;
+          function _renderParkStatus(){
+            if(!_bsStatusEl)return;
+            if(_parkState==='sent'){
+              _bsStatusEl.style.cssText='background:rgba(34,197,94,.1);border:1.5px solid rgba(34,197,94,.5);border-radius:10px;padding:9px 12px;margin-bottom:14px;text-align:center;font-size:12px;font-weight:800;color:#15803D;';
+              _bsStatusEl.textContent='✅ Order sent to the bartender\u2019s screen';
+            } else if(_parkState==='fail'){
+              _bsStatusEl.style.cssText='background:rgba(245,158,11,.12);border:1.5px solid rgba(245,158,11,.6);border-radius:10px;padding:9px 12px;margin-bottom:14px;text-align:center;font-size:12px;font-weight:800;color:#92400E;';
+              _bsStatusEl.textContent='⚠️ Couldn\u2019t send automatically — please TELL the bartender your order at the counter';
+            } else {
+              _bsStatusEl.style.cssText='background:rgba(0,0,0,.05);border:1.5px solid rgba(0,0,0,.15);border-radius:10px;padding:9px 12px;margin-bottom:14px;text-align:center;font-size:12px;font-weight:800;color:#3D3D3D;';
+              _bsStatusEl.textContent='⏳ Sending your order to the bar…';
+            }
+          }
+          function _parkLocalCommit(newRounds){
+            tabRounds=newRounds;
+            cart={};
+            try { _clearRoundNote(); } catch(_){}
+            try { updateCartBar(); } catch(_){}
+            try { renderRoundsHistory(); } catch(_){}
+            _parkState='sent'; _renderParkStatus();
+          }
+          function _parkFlagsWrite(){
+            // Small non-money write — rules allow this unauth (probe-verified).
+            // Best-effort: the CF round alone already surfaces on bartender scan.
+            if(!firestore)return;
+            var _flags={
+              hasIncomingCustomerOrder:true,
+              incomingOrderAt:new Date().toISOString(),
+              incomingOrderSource:srcTag,
+              atBar:true,
+              atBarAt:new Date().toISOString()
+            };
+            if(_bRNote)_flags.incomingOrderNote=_bRNote;
+            firestore.collection('covers').doc(_bCoverDocId).set(_flags,{merge:true})
+              .catch(function(err){ try{ console.warn('[park-bar] flags write failed (non-fatal)', err&&err.message); }catch(_){} });
+          }
+          function _parkLegacyWrite(){
+            // Old direct write — only reachable if the CF errored. Works iff rules
+            // permit unauth tabRounds writes (they currently don't — hence the CF).
+            try {
+              if(!firestore){ _parkState='fail'; _renderParkStatus(); return; }
+              var _bRoundItems=_items.map(function(it){var _o={n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};if(it.v===true||it.v===false)_o.v=it.v;return _o;});
+              var _bNewRound={roundNum:getRoundNum(),items:_bRoundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString(),source:srcTag};
+              if(_bRNote)_bNewRound.note=_bRNote;
+              var _bUpdatedRounds=tabRounds.map(function(r){
+                if(r.status==='activated')return Object.assign({},r,{status:'served',servedAt:new Date().toISOString()});
+                return r;
+              }).concat([_bNewRound]);
               firestore.collection('covers').doc(_bCoverDocId).set({
                 tabRounds:_bUpdatedRounds,tabTotal:getTabTotal()+ct,
                 ref:cv.ref||cv.bookingId||'',name:cv.name||'',phone:cv.phone||'',
@@ -1088,16 +1141,45 @@ function renderWalletPage(bookingRef){
                 atBar:true,
                 atBarAt:new Date().toISOString()
               },{merge:true}).then(function(){
-                tabRounds=_bUpdatedRounds;
-                cart={};
-                try { _clearRoundNote(); } catch(_){}
-                try { updateCartBar(); } catch(_){}
-                try { renderRoundsHistory(); } catch(_){}
+                if(_bRNote){} // note already on the round in legacy path
+                _parkLocalCommit(_bUpdatedRounds);
               }).catch(function(err){
-                try { console.warn('[park-bar] covers write failed (popup-only fallback)', err && err.message); } catch(_){}
+                try { console.warn('[park-bar] covers write failed', err && err.message); } catch(_){}
+                _parkState='fail'; _renderParkStatus();
               });
+            } catch(_eBar) { try { console.warn('[park-bar] write threw',_eBar); } catch(_){} _parkState='fail'; _renderParkStatus(); }
+          }
+          try {
+            if(window.SELF_ORDER_PLACE_URL){
+              var _parkRoundKey=(cv.ref||cv.bookingId||'park')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+              var _parkItems=_items.map(function(it){return {n:it.n,qty:it.qty,cat:it.cat};});
+              fetch(window.SELF_ORDER_PLACE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+                coverDocId:_bCoverDocId, bookingRef:cv.ref||cv.bookingId||'', name:cv.name||'', phone:cv.phone||'',
+                isTableBooking:!!cv.isTableBooking, tableId:cv.tableId||'', floorLabel:cv.floorLabel||'',
+                isTableChoice:false, linkedTableRef:'',
+                items:_parkItems, roundKey:_parkRoundKey, note:_bRNote||''
+              })}).then(function(r){return r.json();}).then(function(resp){
+                if(!resp||!resp.ok||!resp.tabRounds) throw new Error('cf_park');
+                // Adopt the server's authoritative rounds; stamp note+source on our
+                // round LOCALLY for display (deployed CF drops both — the note also
+                // rides cover.incomingOrderNote for the bartender via the flags write).
+                var _srvRounds=resp.tabRounds.slice();
+                for(var i=_srvRounds.length-1;i>=0;i--){
+                  if(_srvRounds[i]&&_srvRounds[i].roundKey===_parkRoundKey){
+                    _srvRounds[i]=Object.assign({},_srvRounds[i],{source:srcTag},_bRNote?{note:_bRNote}:{});
+                    break;
+                  }
+                }
+                _parkFlagsWrite();
+                _parkLocalCommit(_srvRounds);
+              }).catch(function(errCf){
+                try { console.warn('[park-bar] CF park failed → legacy write', errCf&&errCf.message); } catch(_){}
+                _parkLegacyWrite();
+              });
+            } else {
+              _parkLegacyWrite();
             }
-          } catch(_eBar) { try { console.warn('[park-bar] write threw',_eBar); } catch(_){} }
+          } catch(_ePark) { try { console.warn('[park-bar] park threw',_ePark); } catch(_){} _parkLegacyWrite(); }
           // "show this to the bartender" screen
           var _bsOv=document.createElement('div');
           _bsOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10001;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px 60px;backdrop-filter:blur(10px);animation:fadeIn .25s ease;overflow-y:auto;';
@@ -1137,7 +1219,9 @@ function renderWalletPage(bookingRef){
             +'<div style="font-size:10px;font-weight:800;color:#000;letter-spacing:1.5px;margin-bottom:10px;">SCAN TO PULL UP WALLET</div>'
             +'<div id="bs-qr-wrap" style="width:180px;height:180px;margin:0 auto;background:#fff;display:flex;align-items:center;justify-content:center;"></div>'
             +'</div>';
-          _bsMd.innerHTML=_bsHdr+_bsQR+_bsRef+_bsItemsHtml+_bsBal+_bsHint;
+          // 🆕 2026-07-02 — truthful sync status (sending → sent / couldn't-send).
+          var _bsStatus='<div id="bs-park-status"></div>';
+          _bsMd.innerHTML=_bsHdr+_bsStatus+_bsQR+_bsRef+_bsItemsHtml+_bsBal+_bsHint;
           generateLocalQR('bs-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
           var _bsCloseX=document.createElement('button');
           _bsCloseX.setAttribute('aria-label','Close');
@@ -1162,6 +1246,10 @@ function renderWalletPage(bookingRef){
           _bsMd.appendChild(_bsBackBtn);
           _bsOv.appendChild(_bsMd);
           document.body.appendChild(_bsOv);
+          // Bind + paint the sync status now that the modal is mounted (the CF/write
+          // callbacks may already have flipped _parkState before this ran).
+          _bsStatusEl=document.getElementById('bs-park-status');
+          _renderParkStatus();
         }
 
         // 🔴 2026-05-25 (Khushi GO-LIVE) — WHERE-ARE-YOU PICKER for
