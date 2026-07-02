@@ -792,7 +792,7 @@ function renderWalletPage(bookingRef){
           addBtn.className='wv-add';
           addBtn.textContent='Add +';
           addBtn.onclick=function(){
-            cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
+            cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true),v:item.v};
             updateCartBar();updateTabFooter();
             menuContent.innerHTML='';buildMenu(menuData);
           };
@@ -808,7 +808,7 @@ function renderWalletPage(bookingRef){
           var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
           var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
           plusB.onclick=function(){
-            if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};}
+            if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true),v:item.v};}
             else{cart[key].qty++;}
             updateCartBar();updateTabFooter();
             menuContent.innerHTML='';buildMenu(menuData);
@@ -941,6 +941,26 @@ function renderWalletPage(bookingRef){
       placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
       submitCard.appendChild(placeBtn);
 
+      // 🆕 2026-06-30 (Khushi) — optional per-round NOTE box for the kitchen / bar
+      // ("extra spicy", "no ice"…). Sits just above PLACE ORDER and only shows
+      // once the cart has items. The note rides on the placed round (.note) so it
+      // prints on the KOT (print-server already renders kot.roundNote). Capped at
+      // 120 chars. Cleared after every successful place.
+      var noteWrap=document.createElement('div');
+      noteWrap.id='tab-note-wrap';
+      noteWrap.style.cssText='display:none;margin-bottom:10px;';
+      noteWrap.innerHTML='<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1px;margin-bottom:6px;">NOTE FOR KITCHEN / BAR (OPTIONAL)</div>';
+      var noteEl=document.createElement('textarea');
+      noteEl.id='tab-round-note';
+      noteEl.maxLength=120;
+      noteEl.rows=2;
+      noteEl.placeholder='e.g. extra spicy, no ice, less sugar\u2026';
+      noteEl.style.cssText='width:100%;box-sizing:border-box;padding:10px 12px;border:2px solid #000;border-radius:8px;background:#fff;color:#000;font-size:13px;font-family:var(--ff);resize:none;box-shadow:3px 3px 0 #000;';
+      noteWrap.appendChild(noteEl);
+      submitCard.insertBefore(noteWrap,placeBtn);
+      function _getRoundNote(){var el=document.getElementById('tab-round-note');return el?String(el.value||'').trim().slice(0,120):'';}
+      function _clearRoundNote(){var el=document.getElementById('tab-round-note');if(el)el.value='';}
+
       // 2026-05-13 (Khushi spec, v2) — Done Ordering: keep Digitory red but
       // refine the typography so it doesn't shout. Headline now uses Playfair
       // (matches HOD wordmark, less aggressive than condensed sans), softer
@@ -1021,6 +1041,7 @@ function renderWalletPage(bookingRef){
         if(te)te.textContent=(_placedDisplay>0||ct>0)?'₹'+(_placedDisplay+ct)+' total':'₹'+ct;
         renderCartSummary();
         if(placeBtn){placeBtn.style.opacity=ct>0?'1':'.45';}
+        var _nw=document.getElementById('tab-note-wrap');if(_nw){_nw.style.display=ct>0?'block':'none';}
         var hasTab=(_placedDisplay+ct)>0;
         if(checkoutBtn){
           checkoutBtn.style.color='#fff';
@@ -1048,8 +1069,9 @@ function renderWalletPage(bookingRef){
         function _parkOrderForBartender(srcTag){
           var _items=Object.values(cart);
           try {
-            var _bRoundItems=_items.map(function(it){return {n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};});
+            var _bRoundItems=_items.map(function(it){var _o={n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};if(it.v===true||it.v===false)_o.v=it.v;return _o;});
             var _bNewRound={roundNum:getRoundNum(),items:_bRoundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString(),source:srcTag};
+            var _bRNote=_getRoundNote();if(_bRNote)_bNewRound.note=_bRNote;
             var _bCoverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
             var _bUpdatedRounds=tabRounds.map(function(r){
               if(r.status==='activated')return Object.assign({},r,{status:'served',servedAt:new Date().toISOString()});
@@ -1068,6 +1090,7 @@ function renderWalletPage(bookingRef){
               },{merge:true}).then(function(){
                 tabRounds=_bUpdatedRounds;
                 cart={};
+                try { _clearRoundNote(); } catch(_){}
                 try { updateCartBar(); } catch(_){}
                 try { renderRoundsHistory(); } catch(_){}
               }).catch(function(err){
@@ -1706,8 +1729,9 @@ function renderWalletPage(bookingRef){
         // order off the bartender dashboard).
         var _chosenLoc=placeBtn._loc;
         var _isTableChoice=(_chosenLoc==='table');
-        var roundItems=Object.values(cart).map(function(it){return {n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};});
+        var roundItems=Object.values(cart).map(function(it){var _o={n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};if(it.v===true||it.v===false)_o.v=it.v;return _o;});
         var newRound={roundNum:getRoundNum(),items:roundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString()};
+        var _rNote=_getRoundNote();if(_rNote)newRound.note=_rNote;
         // Tag a TABLE self-order so the bartender side never surfaces it as a
         // bar pre-order (captain owns it). Mirrors the source already written on
         // the tableReservations copy below.
@@ -1740,6 +1764,24 @@ function renderWalletPage(bookingRef){
         var _placeRoundKey=(cv.ref||cv.bookingId||'place')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
         var _afterPlace=function(serverDid,serverRounds){
           tabRounds=(serverDid&&serverRounds&&serverRounds.length)?serverRounds:updatedRounds;
+          // 🆕 2026-06-30 (Khushi) — the selfOrderPlace CF re-prices the cart and
+          // writes its OWN rounds WITHOUT the kitchen note, so on the server path
+          // the note would be lost. Best-effort stamp the note onto the LAST
+          // (just-placed) round of the adopted rounds and mirror to the cover +
+          // linked table doc so the captain's KOT carries it. Display-only,
+          // fail-open; builds off serverRounds so it never reverts CF pricing.
+          if(serverDid && _rNote){
+            try{
+              var _sr=(tabRounds||[]).slice();
+              if(_sr.length){
+                _sr[_sr.length-1]=Object.assign({},_sr[_sr.length-1],{note:_rNote});
+                tabRounds=_sr;
+                var _scid=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
+                if(firestore&&_scid){firestore.collection('covers').doc(_scid).set({tabRounds:_sr},{merge:true}).catch(function(){});}
+                if(firestore&&cv.linkedTableRef){firestore.collection('tableReservations').doc(cv.linkedTableRef).update({tabRounds:_sr}).catch(function(){});}
+              }
+            }catch(_eNote){}
+          }
           // 🔴 2026-05-20 (Khushi Bug 1 fix) — AUTO-IMPORT customer's self-
           // order onto the captain's running tab.
           // Before: customer placed soup → only landed on the cover wallet.
@@ -1774,6 +1816,7 @@ function renderWalletPage(bookingRef){
           var placedItems=Object.values(cart).map(function(it){return it.qty+'× '+it.n;}).join(', ');
           var placedItemsArr=Object.values(cart).map(function(it){return {n:it.n,qty:it.qty,p:it.p};});
           cart={};
+          try { _clearRoundNote(); } catch(_){}
           updateCartBar();
           renderRoundsHistory();
           placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
@@ -2037,7 +2080,7 @@ function renderWalletPage(bookingRef){
               coverDocId:coverDocId, bookingRef:cv.ref||cv.bookingId||'', name:cv.name||'', phone:cv.phone||'',
               isTableBooking:!!cv.isTableBooking, tableId:cv.tableId||'', floorLabel:cv.floorLabel||'',
               isTableChoice:_isTableChoice, linkedTableRef:cv.linkedTableRef||'',
-              items:_placeItems, roundKey:_placeRoundKey
+              items:_placeItems, roundKey:_placeRoundKey, note:_rNote
             })}).then(function(r){return r.json();}).then(function(resp){
               if(!resp||!resp.ok) throw new Error('cf_self_order');
               _afterPlace(true, resp.tabRounds);
@@ -2845,7 +2888,7 @@ function renderWalletPage(bookingRef){
           addBtn.className='wv-add';
           addBtn.textContent='Add +';
           addBtn.onclick=(function(k,it,cat2){return function(){
-            cart[k]={n:it.n,p:_effPrice(it.n,it.p),cat:cat2,qty:1,t:it.t||'drink',alc:it.alc===false?false:(it.t==='food'?false:true)};updateCartBar();updateTabFooter();buildMenu2(catObj,itemsDiv);
+            cart[k]={n:it.n,p:_effPrice(it.n,it.p),cat:cat2,qty:1,t:it.t||'drink',alc:it.alc===false?false:(it.t==='food'?false:true),v:it.v};updateCartBar();updateTabFooter();buildMenu2(catObj,itemsDiv);
           };})(key,item,catObj.cat);
           ctrl.appendChild(addBtn);
         } else {
