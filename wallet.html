@@ -4,6 +4,10 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <meta name="theme-color" content="#0a0a0a"/>
+<!-- 🔴 2026-07-04 (Khushi LIVE-BUG) — dark-mode Androids force-darken the page
+     (Chrome/WebView Auto Dark), inverting the white QR box to BLACK → scanner
+     machines can't read inverted QRs. "only light" opts the page out. -->
+<meta name="color-scheme" content="only light"/>
 <title>HOD Wallet</title>
 
 <!-- Meta Pixel Code -->
@@ -836,7 +840,7 @@ function _loadWalletJs(cb){
   if(_walletLoading) return;
   _walletLoading=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.416';
+  s.src='wallet.js?v=v3.417';
   s.onload=function(){ _walletLoaded=true; cb&&cb(); };
   s.onerror=function(){
     _walletLoading=false;

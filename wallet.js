@@ -62,7 +62,13 @@ function renderWalletPage(bookingRef){
       +'.hod-wallet-v2 .wv-vegdot{width:11px !important;height:11px !important;border-radius:2px !important;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;margin-right:8px;}'
       +'.hod-wallet-v2 .wv-vegdot::after{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;display:block;}'
       // Force gold→yellow for any remaining #FF90E8 references inside QR-bg circles etc.
-      +'.hod-wallet-v2{color-scheme:light;}'
+      +'.hod-wallet-v2{color-scheme:only light;}'
+      // 🔴 2026-07-04 (Khushi LIVE-BUG) — dark-mode Android force-dark inverted
+      // white QR boxes to black → scanner machines can't read inverted QRs.
+      // Belt-and-braces on top of the <meta name=color-scheme content="only light">:
+      // pin every QR wrapper (and whatever qrcodejs renders inside) to white.
+      +'#bs-qr-wrap,#gl-qr-wrap,#ticket-qr-wrap,#order-qr-popup,[data-qr]{background:#fff !important;color-scheme:only light;}'
+      +'[data-qr] img,[data-qr] canvas{background:#fff !important;}'
       // ── DIGITORY V3 ADDITIONS ─────────────────────────
       // Full-bleed deep red header strip (replaces black wv-hdr style)
       +'.hod-wallet-v2 .wv-hdr2{background:#fff !important;color:#000;border-bottom:2px solid #000 !important;padding:14px 18px !important;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}'
@@ -176,7 +182,11 @@ function renderWalletPage(bookingRef){
     // redeemed yet — so show an amber "⏳ Yet to redeem" badge instead. Only an
     // EXACT 'preparing' status is pre-redeem; undefined/legacy → treated as redeemed.
     if(r&&r.status==='preparing') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">⏳ Yet to redeem</span>';
-    return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
+    // 🆕 2026-07-03 (Khushi) — renamed "Redeemed at bar" → "At the bar": guests and
+    // staff read "Redeemed" as PAID, but this badge is only a WHERE-placed tag (it
+    // fires for any bartender-punched/legacy round regardless of wallet debit).
+    // Payment truth stays in Amount redeemed / balance — badge is location-only.
+    return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 At the bar</span>';
   }
 
   // 🆕 2026-06-24 (Khushi) — after an ONLINE recharge the old feedback was a tiny
@@ -3823,6 +3833,9 @@ function generateLocalQR(elId,data){
     var qEl=document.getElementById(elId);
     if(qEl&&typeof QRCode!=='undefined'&&!qEl.hasAttribute('data-qr')){
       qEl.setAttribute('data-qr','1');
+      // 🔴 2026-07-04 — force white even if an ancestor got auto-darkened.
+      qEl.style.background='#fff';
+      qEl.style.colorScheme='only light';
       var w=qEl.clientWidth||140, h=qEl.clientHeight||140;
       var sz=Math.max(96,Math.min(w,h)-8); // small inner margin so QR never touches edge
       new QRCode(qEl,{text:data,width:sz,height:sz,colorDark:'#000000',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
