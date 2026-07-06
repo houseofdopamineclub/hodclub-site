@@ -27,10 +27,70 @@ fbq('track', 'PageView');
 src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
 /></noscript>
 <!-- End Meta Pixel Code -->
-<script>window.HOD_WALLET_BUILD="v3.413";try{console.log("%c[HOD] standalone wallet build "+window.HOD_WALLET_BUILD+" (2026-06-24)","color:#FF90E8;font-weight:700");}catch(e){}</script>
+<script>window.HOD_WALLET_BUILD="v3.419";try{console.log("%c[HOD] standalone wallet build "+window.HOD_WALLET_BUILD+" (2026-07-06)","color:#FF90E8;font-weight:700");}catch(e){}</script>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin/>
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin/>
 <link rel="dns-prefetch" href="https://checkout.razorpay.com"/>
+<script>
+/* ⚡ 2026-07-06 v3.419 (Khushi) — WALLET FAST-LANE PREFETCH. The WhatsApp
+   deep-link wallet took ~4-5s to paint because the flow was strictly serial:
+   download Firebase SDK → init (+App Check) → long-polling round trips →
+   first covers query → render. This script fires a plain Firestore REST
+   fetch for the cover THE INSTANT the HTML parses — in parallel with the SDK
+   download — and parks the promise on window.__HOD_WPF. wallet.js's
+   renderWalletPage consumes it to paint the wallet in ~1-2s; the live
+   onSnapshot listener then takes over exactly as before (its repaint always
+   wins). 100% FAIL-OPEN + READ-ONLY: any error/miss resolves null and the
+   existing SDK path renders exactly as today. Cost: 1-2 reads per deep-link
+   open (same data the SDK query reads anyway). covers is public-read by
+   rules (the SDK path already reads it unauthenticated pre sign-in).
+   Skipped for table (HODTAB/TBL-/AGG-/aggregator) and guest-list (GL-/HODGL)
+   refs — those need the SDK merge/marker paths; they keep today's flow. */
+(function(){
+  try{
+    var p=new URLSearchParams(window.location.search||'');
+    var ref=p.get('wallet')||p.get('verify')||p.get('ref')||'';
+    if(!ref) return;
+    ref=decodeURIComponent(ref);
+    if(!ref||ref.length>60) return;
+    // Table + guest-list refs go through SDK-only paths (merge/markers) — skip.
+    if(/^(HODTAB|TBL-|AGG-|GL-|HODGL)/i.test(ref)) return;
+    if(/-MAN-/.test(ref)||/^(ZOMATO|SWIGGY|MAGICPIN|EAZYDINER|EAZYDINING|DINEOUT)-/i.test(ref)||/^HOD(SWI|ZOM|MAG|EAZ|DIN|OTH)/i.test(ref)) return;
+    var KEY='AIzaSyB6YfM1DyVq0NTEWXpMdbCYuWwr9cWwbt0'; // public web config (same as FIREBASE_CONFIG below)
+    var URL_='https://firestore.googleapis.com/v1/projects/hod-tickets/databases/(default)/documents:runQuery?key='+KEY;
+    // Decode Firestore REST typed values → plain JS (same shapes the SDK returns
+    // for our string/number/bool/array/map fields; timestamps kept as ISO strings).
+    function dv(v){
+      if(!v||typeof v!=='object') return null;
+      if('stringValue' in v) return v.stringValue;
+      if('integerValue' in v) return Number(v.integerValue);
+      if('doubleValue' in v) return Number(v.doubleValue);
+      if('booleanValue' in v) return v.booleanValue;
+      if('nullValue' in v) return null;
+      if('timestampValue' in v) return v.timestampValue;
+      if('mapValue' in v){var o={},f=(v.mapValue&&v.mapValue.fields)||{};for(var k in f){o[k]=dv(f[k]);}return o;}
+      if('arrayValue' in v){var a=(v.arrayValue&&v.arrayValue.values)||[];return a.map(dv);}
+      return null;
+    }
+    function q(field){
+      return fetch(URL_,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        structuredQuery:{from:[{collectionId:'covers'}],
+          where:{fieldFilter:{field:{fieldPath:field},op:'EQUAL',value:{stringValue:ref}}},limit:1}
+      })}).then(function(r){return r.ok?r.json():null;}).then(function(rows){
+        if(!rows||!rows.length) return null;
+        var row=rows.find(function(r2){return r2&&r2.document;});
+        if(!row) return null;
+        var d=row.document, out={id:(d.name||'').split('/').pop()}, f=d.fields||{};
+        for(var k in f){out[k]=dv(f[k]);}
+        return out;
+      });
+    }
+    window.__HOD_WPF={ref:ref, used:false, p:
+      q('ref').then(function(cv){return cv||q('bookingId');}).catch(function(){return null;})
+    };
+  }catch(e){/* fail-open — SDK path unaffected */}
+})();
+</script>
 <style>
 :root{--ff:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}
 *{box-sizing:border-box;}
@@ -840,7 +900,7 @@ function _loadWalletJs(cb){
   if(_walletLoading) return;
   _walletLoading=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.417';
+  s.src='wallet.js?v=v3.419';
   s.onload=function(){ _walletLoaded=true; cb&&cb(); };
   s.onerror=function(){
     _walletLoading=false;

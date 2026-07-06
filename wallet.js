@@ -3401,6 +3401,10 @@ function renderWalletPage(bookingRef){
     // from flashing on initial cache-empty / transient-empty snapshots
     // for a returning customer whose breadcrumb is from a prior visit.
     var _seenLiveDocThisSession=false;
+    // ⚡ 2026-07-06 v3.419 — flips TRUE on the FIRST covers onSnapshot delivery
+    // (empty or not); from that moment the fast-lane REST prefetch paint (below,
+    // near _startCoversListener('ref')) is suppressed — SDK data always wins.
+    var _pfLiveSeen=false;
     function _startTableListener(){
       if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
       _walletUnsub=firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1)
@@ -3554,6 +3558,7 @@ function renderWalletPage(bookingRef){
       if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
       _walletUnsub=firestore.collection('covers').where(field,'==',bookingRef).limit(1)
         .onSnapshot(function(snap){
+          _pfLiveSeen=true; // ⚡ v3.419 — SDK is live; fast-lane prefetch must no longer paint
           inner.innerHTML='';
           if(snap.empty){
             if(field==='ref'){_startCoversListener('bookingId');return;}
@@ -3593,22 +3598,20 @@ function renderWalletPage(bookingRef){
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Date</span><span style="font-weight:700;font-size:13px;">'+(ev3?ev3.date:'Tonight')+'</span></div>'
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#3D3D3D;font-size:12px;">Entry</span><span style="font-weight:700;font-size:13px;color:#00C864;">FREE before 9 PM</span></div>'
                     +'</div>'
+                    /* 🆕 2026-07-05 (Khushi) — guest list = NO scanner QR. Entry is
+                       logged by name at the door, so the pass shows only the ref
+                       + a "give your name" note (old gl-qr-wrap QR removed). */
                     +'<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:20px 16px;margin-bottom:16px;text-align:center;">'
-                    /* 🔴 2026-05-21 (Khushi LIVE-BUG) — wrapper bg MUST be #fff.
-                       qrcodejs doesn't render a quiet zone, so the dark navy bg
-                       made the QR unscannable on every phone. Padded white frame
-                       gives the ~4-module quiet zone every scanner requires. */
-                    +'<div id="gl-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#fff;border:8px solid #000;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 14px rgba(242,199,68,.15);"></div>'
-                    +'<div style="font-size:13px;font-weight:800;color:#000;margin-bottom:4px;">Show this QR at the door</div>'
+                    +'<div style="font-size:13px;font-weight:800;color:#000;margin-bottom:4px;">📋 No QR needed</div>'
+                    +'<div style="font-size:12px;color:#3D3D3D;margin-bottom:8px;">Give your name &amp; number at the entrance</div>'
                     +'<div style="font-family:monospace;font-size:14px;color:#000;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
                     +'</div>'
                     +'<div style="background:rgba(0,200,100,.06);border:2px solid #23A094;border-radius:8px;padding:18px 20px;text-align:center;">'
                     +'<div style="font-size:24px;margin-bottom:10px;">✅</div>'
                     +'<div style="font-size:14px;font-weight:800;color:#00C864;margin-bottom:6px;">You\'re on the list!</div>'
-                    +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Show your QR at the entrance. Free entry before 9 PM.<br>After 9 PM, a cover charge may apply at the door.</div>'
+                    +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Give your name at the entrance. Free entry before 9 PM.<br>After 9 PM, a cover charge may apply at the door.</div>'
                     +'</div>';
                   inner.appendChild(glDiv);
-                  setTimeout(function(){generateLocalQR('gl-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef));},200);
               };
               // 🔴 2026-05-21 (Khushi LIVE-BUG) — guestlist tier picked on the
               // BOOKING page routes through saveBooking() → writes to `bookings`
@@ -3815,6 +3818,35 @@ function renderWalletPage(bookingRef){
           inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:#FF5733;">Error loading wallet: '+sanitize(e.message)+'</div>';
         });
     }
+    /* ⚡ 2026-07-06 v3.419 (Khushi) — WALLET FAST-LANE PAINT. wallet.html fires a
+       Firestore REST prefetch for this cover at HTML-parse time (window.__HOD_WPF,
+       in parallel with the SDK download). If it resolves BEFORE the SDK's first
+       covers snapshot, paint the wallet from it immediately via the SAME
+       renderWalletContent() the live path uses — turning the ~4-5s serial boot
+       into ~1-2s. GUARDS (all fail-open, display-only, zero writes):
+       - only when the prefetch ref matches THIS bookingRef, consumed once;
+       - never after any live snapshot has arrived (_pfLiveSeen) or a table/
+         thank-you paint happened (_seenLiveDocThisSession) — live data always
+         wins, the onSnapshot repaint simply overwrites the fast paint;
+       - table wallets (isTableBooking/linkedTableRef/tableId/table-ref prefixes)
+         are skipped — they need the SDK merge + released-marker paths;
+       - any error → silently fall through to today's flow (spinner → snapshot).
+       On index.html (SPA wallet, SDK already warm) __HOD_WPF doesn't exist → no-op. */
+    try{
+      var _wpf=window.__HOD_WPF;
+      if(_wpf && _wpf.ref===bookingRef && !_wpf.used && _wpf.p && typeof _wpf.p.then==='function'){
+        _wpf.used=true;
+        _wpf.p.then(function(cv0){
+          try{
+            if(!cv0 || _pfLiveSeen || _seenLiveDocThisSession) return;
+            if(cv0.isTableBooking || cv0.linkedTableRef || cv0.tableId) return;
+            if(/^(HODTAB|TBL-|AGG-)/i.test(bookingRef)) return;
+            inner.innerHTML='';
+            renderWalletContent(cv0);
+          }catch(_e){/* fail-open — live snapshot repaints */}
+        }).catch(function(){});
+      }
+    }catch(_e){}
     _startCoversListener('ref');
   } else {
     inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:#3D3D3D;">Connect to load your wallet.</div>';
@@ -3860,7 +3892,11 @@ function renderCustomerWallet(bookingRef){
       if(snap.empty){
         var pendingDiv=document.createElement('div');
         pendingDiv.style.cssText='padding:12px 16px;border-radius:8px;background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.15);font-size:12px;color:#3D3D3D;text-align:center;';
-        pendingDiv.textContent='Cover wallet not activated yet. Show QR at door.';
+        // 🆕 2026-07-05 (Khushi) — guest-list refs have NO wallet & NO QR by
+        // design (entry logged by name at the door); don't tell them to scan.
+        pendingDiv.textContent=/^(GL-|HODGL)/i.test(String(bookingRef||''))
+          ?'Guest list entry — no QR needed. Give your name & number at the door.'
+          :'Cover wallet not activated yet. Show QR at door.';
         wrap.appendChild(pendingDiv);return;
       }
       var cv=snap.docs[0].data();

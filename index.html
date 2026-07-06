@@ -50,7 +50,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.417";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-04)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.419";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-06)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -1387,6 +1387,14 @@ function sendBookingEmail(booking, eventTitle, eventDate, eventTime, eventVenue,
       wallet_link: 'https://hodclub.in/?wallet='+booking.ref,
       qr_url:      'https://hodclub.in/?verify='+booking.ref,
     };
+    // 🆕 2026-07-05 (Khushi) — guest-list bookings get NO scanner QR / wallet in
+    // the email (entry logged by name at the door). no_wallet tells the CF to
+    // OMIT the QR + wallet button (empty strings alone fall back to defaults).
+    if(String(booking.entryType||'').indexOf('guestlist')===0 || String(booking.tableType||'').indexOf('guestlist')===0){
+      templateParams.no_wallet=true;
+      templateParams.wallet_link='';
+      templateParams.qr_url='';
+    }
     _HOD_sendMail(templateParams).then(function(res){
       if(res.ok){console.log('✅ Booking confirmation sent to', booking.email, '·', res.via);}
       else{
@@ -4062,8 +4070,12 @@ function joinGuestList(evId, name, phone, type, callback, email){
               club_name:'HOD — House of Dopamine',
               club_phone:'+91 96864 44906',
               club_address:'Koramangala 7th Block, Bengaluru',
-              wallet_link:'https://hodclub.in/?wallet='+glRef,
-              qr_url:'https://hodclub.in/?verify='+glRef
+              // 🆕 2026-07-05 (Khushi) — guest list = NO scanner QR / wallet in
+              // the email. no_wallet tells the CF to OMIT the QR + wallet button
+              // (empty strings alone fall back to defaults in the CF).
+              no_wallet:true,
+              wallet_link:'',
+              qr_url:''
             });
           }
           // 🔴 2026-05-21 (Khushi) — switched to new approved `guestlist_entry_confirmed`
@@ -4428,7 +4440,13 @@ function renderSuccess(ev){
   // Check if pay-at-venue (flag set during cash booking flow)
   var _isCashPending=S._isCashBooking===true;
   S._isCashBooking=false; // reset flag
-  sub.textContent=_isCashPending
+  // 🆕 2026-07-05 (Khushi) — GUESTLIST = confirmation WITHOUT a scanner QR.
+  // Guest-list entries are just logged at the door (no wallet, no scan) —
+  // the guest gives their name & number at the entrance instead.
+  var _isGLSuc=(bd.bookMode==='guestlist')||((bd.entryType||'').indexOf('guestlist')===0);
+  sub.textContent=_isGLSuc
+    ?'You\'re on the guest list! Just give your name & number at the door — no QR needed.'
+    :_isCashPending
     ?'Your spot is reserved! Please pay ₹'+total.toLocaleString('en-IN')+' at the venue. Show your reference at the entrance.'
     :'You\'re in! Check your email for confirmation. Show your reference at the entrance.';
   var tkt=el('div','tkt-card');
@@ -4439,16 +4457,21 @@ function renderSuccess(ev){
     row.innerHTML='<span class="tkt-k">'+r[0]+'</span><span class="tkt-v"'+(r[2]?' style="color:'+r[2]+'"':'')+'>'+(r[1]||'')+'</span>';
     tkt.appendChild(row);
   });
-  // ── LOCAL QR CODE (no external API)
+  // ── LOCAL QR CODE (no external API). 🆕 2026-07-05 — GUESTLIST gets NO QR:
+  // just the reference + "give your name" note (entry is logged by name at the
+  // door; there is nothing to scan).
   var qrWrap2=document.createElement('div');
   qrWrap2.style.cssText='text-align:center;margin:16px 0;padding:16px;background:#fff;border:2px solid #000;border-radius:8px;';
-  qrWrap2.innerHTML='<div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;margin-bottom:12px;">SHOW THIS AT THE DOOR</div>';
-  var qrDiv=document.createElement('div');qrDiv.id='success-qr';qrDiv.style.cssText='display:inline-block;padding:10px;background:#fff;border-radius:8px;margin-bottom:10px;';
-  qrWrap2.appendChild(qrDiv);
-  var refLabel=document.createElement('div');refLabel.innerHTML='<div style="font-family:monospace;font-size:18px;font-weight:900;color:#000;letter-spacing:3px;margin-bottom:4px;">#'+ref+'</div><div style="font-size:10px;color:#3D3D3D;">Scan QR or show booking reference at entrance</div>';
+  qrWrap2.innerHTML='<div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;margin-bottom:12px;">'+(_isGLSuc?'📋 YOU\'RE ON THE GUEST LIST':'SHOW THIS AT THE DOOR')+'</div>';
+  if(!_isGLSuc){
+    var qrDiv=document.createElement('div');qrDiv.id='success-qr';qrDiv.style.cssText='display:inline-block;padding:10px;background:#fff;border-radius:8px;margin-bottom:10px;';
+    qrWrap2.appendChild(qrDiv);
+  }
+  var refLabel=document.createElement('div');refLabel.innerHTML='<div style="font-family:monospace;font-size:18px;font-weight:900;color:#000;letter-spacing:3px;margin-bottom:4px;">#'+ref+'</div><div style="font-size:10px;color:#3D3D3D;">'+(_isGLSuc?'No QR needed — give your name & number at the entrance':'Scan QR or show booking reference at entrance')+'</div>';
   qrWrap2.appendChild(refLabel);
   // ── Generate QR after DOM insertion
   setTimeout(function(){
+    if(_isGLSuc)return; // guestlist: no QR rendered
     var qrEl=document.getElementById('success-qr');
     // 🆕 2026-06-28 (Khushi) — guard against a DOUBLED QR. The home view can
     // re-render this success card more than once (manual get() + live listener
@@ -4803,6 +4826,9 @@ function renderMyBookings(){
       function _renderCard(b){
         var card2=document.createElement('div');
         card2.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:20px;margin-bottom:16px;';
+        // 🆕 2026-07-05 (Khushi) — guest-list rows show NO scanner QR (entry is
+        // logged by name at the door). Detect by ref prefix OR entryType.
+        var _mbIsGL=/^(GL-|HODGL)/i.test(String(b.ref||''))||/^guestlist/i.test(String(b.entryType||''));
         var isCI=b.checkedIn===true;
         var isPaid=!!(b.paymentId&&String(b.paymentId).indexOf('pay_')===0);
         var isCashPending=!!(b.paymentId&&String(b.paymentId).indexOf('cash_')===0);
@@ -4834,14 +4860,22 @@ function renderMyBookings(){
           +'<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#3D3D3D;text-transform:uppercase;margin-bottom:4px;">Ticket Reference</div>'
           +'<div style="font-family:monospace;font-size:14px;font-weight:800;color:#000;letter-spacing:1px;word-break:break-all;">'+sanitize(b.ref||'—')+'</div>'
           +'</div>'
-          +'<div style="text-align:center;padding-top:6px;">'
-          +'<div style="display:inline-block;padding:28px;background:#FFFFFF;border-radius:8px;margin-bottom:10px;line-height:0;">'
-          +'<div id="qr-'+sanitize(b.ref||'x')+'" style="width:200px;height:200px;"></div>'
-          +'</div>'
-          +'<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;">Show at Entrance</div>'
-          +'</div>';
+          /* 🆕 2026-07-05 (Khushi) — guest-list bookings get NO scanner QR in
+             My Bookings: entry is logged by name at the door. Paid bookings
+             keep the QR unchanged. */
+          +(_mbIsGL
+            ?'<div style="text-align:center;padding:14px 12px;background:rgba(0,200,100,.06);border:2px solid #23A094;border-radius:8px;">'
+              +'<div style="font-size:13px;font-weight:800;color:#000;margin-bottom:4px;">📋 You\'re on the guest list</div>'
+              +'<div style="font-size:11px;color:#3D3D3D;">No QR needed — give your name & number at the entrance</div>'
+              +'</div>'
+            :'<div style="text-align:center;padding-top:6px;">'
+              +'<div style="display:inline-block;padding:28px;background:#FFFFFF;border-radius:8px;margin-bottom:10px;line-height:0;">'
+              +'<div id="qr-'+sanitize(b.ref||'x')+'" style="width:200px;height:200px;"></div>'
+              +'</div>'
+              +'<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;">Show at Entrance</div>'
+              +'</div>');
         resultsDiv.appendChild(card2);
-        generateLocalQR('qr-'+sanitize(b.ref||'x'),'https://hodclub.in?verify='+b.ref);
+        if(!_mbIsGL)generateLocalQR('qr-'+sanitize(b.ref||'x'),'https://hodclub.in?verify='+b.ref);
         var walletWrap=renderCustomerWallet(b.ref||'');
         card2.appendChild(walletWrap);
       }
@@ -6519,7 +6553,7 @@ function _loadWalletJs(cb){
   if(window._HOD_WALLET_LOADING)return;
   window._HOD_WALLET_LOADING=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.417';
+  s.src='wallet.js?v=v3.419';
   s.onload=function(){
     window._HOD_WALLET_LOADED=true;
     window._HOD_WALLET_LOADING=false;
