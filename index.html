@@ -50,7 +50,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.419";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-06)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.420";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-06)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -4078,15 +4078,11 @@ function joinGuestList(evId, name, phone, type, callback, email){
               qr_url:''
             });
           }
-          // 🔴 2026-05-21 (Khushi) — switched to new approved `guestlist_entry_confirmed`
-          // template. Params: [name, eventTitle, dateNice, tierLabel, link]
-          _HOD_sendWhatsAppTemplate(cleanPhone, 'guestlist_entry_confirmed', [
-            sanitize(name||'Guest'),
-            ev3?ev3.title:'Tonight at H.O.D',
-            ev3?(typeof fmtDate==='function'?fmtDate(ev3.date):ev3.date):'Tonight',
-            (type==='couple'?'COUPLE':type==='ladies'?'LADIES':'STAG'),
-            'https://hodclub.in/?wallet='+glRef
-          ]);
+          // 🚫 2026-07-06 (Khushi) — NO WhatsApp for guest-list signups
+          // (entry-log-only policy; she tested a live GL booking and still
+          // got the message). The `guestlist_entry_confirmed` template send
+          // that lived here is REMOVED — email (QR-free, no_wallet:true)
+          // is the only confirmation. Paid/table/entry WhatsApp unchanged.
         })
         .catch(function(e){console.warn('GL Firebase sync failed:',e);});
     }
@@ -4396,13 +4392,11 @@ function saveBooking(paymentId){
       _tplName = 'table_confirmed';
       _tplParams = [_name, _date, _tblArrival, _tblLabel, _tblFloor, _tblPax, _link];
     } else if (_isGuestlist) {
-      // Guestlist is ALWAYS free → single `guestlist_entry_confirmed` template, no paid/unpaid split.
-      // Params: [name, eventTitle, dateNice, tierLabel, link]
-      var _glTier = _cat==='guestlist_couple' ? 'COUPLE'
-                   : (_cat==='guestlist_female'||_cat==='guestlist_ladies') ? 'LADIES'
-                   : 'STAG';
-      _tplName = 'guestlist_entry_confirmed';
-      _tplParams = [_name, _evt, _date, _glTier, _link];
+      // 🚫 2026-07-06 (Khushi) — NO WhatsApp for guest-list bookings
+      // (entry-log-only policy). The `guestlist_entry_confirmed` send is
+      // REMOVED — _tplName stays null so the guarded send below is skipped.
+      // Email (QR-free) remains the only confirmation.
+      _tplName = null;
     } else if (_cat === 'group') {
       _tplName = 'group_confirmed' + _suffix;
       _tplParams = [_name, _evt, _date, _qty, _amt, _link];
@@ -4415,7 +4409,7 @@ function saveBooking(paymentId){
       _tplName = 'ticket_confirmed' + _suffix;
       _tplParams = [_name, _evt, _date, _tierLabel + ' × ' + _qty, _amt, _link];
     }
-    _HOD_sendWhatsAppTemplate(bd.phone, _tplName, _tplParams);
+    if (_tplName) _HOD_sendWhatsAppTemplate(bd.phone, _tplName, _tplParams);
   } catch (_waErr) { console.warn('[HOD] WA template send failed', _waErr); }
   // ── Fire social proof toast to all connected users
   showSocialProofToast(booking, ev.title);
@@ -6553,7 +6547,7 @@ function _loadWalletJs(cb){
   if(window._HOD_WALLET_LOADING)return;
   window._HOD_WALLET_LOADING=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.419';
+  s.src='wallet.js?v=v3.420';
   s.onload=function(){
     window._HOD_WALLET_LOADED=true;
     window._HOD_WALLET_LOADING=false;
