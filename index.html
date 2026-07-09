@@ -1384,7 +1384,7 @@ function sendBookingEmail(booking, eventTitle, eventDate, eventTime, eventVenue,
       club_name:   'HOD — House of Dopamine',
       club_phone:  '+91 96864 44906',
       club_address:'Koramangala 7th Block, Bengaluru',
-      wallet_link: 'https://hodclub.in/?wallet='+booking.ref,
+      wallet_link: 'https://hodclub.in/?wallet='+booking.ref+(booking.walletSecret?'&s='+encodeURIComponent(booking.walletSecret):''),
       qr_url:      'https://hodclub.in/?verify='+booking.ref,
     };
     // 🆕 2026-07-05 (Khushi) — guest-list bookings get NO scanner QR / wallet in
@@ -4160,6 +4160,10 @@ function saveBooking(paymentId){
   if(!ev&&S._cachedEvents){ev=S._cachedEvents.find(function(e){return e.id===S.modal;});}
   if(!ev)return'ERROR';
   var ref=mintHodRef(_hodCatFromBdata(bd));
+  // 🔒 2026-07-09 — generate walletSecret at booking time so the confirmation
+  // WhatsApp link stays valid after door activation (door activation copies
+  // this secret from the booking doc instead of generating a fresh one).
+  var walletSecret=(function(){try{var a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(e){return Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);}})();
 
   var entryTotal=0;
   var tableTotal=bd.tablePrice||0;
@@ -4222,7 +4226,8 @@ function saveBooking(paymentId){
     paymentId:paymentId,
     paymentVerified:paymentId&&paymentId.startsWith('pay_'),
     suspicious:isSuspicious===true?true:false,
-    suspiciousReason:isSuspicious===true?suspiciousReason:''
+    suspiciousReason:isSuspicious===true?suspiciousReason:'',
+    walletSecret:walletSecret
   };
   saveBookingToFirebase(booking, null);
   // 🆕 2026-05-27 v3.42 (Khushi) — TABLE BOOKING auto-create + pre-credit wallet.
@@ -4365,7 +4370,7 @@ function saveBooking(paymentId){
     var _name = sanitize(bd.name||'Guest');
     var _evt = ev.title;
     var _date = fmtDate(ev.date);
-    var _link = 'https://hodclub.in/?wallet='+ref;
+    var _link = 'https://hodclub.in/?wallet='+ref+'&s='+encodeURIComponent(walletSecret);
     var _qty = String(bd.qty||1);
     var _psmFB = {stag:ev.stagPrice||999,couple:ev.couplePrice||1499,female:0,group:ev.groupPerHeadPrice||500,entryonly:ev.entryOnlyPrice||599};
     var _rawT = (bd.qty||1)*(_psmFB[_cat]||0) + (bd.tablePrice||0);
@@ -6097,6 +6102,7 @@ function renderTableFloorPlan(){
       if(!firestore){errD.textContent='Firebase not connected.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;return;}
       var today=bookDate;
       var bRef='TBL-'+Math.random().toString(36).substr(2,5).toUpperCase();
+      var _tblWalletSecret=(function(){try{var a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(e){return Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);}})();
       // Multi-slot: pre-check cross-slot conflicts (2-hr gap), then transactionally claim the exact slot doc
       firestore.collection('tableReservations').where('date','==',today).where('tableId','==',table.id).get().then(function(snap){
         var conflict=null;
@@ -6135,7 +6141,8 @@ function renderTableFloorPlan(){
             tableId:table.id,floor:activeFloor,floorLabel:_HOD_TABLES[activeFloor].label,
             date:today,arrivalTime:arrival,partySize:ps,
             coverCharge:_coverAmt||0,paymentStatus:_paidOnline?'paid':(_isCash?'pending':'na'),paymentId:_payId||'',
-            isTableBooking:true,tablePrePaid:_paidOnline,createdAt:new Date().toISOString()
+            isTableBooking:true,tablePrePaid:_paidOnline,createdAt:new Date().toISOString(),
+            walletSecret:_tblWalletSecret
           };
           var _fpLegacyCoverWrite=function(){ try{ firestore.collection('covers').doc(ref2).set(_fpCoverDoc).catch(function(){}); }catch(_){} };
           // 🆕 v3.297 (Phase 4) — when PAID ONLINE this is a money-write, so move
@@ -6186,7 +6193,7 @@ function renderTableFloorPlan(){
               club_name:'HOD — House of Dopamine',
               club_phone:'+91 96864 44906',
               club_address:'Koramangala 7th Block, Bengaluru',
-              wallet_link:'https://hodclub.in/?wallet='+ref2,
+              wallet_link:'https://hodclub.in/?wallet='+ref2+'&s='+encodeURIComponent(_tblWalletSecret),
               qr_url:'https://hodclub.in/?verify='+ref2
             });
           }
@@ -6198,7 +6205,7 @@ function renderTableFloorPlan(){
           _HOD_sendWhatsAppTemplate(phone, 'table_confirmed', [
             name, _tDateNice, (arrival||'FROM NOW'),
             table.id, _HOD_TABLES[activeFloor].label,
-            String(ps), 'https://hodclub.in/?wallet='+ref2
+            String(ps), 'https://hodclub.in/?wallet='+ref2+'&s='+encodeURIComponent(_tblWalletSecret)
           ]);
         } catch (_tblWaErr) { console.warn('[HOD] table WA send failed', _tblWaErr); }
         // Show cinematic confirmation
