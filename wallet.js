@@ -62,13 +62,7 @@ function renderWalletPage(bookingRef){
       +'.hod-wallet-v2 .wv-vegdot{width:11px !important;height:11px !important;border-radius:2px !important;border:1.5px solid currentColor;display:inline-flex;align-items:center;justify-content:center;margin-right:8px;}'
       +'.hod-wallet-v2 .wv-vegdot::after{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;display:block;}'
       // Force gold→yellow for any remaining #FF90E8 references inside QR-bg circles etc.
-      +'.hod-wallet-v2{color-scheme:only light;}'
-      // 🔴 2026-07-04 (Khushi LIVE-BUG) — dark-mode Android force-dark inverted
-      // white QR boxes to black → scanner machines can't read inverted QRs.
-      // Belt-and-braces on top of the <meta name=color-scheme content="only light">:
-      // pin every QR wrapper (and whatever qrcodejs renders inside) to white.
-      +'#bs-qr-wrap,#gl-qr-wrap,#ticket-qr-wrap,#order-qr-popup,[data-qr]{background:#fff !important;color-scheme:only light;}'
-      +'[data-qr] img,[data-qr] canvas{background:#fff !important;}'
+      +'.hod-wallet-v2{color-scheme:light;}'
       // ── DIGITORY V3 ADDITIONS ─────────────────────────
       // Full-bleed deep red header strip (replaces black wv-hdr style)
       +'.hod-wallet-v2 .wv-hdr2{background:#fff !important;color:#000;border-bottom:2px solid #000 !important;padding:14px 18px !important;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}'
@@ -77,9 +71,6 @@ function renderWalletPage(bookingRef){
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-otp b{color:#000;letter-spacing:1.5px;font-weight:900;}'
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-call{display:flex;align-items:center;gap:8px;color:#000;font-size:12px;font-weight:700;letter-spacing:.4px;cursor:pointer;background:transparent;border:2px solid #000;font-family:var(--ff);}'
       +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-avatar{width:26px;height:26px;border-radius:50%;background:#FF90E8;color:#000000;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;}'
-      // 🆕 Exit/back button — leaves the wallet, returns to the main site
-      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-exit{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:transparent;border:2px solid #000;color:#000;font-size:19px;font-weight:900;cursor:pointer;font-family:var(--ff);line-height:1;flex:none;padding:0;}'
-      +'.hod-wallet-v2 .wv-hdr2 .wv-hd2-exit:active{transform:scale(.94);}'
       // 4-tab solid rectangles like Digitory FOOD/LIQUOR/NAB/SMOKE
       +'.hod-wallet-v2 .wv-tab4row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;}'
       +'.hod-wallet-v2 .wv-tab4{padding:22px 6px;border-radius:8px;font-size:12px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;font-family:var(--ff);border:2px solid #000;text-align:center;transition:all .12s;color:#000;background:#fff;line-height:1.1;box-shadow:0 1px 4px rgba(0,0,0,.15);}'
@@ -117,10 +108,8 @@ function renderWalletPage(bookingRef){
   var hdr=document.createElement('div');
   hdr.className='wv-hdr2';
   // Build header lazily after we know cv — start with just brand.
-  hdr.innerHTML='<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
-    +'<button class="wv-hd2-exit" id="wv-hd2-exit-btn" type="button" aria-label="Exit wallet" title="Exit">&#8592;</button>'
-    +'<div style="min-width:0;"><div class="wv-hd2-brand">House of Dopamine</div>'
-    +'<div class="wv-hd2-otp" id="wv-hd2-ref">&nbsp;</div></div></div>'
+  hdr.innerHTML='<div><div class="wv-hd2-brand">House of Dopamine</div>'
+    +'<div class="wv-hd2-otp" id="wv-hd2-ref">&nbsp;</div></div>'
     // 2026-05-13 (Khushi spec) — "Call Waiter" no longer dials a hardcoded
     // phone (the old tel:+918882222900 went to a number nobody at HOD owns
     // any more). It now writes a `waiterCalls/{auto}` doc to Firestore;
@@ -132,18 +121,6 @@ function renderWalletPage(bookingRef){
       +'<span id="wv-hd2-call-label">Call Waiter</span><span class="wv-hd2-avatar">&#9742;</span>'
     +'</button>';
   wrap.appendChild(hdr);
-
-  // 🆕 Exit button — leave the wallet and return to the main hodclub.in site.
-  // Strips the ?wallet= deep-link param so the SPA shows the events home view
-  // (host-agnostic: works on the live site AND the dev preview). Falls back to
-  // the hardcoded site URL if location is unavailable for any reason.
-  try{
-    var _exitBtn=hdr.querySelector('#wv-hd2-exit-btn');
-    if(_exitBtn){_exitBtn.onclick=function(){
-      try{ window.location.href = window.location.origin + window.location.pathname; }
-      catch(_){ window.location.href='https://hodclub.in'; }
-    };}
-  }catch(_){}
 
   var inner=document.createElement('div');
   inner.style.cssText='padding:20px;max-width:480px;margin:0 auto;';
@@ -164,70 +141,14 @@ function renderWalletPage(bookingRef){
 
   // 🆕 2026-06-08 (Khushi) — SHARED per-round location badge. Bar self-orders
   // carry a 'bar' source ('customer_self_order_bar' / 'recharge_at_bar'); table
-  // self-orders carry 'customer_self_order'. Untagged/legacy rounds default to the
-  // bar badge (see v3.384 note below). Used by BOTH the YOUR TAB list and the VIEW
-  // BILL modal so EVERY round clearly shows where it was placed, no matter the mode.
+  // self-orders carry 'customer_self_order'. Legacy rounds with no source get NO
+  // badge (never a wrong label). Used by BOTH the YOUR TAB list and the VIEW BILL
+  // modal so EVERY round clearly shows where it was placed, no matter the mode.
   function hodRoundLocBadge(r){
     var s=String((r&&r.source)||'').toLowerCase();
-    // 🆕 2026-06-24 v3.384 (Khushi) — only an EXPLICIT table self-order
-    // ('customer_self_order') gets the "At your table" badge. EVERY other round —
-    // a 'bar' source OR a legacy/untagged round with no source — is a bar
-    // redemption and gets "🍸 Redeemed at bar". Previously untagged rounds (e.g.
-    // Round 1) showed NO badge while the bar rounds R2/R3 did, which looked broken.
+    if(s.indexOf('bar')!==-1) return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 Redeemed at bar</span>';
     if(s==='customer_self_order') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍽️ At your table</span>';
-    // 🆕 2026-06-30 (Khushi) — a bar self-order is "🍸 Redeemed at bar" ONLY once
-    // the BARTENDER has actually redeemed it (the recharge/add-order flips the
-    // round from 'preparing' → 'activated' and debits the wallet). While the round
-    // is still 'preparing' the guest has only SELECTED items — the bartender hasn't
-    // redeemed yet — so show an amber "⏳ Yet to redeem" badge instead. Only an
-    // EXACT 'preparing' status is pre-redeem; undefined/legacy → treated as redeemed.
-    if(r&&r.status==='preparing') return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#a85800;background:rgba(168,88,0,.10);border:1px solid rgba(168,88,0,.30);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">⏳ Yet to redeem</span>';
-    // 🆕 2026-07-03 (Khushi) — renamed "Redeemed at bar" → "At the bar": guests and
-    // staff read "Redeemed" as PAID, but this badge is only a WHERE-placed tag (it
-    // fires for any bartender-punched/legacy round regardless of wallet debit).
-    // Payment truth stays in Amount redeemed / balance — badge is location-only.
-    return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;color:#7B2FBE;background:rgba(123,47,190,.12);border:1px solid rgba(123,47,190,.35);padding:2px 8px;border-radius:10px;letter-spacing:.3px;white-space:nowrap;">🍸 At the bar</span>';
-  }
-
-  // 🆕 2026-06-24 (Khushi) — after an ONLINE recharge the old feedback was a tiny
-  // green toast line the customer couldn't see. Show a FULL-SCREEN success popup
-  // they must dismiss ("PLACE ORDER") so it's unmissable. Fail-open: any DOM
-  // error falls back to the old toast.
-  function hodRechargeSuccessPopup(amount){
-    try{
-      var _ov=document.createElement('div');
-      _ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
-      var _md=document.createElement('div');
-      _md.style.cssText='background:#fff;border:2px solid #000;border-radius:14px;padding:32px 24px;width:100%;max-width:360px;text-align:center;box-shadow:6px 6px 0 #16A34A;font-family:var(--ff);';
-      var _amt=Math.round(Number(amount)||0).toLocaleString('en-IN');
-      var _hasCart=false; try{ _hasCart=getCartTotal()>0; }catch(_e){}
-      var _sub=_hasCart
-        ? 'You\u2019re all set \u2014 tap <b>Place Order</b> below to send your order.'
-        : 'You\u2019re all set \u2014 browse the menu and tap <b>Place Order</b> below to send your order.';
-      _md.innerHTML='<div style="font-size:54px;line-height:1;margin-bottom:12px;">✅</div>'
-        +'<div style="font-size:22px;font-weight:900;color:#16A34A;letter-spacing:.3px;margin-bottom:8px;">RECHARGE SUCCESSFUL</div>'
-        +'<div style="font-size:16px;color:#000;font-weight:800;margin-bottom:6px;">₹'+_amt+' added to your wallet</div>'
-        +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:20px;">'+_sub+'</div>';
-      var _ok=document.createElement('button');
-      _ok.style.cssText='width:100%;padding:15px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.4px;';
-      // 🆕 2026-06-24 (Khushi) — when the guest already has items in the cart
-      // (the shortfall-recharge flow) this button now PLACES the order in ONE
-      // tap by clicking the real "Place Order" button (#tab-place-btn) — no more
-      // "browse → place order → place again" double step. The caller bumps the
-      // balance + re-renders before showing this popup, so the place button sees
-      // the new balance and won't re-prompt the shortfall. Empty cart (empty-
-      // wallet top-up) → just dismiss to the menu. Fail-open on any DOM error.
-      if(_hasCart){
-        _ok.innerHTML='\uD83C\uDF79 PLACE ORDER';
-        _ok.onclick=function(){ _ov.remove(); try{ var _pb=document.getElementById('tab-place-btn'); if(_pb){ _pb.click(); } }catch(_e){} };
-      }else{
-        _ok.innerHTML='\uD83C\uDF7D\uFE0F BROWSE MENU';
-        _ok.onclick=function(){_ov.remove();};
-      }
-      _md.appendChild(_ok);_ov.appendChild(_md);
-      _ov.onclick=function(e){if(e.target===_ov)_ov.remove();};
-      document.body.appendChild(_ov);
-    }catch(_e){ try{showToast('✅ Recharged ₹'+amount+'! Place your order now.','success',4000);}catch(__e){} }
+    return '';
   }
 
   function renderWalletContent(cv){
@@ -305,47 +226,18 @@ function renderWalletPage(bookingRef){
     // activated AND has no orders (entry-only pre-check-in case) — the screen
     // should fall through to the door/check-in waiting state instead.
     var _cvDate2=cv.date||cv.eventDate||(cv.activatedAt?cv.activatedAt.split('T')[0]:'');
-    // 🆕 2026-06-16 v3.304 (Khushi) — wallet now goes INACTIVE at 3:00 AM IST the
-    // morning AFTER the operational night (i.e. when the party ends), NOT noon the
-    // next day. Mirrors POS getCoverExpiryFor: 3:00 IST on day (d+1) of cv.date
-    // = Date.UTC(y,m-1,d+1,3,0,0) − 5h30m IST offset. cv.expiresAt (stamped by POS
-    // covers = already 3 AM) ALWAYS wins; covers with NO expiresAt (online /
-    // cloud-function created) fall back to this SAME 3 AM cutoff derived from
-    // cv.date. Fail-open: an unparseable/blank date → null → never shows expired.
-    var _hodDateExpiry=function(ds){var p=String(ds||'').split('-').map(Number);if(p.length<3||!p[0]||!p[1]||!p[2])return null;return new Date(Date.UTC(p[0],p[1]-1,p[2]+1,3,0,0)-(5*60+30)*60000);};
+    var _opNow=new Date();
+    var _opAnchor=new Date(_opNow);
+    if(_opNow.getHours()<12){_opAnchor.setDate(_opAnchor.getDate()-1);}
+    var _todayStr2=_opAnchor.getFullYear()+'-'+String(_opAnchor.getMonth()+1).padStart(2,'0')+'-'+String(_opAnchor.getDate()).padStart(2,'0');
     var _hasActivity=Number(cv.coverActivated||0)>0||Number(cv.coverBalance||0)>0||(Array.isArray(cv.tabRounds)&&cv.tabRounds.length>0)||cv.paymentStatus==='paid';
-    var _nowMs2=Date.now();
-    var _dateExp2=cv.expiresAt?null:_hodDateExpiry(_cvDate2);
-    // 🆕 2026-06-24 v3.380 (Khushi) — TABLE RESERVATION wallets now expire on the
-    // SAME 3 AM-after-the-night cutoff as cover wallets. Previously expiry was
-    // armed ONLY when _hasActivity was true (coverActivated / balance / rounds /
-    // paid). A pure table reservation with no pre-order + no online prepay never
-    // tripped that guard, so its pre-order menu stayed openable forever after the
-    // night ended. A table reservation ALWAYS carries a real reservation date
-    // (cv.date), so the date-based cutoff alone is safe for it (a future/tonight
-    // booking still resolves to a FUTURE expiry → falls through to the normal
-    // flow). Non-table covers keep the _hasActivity guard so a fresh entry-only
-    // booking for tonight still falls through to the door/check-in waiting screen
-    // instead of wrongly showing expired. Fail-open: blank/unparseable date →
-    // _dateExp2 null → never expired.
-    var _expiryArmed=!!cv.isTableBooking||_hasActivity;
-    var _isWalletExpired=_expiryArmed&&((cv.expiresAt&&new Date(cv.expiresAt).getTime()<_nowMs2)||(_dateExp2&&_dateExp2.getTime()<_nowMs2));
+    var _isWalletExpired=_hasActivity&&((cv.expiresAt&&new Date(cv.expiresAt)<new Date())||(_cvDate2&&_cvDate2<_todayStr2));
     if(_isWalletExpired){
-      var _expIsTbl=!!cv.isTableBooking;
-      var _expDate=sanitize(cv.date||cv.eventDate||'this night');
       var expDiv=document.createElement('div');
-      expDiv.style.cssText='padding:34px 18px;text-align:center;';
-      expDiv.innerHTML=
-        '<div style="background:#fff;border:2px solid #000;border-radius:14px;box-shadow:4px 4px 0 #000;padding:34px 22px;max-width:340px;margin:0 auto;">'
-        +'<div style="font-size:48px;margin-bottom:14px;line-height:1;">🌙</div>'
-        +'<div style="font-size:20px;font-weight:900;color:#000;letter-spacing:.3px;margin-bottom:10px;">Wallet Expired</div>'
-        +'<div style="font-size:13px;line-height:1.65;color:#3D3D3D;margin-bottom:20px;">'
-          +(_expIsTbl
-             ?'Your table reservation wallet for <b style="color:#000;">'+_expDate+'</b> has closed now that the night is over. We hope you had a wonderful time at H.O.D! 🥂'
-             :'Your H.O.D wallet for <b style="color:#000;">'+_expDate+'</b> has closed now that the night is over. We hope you had a wonderful time! 🥂')
-        +'</div>'
-        +'<a href="https://hodclub.in/" style="display:inline-block;background:#FF90E8;border:2px solid #000;border-radius:10px;box-shadow:3px 3px 0 #000;padding:11px 22px;font-size:13px;font-weight:900;color:#000;text-decoration:none;letter-spacing:.3px;">Book Your Next Visit →</a>'
-        +'</div>';
+      expDiv.style.cssText='text-align:center;padding:40px 20px;color:#3D3D3D;';
+      expDiv.innerHTML='<div style="font-size:44px;margin-bottom:12px;">⏰</div>'
+        +'<div style="font-size:16px;font-weight:800;color:#FF5733;margin-bottom:8px;">Wallet Expired</div>'
+        +'<div style="font-size:13px;">This cover has ended. Balance has been reset.</div>';
       inner.appendChild(expDiv);return;
     }
 
@@ -363,7 +255,7 @@ function renderWalletPage(bookingRef){
         +'<div style="font-size:11px;color:#3D3D3D;">Show this to your captain on arrival</div>'
         +'<div style="font-family:monospace;font-size:14px;color:#000;margin-top:8px;letter-spacing:2px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>';
       waitDiv.appendChild(qrWait);
-      generateLocalQR('wallet-qr-wait','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
+      generateLocalQR('wallet-qr-wait','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
       // Waiting message
       var waitMsg=document.createElement('div');
       waitMsg.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;box-shadow:3px 3px 0 #000;';
@@ -384,68 +276,10 @@ function renderWalletPage(bookingRef){
     if(bal<=0&&!cv.isTableBooking){
       // Show recharge banner — menu continues below
       var emptyBanner=document.createElement('div');
-      // 🔴 2026-05-13 v2 (Khushi) — recolor purple → red/yellow/white theme.
       emptyBanner.style.cssText='background:#FFE0F6;border:2px solid #000;border-radius:8px;padding:20px;margin-bottom:16px;text-align:center;box-shadow:3px 3px 0 #000;';
-      emptyBanner.innerHTML='<div style="font-size:28px;margin-bottom:8px;">⚡</div>'
-        +'<div style="font-size:15px;font-weight:900;color:#000;margin-bottom:6px;">Load your wallet to start ordering</div>'
-        +'<div style="font-size:12px;color:#000;line-height:1.6;margin-bottom:14px;">Enter an amount below and pay online, or show your QR above to the bartender — they can recharge for you too.</div>';
-      var _rcAmt=0;
-      // ── 2026-05-11 (Khushi feature) — CUSTOM AMOUNT INPUT on empty-wallet banner.
-      // 🆕 2026-06-03 v3.205 (Khushi) — quick-amount chips (₹500/999/1499/1999)
-      // REMOVED entirely, and the input's inner 2px border + number-spinner box
-      // removed (the "box inside the amount box" looked bad). Now ONE clean
-      // amount field. Min ₹1, max ₹50,000; blank/invalid → Pay button blocks
-      // (no ₹0 send). type=text + inputmode=numeric kills the browser spinner.
-      var _emptyCustomWrap=document.createElement('div');
-      _emptyCustomWrap.style.cssText='margin:4px 0 10px;';
-      _emptyCustomWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:#3D3D3D;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;text-align:center;">Enter recharge amount</div>';
-      var _emptyCustomRow=document.createElement('div');
-      _emptyCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:8px;border:2px solid #000;background:#fff;';
-      _emptyCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#000;">₹</span>';
-      var _emptyCustomInput=document.createElement('input');
-      _emptyCustomInput.type='text';_emptyCustomInput.inputMode='numeric';_emptyCustomInput.setAttribute('pattern','[0-9]*');
-      _emptyCustomInput.placeholder='Enter amount';
-      _emptyCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
-      _emptyCustomInput.oninput=function(){
-        var v=parseInt((_emptyCustomInput.value||'').replace(/[^0-9]/g,''),10);
-        if(isNaN(v)||v<1){_emptyCustomRow.style.borderColor='#FF5733';_rcAmt=0;return;}
-        if(v>50000){v=50000;}
-        _emptyCustomInput.value=String(v);
-        _emptyCustomRow.style.borderColor='#000';
-        _rcAmt=v;
-      };
-      _emptyCustomRow.appendChild(_emptyCustomInput);
-      _emptyCustomWrap.appendChild(_emptyCustomRow);
-      emptyBanner.appendChild(_emptyCustomWrap);
-      var rcPayBtn=document.createElement('button');
-      rcPayBtn.style.cssText='width:100%;padding:12px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.4px;';
-      rcPayBtn.textContent='💳 Pay & Recharge';
-      rcPayBtn.onclick=function(){
-        if(!_rcAmt){showToast('Select an amount first','err',2000);return;}
-        rcPayBtn.disabled=true;rcPayBtn.textContent='Opening payment...';
-        // V4 2026-05-11 — server-verified recharge (Razorpay signature check
-        // before crediting wallet). Replaces direct Firestore client write.
-        var _coverRef3=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-        hodPayAndCredit({
-          amount:_rcAmt, coverRef:_coverRef3, kind:'topup',
-          name:cv.name||'', phone:cv.phone||'',
-          description:'Wallet Recharge ₹'+_rcAmt, payBtn:rcPayBtn,
-          onSuccess:function(newBalance){
-            try{ cv.coverBalance=(cv.coverBalance||0)+_rcAmt; renderWalletContent(cv); }catch(_e){}
-            hodRechargeSuccessPopup(_rcAmt);
-          },
-          onError:function(msg){
-            rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';
-            showToast('⚠️ '+msg,'err',10000);
-          },
-          onClose:function(){rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';}
-        });
-      };
-      emptyBanner.appendChild(rcPayBtn);
-      // 🆕 2026-06-03 v3.205 (Khushi) — DO NOT append the recharge card here.
-      // It is now placed BELOW the balance + QR (see append after the QR
-      // section). Desired order: customer details → balance → scanner →
-      // recharge → "recharge above" note. Don't return — menu continues below.
+      emptyBanner.innerHTML='<div style="font-size:28px;margin-bottom:8px;">🍸</div>'
+        +'<div style="font-size:15px;font-weight:900;color:#000;margin-bottom:6px;">Wallet is empty</div>'
+        +'<div style="font-size:12px;color:#000;line-height:1.6;">Head to the bar and show your QR — the bartender will load your wallet and take your order.</div>';
     }
 
     // 🆕 2026-06-02 (Khushi) — LINKED-TABLE wallet: surface the assigned
@@ -512,7 +346,7 @@ function renderWalletPage(bookingRef){
       +_walletNote
       +'<div style="font-size:'+(_isTbl?'10px':'11px')+';color:#000;margin-top:'+(_isTbl?'4px':'6px')+';font-family:monospace;letter-spacing:1px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>';
     qrSec.appendChild(qrWrap);qrSec.appendChild(qrInfo2);inner.appendChild(qrSec);
-    generateLocalQR('wallet-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
+    generateLocalQR('wallet-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
 
     // 🆕 2026-06-03 v3.205 (Khushi) — RECHARGE card placed HERE, below the
     // balance + QR (order: customer details → balance → scanner → recharge →
@@ -550,8 +384,8 @@ function renderWalletPage(bookingRef){
           +'<div style="font-size:11px;color:#000;line-height:1.5;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
         }
       } else {
-        evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">RECHARGE TO ORDER</div>'
-          +'<div style="font-size:11px;color:#000;line-height:1.5;">Recharge above, or ask bartender — they accept cash, UPI or card.</div>';
+        evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">WALLET IS EMPTY</div>'
+          +'<div style="font-size:11px;color:#000;line-height:1.5;">Head to the bar and show your QR — the bartender will load your wallet and take your order.</div>';
       }
       inner.appendChild(evInfo);
     }
@@ -802,7 +636,7 @@ function renderWalletPage(bookingRef){
           addBtn.className='wv-add';
           addBtn.textContent='Add +';
           addBtn.onclick=function(){
-            cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true),v:item.v};
+            cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};
             updateCartBar();updateTabFooter();
             menuContent.innerHTML='';buildMenu(menuData);
           };
@@ -818,7 +652,7 @@ function renderWalletPage(bookingRef){
           var qtySpan=document.createElement('span');qtySpan.className='wv-qty';qtySpan.textContent=qty;
           var plusB=document.createElement('button');plusB.className='wv-qbtn';plusB.textContent='+';
           plusB.onclick=function(){
-            if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true),v:item.v};}
+            if(!cart[key]){cart[key]={n:item.n,p:_effPrice(item.n,item.p),cat:active.cat,qty:1,t:item.t||'drink',alc:item.alc===false?false:(item.t==='food'?false:true)};}
             else{cart[key].qty++;}
             updateCartBar();updateTabFooter();
             menuContent.innerHTML='';buildMenu(menuData);
@@ -858,7 +692,8 @@ function renderWalletPage(bookingRef){
         var open=taxBoxTop.style.display==='block';
         if(open){taxBoxTop.style.display='none';taxHintTop.innerHTML='Inclusive of all taxes <span style="opacity:.7;">\u25be</span>';return;}
         try{
-          var allItems=_billableItems();
+          var allItems=[];
+          (tabRounds||[]).forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
           // Also include unplaced cart items so the breakdown matches what
           // the customer is about to confirm.
           Object.values(cart).forEach(function(it){allItems.push(it);});
@@ -951,26 +786,6 @@ function renderWalletPage(bookingRef){
       placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
       submitCard.appendChild(placeBtn);
 
-      // 🆕 2026-06-30 (Khushi) — optional per-round NOTE box for the kitchen / bar
-      // ("extra spicy", "no ice"…). Sits just above PLACE ORDER and only shows
-      // once the cart has items. The note rides on the placed round (.note) so it
-      // prints on the KOT (print-server already renders kot.roundNote). Capped at
-      // 120 chars. Cleared after every successful place.
-      var noteWrap=document.createElement('div');
-      noteWrap.id='tab-note-wrap';
-      noteWrap.style.cssText='display:none;margin-bottom:10px;';
-      noteWrap.innerHTML='<div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1px;margin-bottom:6px;">NOTE FOR KITCHEN / BAR (OPTIONAL)</div>';
-      var noteEl=document.createElement('textarea');
-      noteEl.id='tab-round-note';
-      noteEl.maxLength=120;
-      noteEl.rows=2;
-      noteEl.placeholder='e.g. extra spicy, no ice, less sugar\u2026';
-      noteEl.style.cssText='width:100%;box-sizing:border-box;padding:10px 12px;border:2px solid #000;border-radius:8px;background:#fff;color:#000;font-size:13px;font-family:var(--ff);resize:none;box-shadow:3px 3px 0 #000;';
-      noteWrap.appendChild(noteEl);
-      submitCard.insertBefore(noteWrap,placeBtn);
-      function _getRoundNote(){var el=document.getElementById('tab-round-note');return el?String(el.value||'').trim().slice(0,120):'';}
-      function _clearRoundNote(){var el=document.getElementById('tab-round-note');if(el)el.value='';}
-
       // 2026-05-13 (Khushi spec, v2) — Done Ordering: keep Digitory red but
       // refine the typography so it doesn't shout. Headline now uses Playfair
       // (matches HOD wordmark, less aggressive than condensed sans), softer
@@ -981,53 +796,48 @@ function renderWalletPage(bookingRef){
       // sticker prices already include GST + service charge.
       var checkoutWrap=document.createElement('div');
       checkoutWrap.id='tab-checkout-wrap';
-      // 🆕 2026-06-08 v3.256 (Khushi) — "Done Ordering? Settle Your Bill" must show
-      // for ALL TABLE FLOWS, not just pure table bookings. Previously gated on
-      // cv.isTableBooking only, so a COVER+TABLE booking (HODENT… with a linked
-      // table — the "I'm at my table" flow) never saw the settle CTA: the guest
-      // placed rounds but had no way to settle from the wallet. Now show whenever
-      // the booking is associated with a table (pure table OR cover+table). Pure
-      // bar-only covers stay hidden (the bar redeems instantly — nothing to settle).
-      var _hasTableForCheckout=!!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
-      checkoutWrap.style.cssText=_hasTableForCheckout?'':'display:none;';
+      checkoutWrap.style.cssText=cv.isTableBooking?'':'display:none;';
 
-      // 🆕 2026-06-13 (Khushi) — split the settle CTA by booking type:
-      //  • TABLE + WALLET (guest has a prepaid balance loaded) → keep the
-      //    "🔔 Call Captain to Settle Bill" captain-ping (captain deducts the
-      //    bill from the wallet in person — unchanged).
-      //  • NORMAL TABLE (NO prepaid balance — just runs a tab) → show
-      //    "✅ Done Ordering — Settle Your Bill", which pages the captain to
-      //    collect payment AND routes the guest to the existing feedback /
-      //    Google-review flow (showCaptainFeedback). See _confirm below.
-      // Prepaid detection: coverBalance OR coverActivated > 0 (coverBalance can
-      // be >0 pre-arrival; coverActivated is the stable "money was loaded" flag).
-      var _hasPrepaid = Number(cv.coverBalance||0)>0 || Number(cv.coverActivated||0)>0;
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
       checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#23A094;border:2px solid #000;color:#fff;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:800;letter-spacing:.5px;box-shadow:4px 4px 0 #000;display:flex;align-items:center;justify-content:center;gap:10px;';
-      checkoutBtn.innerHTML=_hasPrepaid
-        ? '<span style="font-size:18px;">🔔</span><span>Call Captain to Settle Bill</span>'
-        : '<span style="font-size:18px;">✅</span><span>Done Ordering — Settle Your Bill</span>';
+      checkoutBtn.innerHTML='<span style="font-size:18px;">🧾</span><span>Done Ordering? Settle Your Bill</span>';
       checkoutWrap.appendChild(checkoutBtn);
       // (Tax-hint pill moved up under Running Tab — see taxHintTop above.)
       submitCard.appendChild(checkoutWrap);
 
       inner.appendChild(submitCard);
 
-      // ── Request a Song card REMOVED (Khushi 2026-06-29).
+      // ── Request a Song — eye-catching card after Place Order
+      // ONLY show for nightlife covers (ground floor) — NOT for dining/rooftop tables.
+      // Dining and rooftop have curated ambient music — letting customers hijack
+      // it would ruin the vibe. Aggregator bookings are all dining/rooftop too.
+      var _bookRef = cv.ref || bookingRef || '';
+      var _isAgg = cv.isAggregator || (cv.source && cv.source !== 'inhouse') || _bookRef.startsWith('AGG-');
+      var _isDiningOrRooftop = cv.isTableBooking && (cv.floor === 'dining' || cv.floor === 'rooftop' || _isAgg);
+      if(!_isDiningOrRooftop){
+        var songCard=document.createElement('div');
+        songCard.style.cssText='background:rgba(255,51,102,.15);border:2px solid rgba(255,51,102,.35);border-radius:8px;padding:20px;margin:20px 0;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(255,51,102,.08);';
+        songCard.innerHTML='<div style="text-align:center;margin-bottom:12px;"><span style="font-size:32px;">🎵</span></div>'
+          +'<div style="text-align:center;font-size:18px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:-.3px;">Request a Song</div>'
+          +'<div style="text-align:center;font-size:13px;color:rgba(0,0,0,.6);margin-bottom:16px;line-height:1.4;">Search any song in the world — we\'ll play it for you tonight!</div>'
+          +'<div style="text-align:center;"><div style="display:inline-flex;gap:8px;align-items:center;padding:10px 24px;background:#FF5733;border-radius:8px;font-size:14px;font-weight:700;color:#000;">Pick Your Song →</div></div>'
+          +'<div style="display:flex;justify-content:center;gap:16px;margin-top:14px;">'
+          +'<div style="font-size:10px;color:rgba(0,0,0,.4);text-transform:uppercase;letter-spacing:1px;">Free</div>'
+          +'<div style="font-size:10px;color:rgba(242,199,68,.6);text-transform:uppercase;letter-spacing:1px;">Priority ₹99</div>'
+          +'<div style="font-size:10px;color:rgba(255,51,102,.6);text-transform:uppercase;letter-spacing:1px;">VIP ₹299</div>'
+          +'</div>';
+        songCard.onclick=function(){
+          var reqUrl='request.html?ref='+encodeURIComponent(bookingRef)+'&name='+encodeURIComponent(name);
+          window.open(reqUrl,'_blank');
+        };
+        inner.appendChild(songCard);
+      }
 
       // ── Tab state
       var tabRounds=(cv.tabRounds&&Array.isArray(cv.tabRounds))?cv.tabRounds:[];
       function getTabTotal(){return tabRounds.reduce(function(s,r){return s+(r.roundTotal||0);},0);}
       function getRoundNum(){return tabRounds.length+1;}
-
-      // 🔁 2026-06-24 (Khushi) — REVERTED the self-order bill-gating. The BILL must
-      // count EVERY ordered round, including a 'preparing' one. Excluding preparing
-      // rounds for bar/pure-cover wallets hid real, OWED items: a guest who had
-      // ordered ₹1332 of drinks showed ₹0 billed until the bartender tapped PRINT
-      // KOT+BILL — a money-leakage risk. Bill = ALL ordered items, always.
-      function _isRoundBillable(r){ return !!r; }
-      function _billableItems(){var a=[];tabRounds.forEach(function(r){if(_isRoundBillable(r)){(r.items||[]).forEach(function(i){a.push(i);});}});return a;}
 
       function updateTabFooter(){
         var ct=getCartTotal();
@@ -1044,14 +854,14 @@ function renderWalletPage(bookingRef){
         // below still shows the live cart at menu price.
         var placedGrand;
         try{
-          var _allPlaced=_billableItems();
+          var _allPlaced=[];
+          tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_allPlaced.push(i);});});
           placedGrand=_allPlaced.length?hodComputeBreakdown(_allPlaced, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;
         }catch(_e){placedGrand=tt;}
         var _placedDisplay=placedGrand;
         if(te)te.textContent=(_placedDisplay>0||ct>0)?'₹'+(_placedDisplay+ct)+' total':'₹'+ct;
         renderCartSummary();
         if(placeBtn){placeBtn.style.opacity=ct>0?'1':'.45';}
-        var _nw=document.getElementById('tab-note-wrap');if(_nw){_nw.style.display=ct>0?'block':'none';}
         var hasTab=(_placedDisplay+ct)>0;
         if(checkoutBtn){
           checkoutBtn.style.color='#fff';
@@ -1078,69 +888,15 @@ function renderWalletPage(bookingRef){
         // show the screen so the guest knows to walk to the bar.
         function _parkOrderForBartender(srcTag){
           var _items=Object.values(cart);
-          // 🆕 2026-07-02 (Khushi LIVE BUG — bar self-order invisible on bartender scan).
-          // ROOT CAUSE (proven by live REST probes): published Firestore rules now BLOCK
-          // unauth covers updates that touch tabRounds/tabTotal (the server-side money
-          // lock) — so the old direct park write silently 403'd while the fail-open
-          // catch still showed the success screen. Fix: SERVER-FIRST park via the
-          // selfOrderPlace CF (verified live: writes a serverPriced 'preparing' round,
-          // does NOT touch coverBalance — the v3.329 "writes activated" concern is
-          // stale), then a small flags-only client write (hasIncomingCustomerOrder/
-          // atBar/incomingOrderNote — probes confirmed rules ALLOW these), falling back
-          // to the legacy direct write only if the CF fails. The success screen now
-          // shows a TRUTHFUL sync status instead of pretending: sending → sent /
-          // couldn't-send-tell-the-bartender. Never blocks the guest either way.
-          var _bRNote=_getRoundNote();
-          var _bCoverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-          var _parkState='sending'; var _bsStatusEl=null;
-          function _renderParkStatus(){
-            if(!_bsStatusEl)return;
-            if(_parkState==='sent'){
-              _bsStatusEl.style.cssText='background:rgba(34,197,94,.1);border:1.5px solid rgba(34,197,94,.5);border-radius:10px;padding:9px 12px;margin-bottom:14px;text-align:center;font-size:12px;font-weight:800;color:#15803D;';
-              _bsStatusEl.textContent='✅ Order sent to the bartender\u2019s screen';
-            } else if(_parkState==='fail'){
-              _bsStatusEl.style.cssText='background:rgba(245,158,11,.12);border:1.5px solid rgba(245,158,11,.6);border-radius:10px;padding:9px 12px;margin-bottom:14px;text-align:center;font-size:12px;font-weight:800;color:#92400E;';
-              _bsStatusEl.textContent='⚠️ Couldn\u2019t send automatically — please TELL the bartender your order at the counter';
-            } else {
-              _bsStatusEl.style.cssText='background:rgba(0,0,0,.05);border:1.5px solid rgba(0,0,0,.15);border-radius:10px;padding:9px 12px;margin-bottom:14px;text-align:center;font-size:12px;font-weight:800;color:#3D3D3D;';
-              _bsStatusEl.textContent='⏳ Sending your order to the bar…';
-            }
-          }
-          function _parkLocalCommit(newRounds){
-            tabRounds=newRounds;
-            cart={};
-            try { _clearRoundNote(); } catch(_){}
-            try { updateCartBar(); } catch(_){}
-            try { renderRoundsHistory(); } catch(_){}
-            _parkState='sent'; _renderParkStatus();
-          }
-          function _parkFlagsWrite(){
-            // Small non-money write — rules allow this unauth (probe-verified).
-            // Best-effort: the CF round alone already surfaces on bartender scan.
-            if(!firestore)return;
-            var _flags={
-              hasIncomingCustomerOrder:true,
-              incomingOrderAt:new Date().toISOString(),
-              incomingOrderSource:srcTag,
-              atBar:true,
-              atBarAt:new Date().toISOString()
-            };
-            if(_bRNote)_flags.incomingOrderNote=_bRNote;
-            firestore.collection('covers').doc(_bCoverDocId).set(_flags,{merge:true})
-              .catch(function(err){ try{ console.warn('[park-bar] flags write failed (non-fatal)', err&&err.message); }catch(_){} });
-          }
-          function _parkLegacyWrite(){
-            // Old direct write — only reachable if the CF errored. Works iff rules
-            // permit unauth tabRounds writes (they currently don't — hence the CF).
-            try {
-              if(!firestore){ _parkState='fail'; _renderParkStatus(); return; }
-              var _bRoundItems=_items.map(function(it){var _o={n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};if(it.v===true||it.v===false)_o.v=it.v;return _o;});
-              var _bNewRound={roundNum:getRoundNum(),items:_bRoundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString(),source:srcTag};
-              if(_bRNote)_bNewRound.note=_bRNote;
-              var _bUpdatedRounds=tabRounds.map(function(r){
-                if(r.status==='activated')return Object.assign({},r,{status:'served',servedAt:new Date().toISOString()});
-                return r;
-              }).concat([_bNewRound]);
+          try {
+            var _bRoundItems=_items.map(function(it){return {n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};});
+            var _bNewRound={roundNum:getRoundNum(),items:_bRoundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString(),source:srcTag};
+            var _bCoverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
+            var _bUpdatedRounds=tabRounds.map(function(r){
+              if(r.status==='activated')return Object.assign({},r,{status:'served',servedAt:new Date().toISOString()});
+              return r;
+            }).concat([_bNewRound]);
+            if (firestore) {
               firestore.collection('covers').doc(_bCoverDocId).set({
                 tabRounds:_bUpdatedRounds,tabTotal:getTabTotal()+ct,
                 ref:cv.ref||cv.bookingId||'',name:cv.name||'',phone:cv.phone||'',
@@ -1151,45 +907,15 @@ function renderWalletPage(bookingRef){
                 atBar:true,
                 atBarAt:new Date().toISOString()
               },{merge:true}).then(function(){
-                if(_bRNote){} // note already on the round in legacy path
-                _parkLocalCommit(_bUpdatedRounds);
+                tabRounds=_bUpdatedRounds;
+                cart={};
+                try { updateCartBar(); } catch(_){}
+                try { renderRoundsHistory(); } catch(_){}
               }).catch(function(err){
-                try { console.warn('[park-bar] covers write failed', err && err.message); } catch(_){}
-                _parkState='fail'; _renderParkStatus();
+                try { console.warn('[park-bar] covers write failed (popup-only fallback)', err && err.message); } catch(_){}
               });
-            } catch(_eBar) { try { console.warn('[park-bar] write threw',_eBar); } catch(_){} _parkState='fail'; _renderParkStatus(); }
-          }
-          try {
-            if(window.SELF_ORDER_PLACE_URL){
-              var _parkRoundKey=(cv.ref||cv.bookingId||'park')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
-              var _parkItems=_items.map(function(it){return {n:it.n,qty:it.qty,cat:it.cat};});
-              fetch(window.SELF_ORDER_PLACE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-                coverDocId:_bCoverDocId, bookingRef:cv.ref||cv.bookingId||'', name:cv.name||'', phone:cv.phone||'',
-                isTableBooking:!!cv.isTableBooking, tableId:cv.tableId||'', floorLabel:cv.floorLabel||'',
-                isTableChoice:false, linkedTableRef:'',
-                items:_parkItems, roundKey:_parkRoundKey, note:_bRNote||''
-              })}).then(function(r){return r.json();}).then(function(resp){
-                if(!resp||!resp.ok||!resp.tabRounds) throw new Error('cf_park');
-                // Adopt the server's authoritative rounds; stamp note+source on our
-                // round LOCALLY for display (deployed CF drops both — the note also
-                // rides cover.incomingOrderNote for the bartender via the flags write).
-                var _srvRounds=resp.tabRounds.slice();
-                for(var i=_srvRounds.length-1;i>=0;i--){
-                  if(_srvRounds[i]&&_srvRounds[i].roundKey===_parkRoundKey){
-                    _srvRounds[i]=Object.assign({},_srvRounds[i],{source:srcTag},_bRNote?{note:_bRNote}:{});
-                    break;
-                  }
-                }
-                _parkFlagsWrite();
-                _parkLocalCommit(_srvRounds);
-              }).catch(function(errCf){
-                try { console.warn('[park-bar] CF park failed → legacy write', errCf&&errCf.message); } catch(_){}
-                _parkLegacyWrite();
-              });
-            } else {
-              _parkLegacyWrite();
             }
-          } catch(_ePark) { try { console.warn('[park-bar] park threw',_ePark); } catch(_){} _parkLegacyWrite(); }
+          } catch(_eBar) { try { console.warn('[park-bar] write threw',_eBar); } catch(_){} }
           // "show this to the bartender" screen
           var _bsOv=document.createElement('div');
           _bsOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10001;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px 60px;backdrop-filter:blur(10px);animation:fadeIn .25s ease;overflow-y:auto;';
@@ -1229,26 +955,14 @@ function renderWalletPage(bookingRef){
             +'<div style="font-size:10px;font-weight:800;color:#000;letter-spacing:1.5px;margin-bottom:10px;">SCAN TO PULL UP WALLET</div>'
             +'<div id="bs-qr-wrap" style="width:180px;height:180px;margin:0 auto;background:#fff;display:flex;align-items:center;justify-content:center;"></div>'
             +'</div>';
-          // 🆕 2026-07-02 — truthful sync status (sending → sent / couldn't-send).
-          var _bsStatus='<div id="bs-park-status"></div>';
-          _bsMd.innerHTML=_bsHdr+_bsStatus+_bsQR+_bsRef+_bsItemsHtml+_bsBal+_bsHint;
-          generateLocalQR('bs-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
+          _bsMd.innerHTML=_bsHdr+_bsQR+_bsRef+_bsItemsHtml+_bsBal+_bsHint;
+          generateLocalQR('bs-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
           var _bsCloseX=document.createElement('button');
           _bsCloseX.setAttribute('aria-label','Close');
           _bsCloseX.innerHTML='✕';
           _bsCloseX.style.cssText='position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:8px;background:#fff;border:2px solid #000;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:var(--ff);line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:2px 2px 0 #000;z-index:2;';
           _bsCloseX.onclick=function(){_bsOv.remove();};
           _bsMd.appendChild(_bsCloseX);
-          // 🆕 2026-06-12 v3.267 (Khushi) — prominent BACK button at the TOP-LEFT of
-          // the "show this to the bartender" screen (mirrors the ✕ top-right) so the
-          // guest can return to the menu from the top without scrolling all the way
-          // down to the existing "← Back to Menu" button.
-          var _bsBackTop=document.createElement('button');
-          _bsBackTop.setAttribute('aria-label','Back to menu');
-          _bsBackTop.innerHTML='← Back';
-          _bsBackTop.style.cssText='position:absolute;top:10px;left:10px;height:34px;padding:0 12px;border-radius:8px;background:#fff;border:2px solid #000;color:#000;font-size:13px;font-weight:900;cursor:pointer;font-family:var(--ff);line-height:1;display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:2px 2px 0 #000;z-index:2;';
-          _bsBackTop.onclick=function(){_bsOv.remove();};
-          _bsMd.appendChild(_bsBackTop);
           var _bsBackBtn=document.createElement('button');
           _bsBackBtn.style.cssText='width:100%;padding:15px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;box-shadow:4px 4px 0 #000;';
           _bsBackBtn.textContent='← Back to Menu';
@@ -1256,10 +970,6 @@ function renderWalletPage(bookingRef){
           _bsMd.appendChild(_bsBackBtn);
           _bsOv.appendChild(_bsMd);
           document.body.appendChild(_bsOv);
-          // Bind + paint the sync status now that the modal is mounted (the CF/write
-          // callbacks may already have flipped _parkState before this ran).
-          _bsStatusEl=document.getElementById('bs-park-status');
-          _renderParkStatus();
         }
 
         // 🔴 2026-05-25 (Khushi GO-LIVE) — WHERE-ARE-YOU PICKER for
@@ -1283,75 +993,10 @@ function renderWalletPage(bookingRef){
         // bookings it's confusing + lets them pick AT BAR and miss captain
         // service. Force `_loc='table'` so the picker is bypassed and the
         // captain-ping branch runs straight away.
-        // 🆕 2026-06-08 v3.254 (Khushi) — BILL-SETTLED GUARD. Once the captain taps
-        // SETTLE BILL (markTablePaid stamps paymentStatus:'paid' + paymentMode/
-        // paidAt on the tableReservations doc), this table tab is CLOSED — the
-        // guest must NOT add another captain/table round on the same wallet (that
-        // round had no Settle Bill button on the POS → uncollected = money leak).
-        // A prepaid cover ALSO carries paymentStatus:'paid' from the DEPOSIT, so
-        // we REQUIRE paymentMode||paidAt (only markTablePaid writes those) to avoid
-        // a false-positive on a live, unsettled table. Product decision (Khushi
-        // 2026-06-08): block TABLE orders only; the BAR stays OPEN so any leftover
-        // wallet balance is still spendable there.
-        var _tableBillIsSettled=function(d){
-          return !!d && d.paymentStatus==='paid' && (!!d.paymentMode || !!d.paidAt);
-        };
-        var _showBillSettledPopup=function(){
-          try {
-            var _sOv=document.createElement('div');
-            _sOv.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:10002;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn .25s ease;';
-            var _sMd=document.createElement('div');
-            _sMd.style.cssText='background:#F4F4F0;border:2px solid #000;border-radius:8px;padding:28px 24px 22px;width:100%;max-width:380px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.7),0 0 40px rgba(34,160,148,.18);';
-            var _leftover=(typeof bal==='number' && bal>0)?bal:0;
-            _sMd.innerHTML=''
-              +'<div style="font-size:48px;margin-bottom:10px;line-height:1;">✅</div>'
-              +'<div style="font-family:var(--ff);font-size:21px;font-weight:900;color:#000;margin-bottom:8px;letter-spacing:.3px;">Your bill\u2019s been settled</div>'
-              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:'+(_leftover?'14px':'18px')+';">This table\u2019s tab is closed. To order again, please ask your <b style="color:#000;">captain</b> to set you up at a new table.</div>'
-              +(_leftover?('<div style="background:rgba(34,160,148,.08);border:1.5px solid rgba(34,160,148,.4);border-radius:12px;padding:10px 14px;margin-bottom:16px;"><div style="font-size:10px;font-weight:800;color:#3D3D3D;letter-spacing:1.2px;margin-bottom:2px;">WALLET BALANCE LEFT</div><div style="font-size:20px;font-weight:900;color:#15803D;font-variant-numeric:tabular-nums;">\u20b9'+_leftover.toLocaleString('en-IN')+'</div><div style="font-size:11px;color:#3D3D3D;margin-top:4px;line-height:1.4;">You can still use this at the \ud83c\udf78 bar \u2014 show your QR to the bartender.</div></div>'):'');
-            // 🆕 2026-06-13 v3.282 (Khushi) — the "SHOW QR TO BARTENDER" option is
-            // correct ONLY for a TABLE+WALLET booking (a cover was activated, so the
-            // guest may still spend leftover/recharge at the bar). For a PURE TABLE
-            // (no wallet ever activated) there is NO bar wallet to use — so we hide
-            // the bartender button entirely and leave only the "ask your captain for
-            // a new table" message + Close. Detection is "was a cover EVER activated",
-            // amount-agnostic (Khushi: even a ₹0 activation counts): activation
-            // timestamp present OR any activated amount OR any balance. A pure table
-            // has none of these (coverActivatedAt unset, coverActivated 0, balance 0).
-            var _coverWasActivated = !!cv.coverActivatedAt || Number(cv.coverActivated||0)>0 || Number(cv.coverBalance||0)>0;
-            if (_coverWasActivated) {
-              var _sBar=document.createElement('button');
-              _sBar.style.cssText='width:100%;padding:16px;border-radius:8px;background:rgba(123,47,190,.15);border:2px solid #7B2FBE;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:12px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:10px;';
-              _sBar.innerHTML='<span style="font-size:22px;">\ud83c\udf78</span><span>SHOW QR TO BARTENDER</span>';
-              _sBar.onclick=function(){ try{_sOv.remove();}catch(_){} try{ _parkOrderForBartender('customer_self_order_bar'); }catch(_){} };
-              _sMd.appendChild(_sBar);
-            }
-            var _sCancel=document.createElement('button');
-            _sCancel.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.14);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
-            _sCancel.textContent='Close';
-            _sCancel.onclick=function(){ try{_sOv.remove();}catch(_){} };
-            _sMd.appendChild(_sCancel);
-            _sOv.appendChild(_sMd);
-            _sOv.onclick=function(e){ if(e.target===_sOv) _sOv.remove(); };
-            document.body.appendChild(_sOv);
-          } catch(_e){ try{ showToast('This table\u2019s bill is settled \u2014 please ask your captain for a new table.','warn',4000); }catch(_){} }
-        };
         var _refIsTable = !!(bookingRef && (bookingRef.indexOf('HODTAB')===0 || bookingRef.indexOf('TBL-')===0 || bookingRef.indexOf('AGG-')===0));
         if (_refIsTable && !placeBtn._loc) {
-          // PURE table bookings SKIP the picker — so the settled guard runs HERE.
-          // If the captain already settled the bill, block + show the settled popup;
-          // otherwise proceed straight to the captain/table flow. Fail-open on any
-          // read error or when the table doc can't be resolved.
-          var _proceedTable=function(){ placeBtn._loc = 'table'; try { placeBtn.onclick(); } finally { placeBtn._loc = null; } };
-          if (firestore && cv.linkedTableRef) {
-            firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-              if (d.exists && _tableBillIsSettled(d.data()||{})) { _showBillSettledPopup(); }
-              else { _proceedTable(); }
-            }).catch(function(){ _proceedTable(); });
-          } else if (_tableBillIsSettled(cv)) {
-            _showBillSettledPopup();
-          } else {
-            _proceedTable();
-          }
+          placeBtn._loc = 'table';
+          try { placeBtn.onclick(); } finally { placeBtn._loc = null; }
           return;
         }
         if ((cv.isTableBooking || cv.linkedTableRef || cv.tableId) && (cv.coverActivated||0) > 0 && !placeBtn._loc){
@@ -1488,10 +1133,6 @@ function renderWalletPage(bookingRef){
           };
           var _evalTableDoc=function(tr,sourceLabel){
             if (_isDeadStatus(tr.status)) { _markStale('table '+sourceLabel+' status: '+(tr.status||'?')); try { _unlockBarReleased('table dead-status: '+(tr.status||'?')); } catch(_){} try { _showSessionEndedPopup('table dead-status: '+(tr.status||'?')); } catch(_){} return; }
-            // 🆕 2026-06-08 v3.254 (Khushi) — bill SETTLED (paid via markTablePaid) but
-            // table not yet released. Replace the picker with the settled popup (which
-            // keeps the bar open for any leftover balance). Block the table order.
-            if (_tableBillIsSettled(tr)) { try { _lpOv.remove(); } catch(_){} try { _showBillSettledPopup(); } catch(_){} return; }
             var phN=_normP(tr.customerPhone||tr.phone);
             // Strict phone check ONLY when both sides have digits; protects
             // against re-seated tables without locking out customers whose
@@ -1535,20 +1176,16 @@ function renderWalletPage(bookingRef){
                 _markFresh(); return;
               }
               // Walk results; if any non-dead row matches identity → fresh.
-              var fresh=false, lastReason='all linked reservations look dead', _anyOpenRounds=false, _settled=false;
+              var fresh=false, lastReason='all linked reservations look dead', _anyOpenRounds=false;
               snap.forEach(function(d){
                 var tr=d.data()||{};
                 if (_isDeadStatus(tr.status)) { lastReason='all linked reservations dead'; return; }
                 var phN=_normP(tr.customerPhone||tr.phone);
                 if (_cvPhoneN && phN && phN!==_cvPhoneN) { lastReason='phone mismatch — re-seated to …'+phN.slice(-4); return; }
                 fresh=true;
-                // 🆕 2026-06-08 v3.254 — a matching row whose bill is SETTLED blocks
-                // the table order (bar stays open via the settled popup).
-                if (_tableBillIsSettled(tr)) _settled=true;
                 // 🆕 v3.5 — track open captain rounds across any matching row
                 if (_hasOpenRoundsFn(tr.tabRounds)) _anyOpenRounds=true;
               });
-              if (_settled) { try { _lpOv.remove(); } catch(_){} try { _showBillSettledPopup(); } catch(_){} return; }
               if (fresh) {
                 _markFresh();
                 if (_anyOpenRounds) {
@@ -1754,61 +1391,18 @@ function renderWalletPage(bookingRef){
           var pendingTotal=Math.min(pendingTotalRaw,bal);
           if(pendingTotalRaw>bal){try{console.warn('[wallet-clamp] pendingTotalRaw',pendingTotalRaw,'>bal',bal,'— capped to bal');}catch(_){}}
           if((ct+pendingTotal)>bal){
-            // Show clear popup
+            // Not enough balance — direct to bartender (self-recharge removed).
             var _ov=document.createElement('div');
             _ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px);';
             var _md=document.createElement('div');
-            // 🟢 2026-06-02 v3.183 (Khushi) — RECHARGE card restyle. GREEN box,
-            // NO ⚠️, NO red. Minimal copy. Quick-recharge preset chips REMOVED.
-            // Two ways to add funds: PAY ONLINE (Razorpay) OR RECHARGE AT BAR
-            // (parks the order so the bartender sees it on scan/search).
             _md.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:28px 24px;width:100%;max-width:360px;text-align:center;box-shadow:6px 6px 0 #23A094;';
             var _shortfall=ct+pendingTotal-bal;
-            _md.innerHTML='<div style="font-size:20px;font-weight:900;color:#16A34A;letter-spacing:.3px;line-height:1.3;margin-bottom:8px;">RECHARGE OF ₹'+_shortfall.toLocaleString('en-IN')+' REQUIRED</div>'
-              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;margin-bottom:18px;">Tap the recharge button below.</div>';
-            // 🆕 2026-06-12 v3.267 (Khushi) — recharge amount is FIXED to the exact
-            // shortfall already shown in the headline ("RECHARGE OF ₹X REQUIRED").
-            // The old editable amount field (the "box inside the box") is removed so
-            // the modal is just the headline + the two recharge buttons below.
-            var _selRcAmt=Math.max(1,_shortfall);
-            // PAY ONLINE (Razorpay) — server-verified recharge (existing path).
-            var _rcPayBtn2=document.createElement('button');
-            _rcPayBtn2.style.cssText='width:100%;padding:14px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:10px;letter-spacing:.4px;';
-            _rcPayBtn2.textContent='💳 PAY ONLINE & ORDER';
-            _rcPayBtn2.onclick=function(){
-              if(!_selRcAmt){showToast('Enter an amount','err',2000);return;}
-              _rcPayBtn2.disabled=true;_rcPayBtn2.textContent='Opening payment...';
-              var _coverRef4=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-              hodPayAndCredit({
-                amount:_selRcAmt, coverRef:_coverRef4, kind:'topup',
-                name:cv.name||'', phone:cv.phone||'',
-                description:'Wallet Recharge ₹'+_selRcAmt, payBtn:_rcPayBtn2,
-                onSuccess:function(newBalance){
-                  _ov.remove();
-                  try{ cv.coverBalance=(cv.coverBalance||0)+_selRcAmt; renderWalletContent(cv); }catch(_e){}
-                  hodRechargeSuccessPopup(_selRcAmt);
-                },
-                onError:function(msg){
-                  _ov.remove();
-                  showToast('⚠️ '+msg,'err',10000);
-                },
-                onClose:function(){_rcPayBtn2.disabled=false;_rcPayBtn2.textContent='💳 PAY ONLINE & ORDER';}
-              });
-            };
-            _md.appendChild(_rcPayBtn2);
-            // 🆕 RECHARGE AT BAR — park the order so the bartender sees it on
-            // scan/search and recharges + serves at the bar.
-            var _rcBarBtn=document.createElement('button');
-            _rcBarBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:rgba(123,47,190,.18);border:1.5px solid rgba(123,47,190,.55);color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:8px;';
-            _rcBarBtn.innerHTML='<span style="font-size:18px;">🍸</span><span>RECHARGE AT BAR</span>';
-            _rcBarBtn.onclick=function(){
-              _ov.remove();
-              _parkOrderForBartender('recharge_at_bar');
-            };
-            _md.appendChild(_rcBarBtn);
+            _md.innerHTML='<div style="font-size:32px;margin-bottom:12px;">🍸</div>'
+              +'<div style="font-size:18px;font-weight:900;color:#000;margin-bottom:10px;">Not enough balance</div>'
+              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:20px;">You need <strong style="color:#000;">₹'+_shortfall.toLocaleString('en-IN')+'</strong> more to place this order.<br>Head to the bar and show your QR — the bartender will top up your wallet and serve you.</div>';
             var _cb=document.createElement('button');
-            _cb.style.cssText='width:100%;padding:12px;border-radius:8px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.12);color:#3D3D3D;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff);';
-            _cb.textContent='Close';
+            _cb.style.cssText='width:100%;padding:14px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);';
+            _cb.textContent='OK, got it';
             _cb.onclick=function(){_ov.remove();};
             _md.appendChild(_cb);_ov.appendChild(_md);
             _ov.onclick=function(e){if(e.target===_ov)_ov.remove();};
@@ -1827,9 +1421,8 @@ function renderWalletPage(bookingRef){
         // order off the bartender dashboard).
         var _chosenLoc=placeBtn._loc;
         var _isTableChoice=(_chosenLoc==='table');
-        var roundItems=Object.values(cart).map(function(it){var _o={n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};if(it.v===true||it.v===false)_o.v=it.v;return _o;});
+        var roundItems=Object.values(cart).map(function(it){return {n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};});
         var newRound={roundNum:getRoundNum(),items:roundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString()};
-        var _rNote=_getRoundNote();if(_rNote)newRound.note=_rNote;
         // Tag a TABLE self-order so the bartender side never surfaces it as a
         // bar pre-order (captain owns it). Mirrors the source already written on
         // the tableReservations copy below.
@@ -1850,36 +1443,8 @@ function renderWalletPage(bookingRef){
         // THE BAR" choice (atBar / hasIncomingCustomerOrder are durable) so this
         // table order does NOT ALSO light up the bartender's incoming dashboard.
         if(_isTableChoice){_coverPatch.atBar=false;_coverPatch.hasIncomingCustomerOrder=false;}
-        // 🆕 2026-06-15 v3.296 (Phase 3) — the money write (cover round + table
-        // mirror) now goes SERVER-SIDE via selfOrderPlace, which re-prices the
-        // cart from venueMenu (+ live cats + POS overrides) so a DevTools user
-        // can't place a forged / zero-price round. _afterPlace renders the SAME
-        // success UI for both paths; on the server path (serverDid===true) the
-        // CF already wrote the cover round AND mirrored it to the table doc(s),
-        // so we skip EVERY client money write below and just adopt the server's
-        // authoritative rounds. FAIL-OPEN: on any CF error we run _legacyWrite
-        // (the original direct write) so a guest can always order.
-        var _placeRoundKey=(cv.ref||cv.bookingId||'place')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
-        var _afterPlace=function(serverDid,serverRounds){
-          tabRounds=(serverDid&&serverRounds&&serverRounds.length)?serverRounds:updatedRounds;
-          // 🆕 2026-06-30 (Khushi) — the selfOrderPlace CF re-prices the cart and
-          // writes its OWN rounds WITHOUT the kitchen note, so on the server path
-          // the note would be lost. Best-effort stamp the note onto the LAST
-          // (just-placed) round of the adopted rounds and mirror to the cover +
-          // linked table doc so the captain's KOT carries it. Display-only,
-          // fail-open; builds off serverRounds so it never reverts CF pricing.
-          if(serverDid && _rNote){
-            try{
-              var _sr=(tabRounds||[]).slice();
-              if(_sr.length){
-                _sr[_sr.length-1]=Object.assign({},_sr[_sr.length-1],{note:_rNote});
-                tabRounds=_sr;
-                var _scid=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-                if(firestore&&_scid){firestore.collection('covers').doc(_scid).set({tabRounds:_sr},{merge:true}).catch(function(){});}
-                if(firestore&&cv.linkedTableRef){firestore.collection('tableReservations').doc(cv.linkedTableRef).update({tabRounds:_sr}).catch(function(){});}
-              }
-            }catch(_eNote){}
-          }
+        firestore.collection('covers').doc(coverDocId).set(_coverPatch,{merge:true}).then(function(){
+          tabRounds=updatedRounds;
           // 🔴 2026-05-20 (Khushi Bug 1 fix) — AUTO-IMPORT customer's self-
           // order onto the captain's running tab.
           // Before: customer placed soup → only landed on the cover wallet.
@@ -1898,7 +1463,6 @@ function renderWalletPage(bookingRef){
           // and the existing 🔔 CUSTOMER CALLING banner still fires —
           // captain can fall back to manual ADD ORDER like before. Zero
           // regression for pure-cover (non-linked) wallets.
-          if(!serverDid){
           try {
             if (cv && cv.linkedTableRef) {
               var _fv = (window.firebase && window.firebase.firestore && window.firebase.firestore.FieldValue);
@@ -1910,11 +1474,9 @@ function renderWalletPage(bookingRef){
                 .catch(function(err){ try { console.warn('[auto-import] tableReservations update failed', err && err.message); } catch(_){} });
             }
           } catch (_e) {}
-          }
           var placedItems=Object.values(cart).map(function(it){return it.qty+'× '+it.n;}).join(', ');
           var placedItemsArr=Object.values(cart).map(function(it){return {n:it.n,qty:it.qty,p:it.p};});
           cart={};
-          try { _clearRoundNote(); } catch(_){}
           updateCartBar();
           renderRoundsHistory();
           placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
@@ -2005,7 +1567,7 @@ function renderWalletPage(bookingRef){
             overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
             document.body.appendChild(overlay);
             // Generate QR
-            setTimeout(function(){generateLocalQR('order-qr-popup','https://hodclub.in/?verify='+(cv.ref||cv.bookingId||'')+'');},100);
+            setTimeout(function(){generateLocalQR('order-qr-popup','https://hodclub.in/?verify='+(cv.ref||cv.bookingId||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));},100);
             }; // end _showBartenderQR
 
             // 🆕 2026-05-20 — branch on linkedTableRef.
@@ -2139,179 +1701,25 @@ function renderWalletPage(bookingRef){
             }
           }
 
-          if(!serverDid && cv.isTableBooking&&cv.ref){
+          if(cv.isTableBooking&&cv.ref){
             firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
               .then(function(snap){snap.forEach(function(d){d.ref.update({tabRounds:updatedRounds,tabTotal:getTabTotal()});});})
               .catch(function(){});
           }
-        };
-        // ── SERVER-FIRST dispatch (Phase 3). POST the cart (n/qty/cat only) to
-        //    selfOrderPlace, which re-prices it server-side, writes the cover
-        //    round + mirrors to the table doc(s) (idempotent on roundKey). On OK
-        //    we adopt the server's authoritative rounds and render the success
-        //    UI with NO client money write. On ANY error → _legacyWrite (the
-        //    original direct write) so a guest can always order while rules
-        //    still permit it (the transition window before rules v8).
-        var _legacyWrite=function(){
-          firestore.collection('covers').doc(coverDocId).set(_coverPatch,{merge:true})
-            .then(function(){ _afterPlace(false); })
-            .catch(function(e){
-              placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
-              showToast('Failed: '+e.message,'err',3000);
-            });
-        };
-        try{
-          // 🆕 v3.329 MONEY BUG FIX — selfOrderPlace CF writes 'activated' directly
-          // to covers WITHOUT decrementing coverBalance, causing a ghost round where
-          // the guest's balance isn't deducted. Pure bar wallets (no table) MUST go
-          // through _parkOrderForBartender so the round lands as 'preparing' and
-          // BarMode's activateCoverOrder server transaction owns the balance deduction.
-          // Table wallets are unaffected (selfOrderPlace for table covers write to
-          // tableReservations and are settled by captain, not balance-deducted).
-          if(!_hasTableForGate){
-            placeBtn.disabled=false;
-            placeBtn.textContent='\uD83C\uDF79 Place Order';
-            _parkOrderForBartender('customer_self_order_bar');
-          } else if(window.SELF_ORDER_PLACE_URL){
-            var _placeItems=(roundItems||[]).map(function(it){return {n:it.n,qty:it.qty,cat:it.cat};});
-            fetch(window.SELF_ORDER_PLACE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              coverDocId:coverDocId, bookingRef:cv.ref||cv.bookingId||'', name:cv.name||'', phone:cv.phone||'',
-              isTableBooking:!!cv.isTableBooking, tableId:cv.tableId||'', floorLabel:cv.floorLabel||'',
-              isTableChoice:_isTableChoice, linkedTableRef:cv.linkedTableRef||'',
-              items:_placeItems, roundKey:_placeRoundKey, note:_rNote
-            })}).then(function(r){return r.json();}).then(function(resp){
-              if(!resp||!resp.ok) throw new Error('cf_self_order');
-              _afterPlace(true, resp.tabRounds);
-            }).catch(function(){ _legacyWrite(); });
-          } else { _legacyWrite(); }
-        }catch(_ePlace){ _legacyWrite(); }
+        }).catch(function(e){
+          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
+          showToast('Failed: '+e.message,'err',3000);
+        });
       };
 
       // ── Checkout (shows full bill modal)
-      // 🆕 2026-06-08 v3.256 (Khushi) — "Call Captain to Settle Bill" is now a
-      // DIRECT captain ping (no Pay-Online / Done-Ordering modal — that confused
-      // guests since the bill is settled IN PERSON against the wallet). Tapping
-      // this stamps the SAME `bill_requested` signal the POS Captain already
-      // surfaces (RED "BILL REQUESTED" chip + Bill Due KPI + chime) onto the
-      // LINKED TABLE doc AND the cover, then tells the guest a captain is coming.
-      // Works for ALL table flows (cover+table via cv.linkedTableRef; pure table
-      // via the bookingRef query). Fail-open — never strands the guest. Guards
-      // against re-stamping an ALREADY-SETTLED table (would wrongly revert the
-      // Captain's paid → bill_requested and re-open a closed tab).
       checkoutBtn.onclick=function(){
-        if(checkoutBtn.disabled)return;
-        var _ttAll=_billableItems();
-        var _billTt;
-        try{_billTt=_ttAll.length?hodComputeBreakdown(_ttAll, Number(cv.billDiscountPct||0), (cv.billScOn!==false)).grandTotal:0;}catch(_e){_billTt=getTabTotal();}
-        if(!_billTt && !getCartTotal()){showToast('Place an order first, then call your captain to settle.','err',2800);return;}
-        if(getCartTotal()>0){showToast('Heads up: tap PLACE ORDER for your current items so they\u2019re on the bill.','warn',3200);}
-        var _settledChk=function(d){return !!d && d.paymentStatus==='paid' && (!!d.paymentMode || !!d.paidAt);};
-        var _billPatch={paymentStatus:'bill_requested',billRequestedAt:new Date().toISOString(),orderTotal:_billTt,tabTotal:_billTt};
-        var _confirm=function(){
-          // 🆕 2026-06-13 (Khushi) — NORMAL TABLE (no prepaid wallet): once the
-          // captain has been paged (bill_requested already written above) route
-          // the guest to the existing reviews / feedback flow. The captain still
-          // comes to collect payment; the guest sees the captain-on-way +
-          // 5-star feedback + Google-rating screen (same flow as the
-          // wallet-funded GET BILL gate at the _walletBal>=tt branch).
-          if(!_hasPrepaid){
-            try{ if(_walletUnsub){_walletUnsub();_walletUnsub=null;} }catch(_){}
-            try{
-              inner.innerHTML='';
-              showCaptainFeedback(inner, _billTt, false);
-              try{ window.scrollTo(0,0); }catch(_s){}
-            }catch(_e){
-              // Fail-open: never strand the guest — fall back to the toast.
-              try{checkoutBtn.disabled=true;checkoutBtn.style.background='#15803D';checkoutBtn.style.cursor='default';checkoutBtn.style.boxShadow='2px 2px 0 #000';checkoutBtn.innerHTML='<span style="font-size:18px;">\u2705</span><span>Captain notified \u2014 on their way</span>';}catch(_2){}
-              try{showToast('A captain will be with you shortly to settle your bill \uD83C\uDF89','success',4500);}catch(_2){}
-            }
-            return;
-          }
-          // 🆕 PREPAID WALLET — show a CLEAR full-screen confirmation instead of
-          // the old single-line green toast (Khushi: it was invisible). Mirror
-          // the non-prepaid branch + the wallet-funded settle branch: stop the
-          // wallet listener, clear the sheet, show a big "CAPTAIN NOTIFIED — ON
-          // THEIR WAY" card + the captain-on-way / feedback flow.
-          // FAIL-OPEN: if the renderer throws, fall back to button-state + toast
-          // so the guest is never stranded.
-          try{ if(_walletUnsub){_walletUnsub();_walletUnsub=null;} }catch(_){}
-          try{
-            inner.innerHTML='';
-            var _pNote=document.createElement('div');
-            _pNote.style.cssText='width:100%;padding:18px 16px;border-radius:8px;background:rgba(34,197,94,.14);border:1.5px solid rgba(34,197,94,.45);color:#000;text-align:center;font-family:var(--ff);margin:18px 0 0;line-height:1.55;';
-            _pNote.innerHTML='<div style="font-size:30px;margin-bottom:8px;">\uD83C\uDFAB</div>'
-              +'<div style="font-size:16px;font-weight:900;color:#000;letter-spacing:.3px;margin-bottom:8px;">CAPTAIN NOTIFIED \u2014 ON THEIR WAY</div>'
-              +'<div style="font-size:13px;color:rgba(0,0,0,.78);font-weight:600;">A captain will be with you shortly to settle your bill of \u20B9'+_billTt+' from your wallet.</div>';
-            inner.appendChild(_pNote);
-            try{ window.scrollTo(0,0); }catch(_s){}
-            showCaptainFeedback(inner, _billTt, false);
-          }catch(_e){
-            try{checkoutBtn.disabled=true;checkoutBtn.style.background='#15803D';checkoutBtn.style.cursor='default';checkoutBtn.style.boxShadow='2px 2px 0 #000';checkoutBtn.innerHTML='<span style="font-size:18px;">\u2705</span><span>Captain notified \u2014 on their way</span>';}catch(_2){}
-            try{showToast('A captain will be with you shortly to settle your bill \uD83C\uDF89','success',4500);}catch(_2){}
-          }
-        };
-        var _alreadySettled=function(){
-          try{checkoutBtn.disabled=true;checkoutBtn.style.opacity='.6';}catch(_){}
-          try{showToast('Your bill\u2019s already been settled \u2014 please ask your captain for a new table.','warn',4500);}catch(_){}
-        };
-        // Honest fallback: the Captain ONLY sees the ping via the tableReservations
-        // doc. If we can't resolve a live table doc to write, do NOT claim success
-        // (would mislead the guest into waiting for a captain who was never paged).
-        // Keep the button enabled so they can retry / a staff member can step in.
-        var _failNotify=function(){
-          try{showToast('Couldn\u2019t reach your captain automatically \u2014 please wave down a staff member to settle your bill.','err',5000);}catch(_){}
-        };
-        // Confirm ONLY after a tableReservations write actually lands — the
-        // Captain is paged solely off that doc, so a fire-and-forget write that
-        // silently fails (offline/rules/transient) must NOT show "Captain notified".
-        var _coverWrite=function(){try{firestore.collection('covers').doc(cv.ref).set(_billPatch,{merge:true}).catch(function(){});}catch(_){}};
-        // 🆕 2026-06-15 v3.296 (Phase 3) — the bill_requested money write now goes
-        // SERVER-SIDE via requestBill, which recomputes the bill total from the
-        // cover's own rounds (falling back to the table doc) and stamps the SAME
-        // bill_requested patch on the table doc(s) + cover. _legacyBill is the
-        // original direct-write path, kept as a FAIL-OPEN fallback so a CF outage
-        // can never strand a guest who wants to settle.
-        var _legacyBill=function(){
-          if(!firestore||!cv.ref){_failNotify();return;}
-          if(cv.linkedTableRef){
-            var _doTblWrite=function(){return firestore.collection('tableReservations').doc(cv.linkedTableRef).update(_billPatch);};
-            var _tryWrite=function(){ _doTblWrite().then(function(){_coverWrite();_confirm();}).catch(function(){_failNotify();}); };
-            firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-              if(!d.exists){_failNotify();return;}                                  // table doc gone (released) → can't page captain
-              if(_settledChk(d.data()||{})){_alreadySettled();return;}
-              _tryWrite();
-            }).catch(function(){ _failNotify(); });                                 // read failed → can't verify settled-state → do NOT risk reverting a paid table; guest retries / staff steps in
-          }else{
-            firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get().then(function(snap){
-              if(snap.empty){_failNotify();return;}                                 // no table doc for this booking → don't false-confirm
-              var _anySettled=false;
-              snap.forEach(function(d){ if(_settledChk(d.data()||{})) _anySettled=true; });
-              if(_anySettled){_alreadySettled();return;}
-              var _total=0; snap.forEach(function(){_total++;});
-              var _ok=0,_done=0;
-              snap.forEach(function(d){
-                d.ref.update(_billPatch).then(function(){_ok++;}).catch(function(){}).then(function(){
-                  _done++; if(_done===_total){ if(_ok>0){_coverWrite();_confirm();} else {_failNotify();} }
-                });
-              });
-            }).catch(function(){ _failNotify(); });                                 // query error → target unknown → honest fallback
-          }
-        };
-        // SERVER-FIRST: ask requestBill to page the captain. ok → _confirm;
-        // reason 'already_settled' → _alreadySettled; ANY other non-OK / error →
-        // _legacyBill (fail-open).
-        try{
-          if(window.REQUEST_BILL_URL && cv.ref){
-            var _billCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-            fetch(window.REQUEST_BILL_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              coverDocId:_billCoverId, bookingRef:cv.ref, linkedTableRef:cv.linkedTableRef||''
-            })}).then(function(r){return r.json();}).then(function(resp){
-              if(resp&&resp.ok&&resp.notified){ _confirm(); return; }
-              if(resp&&resp.reason==='already_settled'){ _alreadySettled(); return; }
-              _legacyBill();                                                        // table_gone / no_table / not-notified → legacy retries the live lookup
-            }).catch(function(){ _legacyBill(); });
-          } else { _legacyBill(); }
-        }catch(_eBill){ _legacyBill(); }
+        var tt=getTabTotal()+getCartTotal();
+        if(!tt){showToast('Your tab is empty','err',2000);return;}
+        if(getCartTotal()>0){
+          if(!confirm('You have '+getCartTotal()+' unplaced items. Place them first or checkout now?'))return;
+        }
+        showCheckoutModal(getTabTotal());
       };
 
       // ── Rounds history — 2026-05-13 v3 (Khushi spec, round 8):
@@ -2351,7 +1759,8 @@ function renderWalletPage(bookingRef){
         var tt=getTabTotal();
         var bd=null;
         try{
-          var _all=_billableItems();
+          var _all=[];
+          tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){_all.push(i);});});
           // 🆕 2026-06-07 — YOUR TAB grand reflects the bartender's discount/SC
           // so it matches the bar + the VIEW BILL preview. Per-round totals below
           // stay at menu price (the discount is a single bill-level line).
@@ -2369,14 +1778,8 @@ function renderWalletPage(bookingRef){
           +'<span style="font-size:22px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+grand+'</span>'
           +'</div>';
 
-        // 🆕 2026-06-13 v3.273 (Khushi) — NO round ever shows "🔵 Preparing" in the
-        // customer wallet. Bar/cashier have no "mark served" step, so a Preparing
-        // badge there can never advance; and even for tables Khushi wants the guest
-        // to simply see "🟡 Ordered" until the captain taps "mark served" (→ "✅ Served")
-        // or it's paid (→ "💳 Paid"). So BOTH 'preparing' and 'activated' map to
-        // "🟡 Ordered" (amber). Captain's mark-served still flips table rounds to Served.
-        var statusC={'preparing':'#a85800','activated':'#a85800','served':'#0a7a3c','paid':'#0a7a3c'};
-        var statusL={'preparing':'🟡 Ordered','activated':'🟡 Ordered','served':'✅ Served','paid':'💳 Paid'};
+        var statusC={'preparing':'#a85800','activated':'#0a7a3c','served':'#0a7a3c','paid':'#0a7a3c'};
+        var statusL={'preparing':'🟡 Ordered','activated':'🔵 Preparing','served':'✅ Served','paid':'💳 Paid'};
 
         // 🆕 2026-06-08 v3.253 (Khushi) — render rounds in true CHRONOLOGICAL order
         // (by placedAt) and RENUMBER the display label 1..N. The stored roundNum is
@@ -2388,25 +1791,6 @@ function renderWalletPage(bookingRef){
         var roundsHtml=_sortedRounds.map(function(r,idx){
           var sc=statusC[r.status]||'#5c3f0a';
           var sl=statusL[r.status]||r.status;
-          // 🆕 2026-06-24 (Khushi) — Bar/cashier AND pure COVER wallets have NO
-          // "mark served" step (no KDS, no captain), so a 'served' status there is
-          // ONLY the auto-mark heuristic (guest ordered again) — never a real staff
-          // confirmation. Show "🟡 Ordered" for EVERY such round (even auto-served),
-          // keeping only '💳 Paid' as a terminal money state. Genuine TABLE bookings
-          // (isTableBooking / linkedTableRef / tableId) keep the captain's Served/Paid
-          // progression — he has a "mark served" button to advance those.
-          var _isBarRound=String((r&&r.source)||'').toLowerCase().indexOf('bar')!==-1;
-          var _isPureCover=!(cv.isTableBooking||cv.linkedTableRef||cv.linkedTableId||cv.tableId);
-          // 🆕 2026-06-30 (Khushi) — a bar/cover round the guest just placed is
-          // still 'preparing' (the bartender hasn't redeemed it yet). Show
-          // "🟡 Items selected" until the bartender's recharge flips it to
-          // 'activated', then it reads "🟡 Ordered" (redeemed at bar). '💳 Paid'
-          // stays terminal. TABLE rounds (not bar, not pure cover) are unaffected.
-          if((_isBarRound||_isPureCover) && r.status!=='paid'){
-            sc=statusC['preparing'];
-            sl=(r.status==='preparing')?'🟡 Items selected':statusL['preparing'];
-          }
-          var _notBilled=!_isRoundBillable(r);
           var rBd=null;
           try{rBd=hodComputeBreakdown(r.items||[]);}catch(_e){rBd=null;}
           var rTotal=rBd?rBd.grandTotal:(r.roundTotal||0);
@@ -2430,7 +1814,6 @@ function renderWalletPage(bookingRef){
             +'<span style="font-size:11px;font-weight:800;color:'+sc+';background:rgba(255,255,255,.55);padding:3px 9px;border-radius:12px;letter-spacing:.4px;">'+sl+'</span>'
             +'<span style="font-size:17px;font-weight:900;color:#1a1408;font-variant-numeric:tabular-nums;">₹'+rTotal+'</span>'
             +'</span></div>'
-            +(_notBilled?'<div style="font-size:11px;color:#a85800;font-style:italic;margin:2px 0 8px;">⏳ Waiting for the bar to confirm — added to your bill once they print KOT + BILL</div>':'')
             +ilist+'</div>';
         }).join('');
 
@@ -2468,7 +1851,8 @@ function renderWalletPage(bookingRef){
       // SGST · GRAND TOTAL. No Place Order — just CLOSE.
       function showBillOnlyModal(){
         if(!tabRounds.length)return;
-        var allItems=_billableItems();
+        var allItems=[];
+        tabRounds.forEach(function(r){(r.items||[]).forEach(function(i){allItems.push(i);});});
         // 🆕 2026-06-07 — honor the bartender's persisted bill-level discount + SC
         // toggle so this preview matches the bar's bill to the rupee.
         var _bDisc=Number(cv.billDiscountPct||0), _bSc=(cv.billScOn!==false);
@@ -2488,7 +1872,7 @@ function renderWalletPage(bookingRef){
         // (see renderRoundsHistory). Sort by placedAt; label each rendered round with
         // a running counter (skips empty rounds) so the bill reads R1, R2, R3 … with
         // no dup/gap, instead of the unreliable stored roundNum.
-        var _billRounds=tabRounds.filter(_isRoundBillable).slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
+        var _billRounds=tabRounds.slice().sort(function(a,b){return String((a&&a.placedAt)||'').localeCompare(String((b&&b.placedAt)||''));});
         var _billNo=0;
         var itemsRows=_billRounds.map(function(r){
           var _rItems=(r.items||[]);
@@ -2758,11 +2142,6 @@ function renderWalletPage(bookingRef){
               }).catch(function(){});
             } catch(_){}
           }
-          // 🆕 2026-06-15 v3.296 (Phase 3) — _legacyPay is the original
-          // client-amount flow (RAZORPAY_KEY, no server order, _writePaidOnline).
-          // It is kept ONLY as a FAIL-OPEN fallback; the server-verified path
-          // (_serverPay below) is tried first.
-          var _legacyPay=function(){
           ensureRazorpay(function(_rzReady){
           if(!_rzReady){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); return; }
           try{
@@ -2817,91 +2196,6 @@ function renderWalletPage(bookingRef){
           rz.open();
           }catch(_e){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); }
           });
-          };
-          // ── SERVER-VERIFIED online table-bill pay (Phase 3). createTableBillOrder
-          //    computes the amount server-side + returns a Razorpay order_id + the
-          //    public keyId (so we open in the SAME test/live mode); on success
-          //    verifyTableBillPayment checks the signature + captures the charge
-          //    with Razorpay's API BEFORE marking the table paid (server-trusted
-          //    amount, idempotent on paymentId). FAIL-OPEN: any non-OK order /
-          //    outage → _legacyPay.
-          var _serverPay=function(){
-            var _payCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-            fetch(window.CREATE_TABLE_BILL_ORDER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              coverDocId:_payCoverId, bookingRef:cv.ref||'', linkedTableRef:cv.linkedTableRef||''
-            })}).then(function(r){return r.json();}).then(function(ord){
-              // SETTLEMENT FINALITY: server says this bill is already paid →
-              // do NOT re-open Razorpay (would double-charge). Mark settled in
-              // the UI instead of falling through to _legacyPay.
-              if(ord&&ord.reason==='already_settled'){
-                if(typeof _alreadySettled==='function'){ _alreadySettled(); }
-                else { alert('\u2705 This table bill is already settled.'); poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; }
-                return;
-              }
-              if(!ord||!ord.ok||!ord.orderId||!ord.keyId){ _legacyPay(); return; }
-              ensureRazorpay(function(_rzReady){
-                if(!_rzReady){ _legacyPay(); return; }
-                try{
-                  var rz=new Razorpay({
-                    key:ord.keyId, order_id:ord.orderId, amount:ord.amount, currency:ord.currency||'INR',
-                    name:'HOD — House of Dopamine',
-                    description:'Table Tab — '+(cv.tableId||cv.ref||''),
-                    prefill:{name:sanitize(cv.name||''),contact:sanitize(cv.phone||'')},
-                    theme:{color:'#FF90E8'},
-                    handler:function(resp){
-                      var pid=(resp&&resp.razorpay_payment_id)||'';
-                      var oid=(resp&&resp.razorpay_order_id)||ord.orderId;
-                      var sig=(resp&&resp.razorpay_signature)||'';
-                      if(!pid||!sig){
-                        alert('\u274c Payment status unclear. Please try again or use Pay at Table.');
-                        poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
-                        return;
-                      }
-                      fetch(window.VERIFY_TABLE_BILL_PAYMENT_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-                        razorpay_order_id:oid, razorpay_payment_id:pid, razorpay_signature:sig
-                      })}).then(function(r){return r.json();}).then(function(vr){
-                        if(vr&&vr.ok&&vr.marked){
-                          overlay.remove();
-                          submitOrder(cv,bal,{mode:'online',paymentId:pid,amount:tt,rounds:tabRounds});
-                        }else if(vr&&vr.ok&&vr.duplicate){
-                          // The charge went through but the table was ALREADY
-                          // settled by an earlier payment → genuine duplicate.
-                          // Don't re-open the bill; tell the guest + show the
-                          // payment id so the team can refund it (server already
-                          // logged a refund-required audit event).
-                          overlay.remove();
-                          alert('\u2705 Your table is already settled. We received an extra payment ('+pid+') and our team will refund it.');
-                        }else{
-                          // Charge confirmed by Razorpay but the server could not
-                          // mark the table paid → keep BILL DUE + show the payment-id
-                          // fallback so the captain settles it manually (never lose
-                          // the round, never falsely flip to paid).
-                          _showPaymentIdFallback(pid);
-                          try{ submitOrder(cv,bal,{mode:'bill_requested',paymentId:pid,amount:tt,rounds:tabRounds,pendingOnlinePaymentId:pid}); }catch(_){}
-                        }
-                      }).catch(function(){
-                        _showPaymentIdFallback(pid);
-                        try{ submitOrder(cv,bal,{mode:'bill_requested',paymentId:pid,amount:tt,rounds:tabRounds,pendingOnlinePaymentId:pid}); }catch(_){}
-                      });
-                    },
-                    modal:{ondismiss:function(){poBtn.disabled=false;poBtn.innerHTML='💳  Pay Online  —  ₹'+tt;}}
-                  });
-                  if(rz&&typeof rz.on==='function'){
-                    rz.on('payment.failed',function(r){
-                      var msg=(r&&r.error&&(r.error.description||r.error.reason))||'Unknown error';
-                      alert('\u274c Payment failed: '+msg+'\nPlease try again or use Pay at Table.');
-                      poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
-                    });
-                  }
-                  rz.open();
-                }catch(_e){ _legacyPay(); }
-              });
-            }).catch(function(){ _legacyPay(); });
-          };
-          try{
-            if(window.CREATE_TABLE_BILL_ORDER_URL && window.VERIFY_TABLE_BILL_PAYMENT_URL && cv.ref){ _serverPay(); }
-            else { _legacyPay(); }
-          }catch(_eP){ _legacyPay(); }
         };
         sheet.appendChild(poBtn);
 
@@ -2911,41 +2205,18 @@ function renderWalletPage(bookingRef){
         ptBtn.onclick=function(){
           if(ptBtn.disabled)return;
           ptBtn.disabled=true;ptBtn.textContent='Notifying captain...';
-          // ── Confirm UI (captain on the way + feedback). Shared by the server
-          //    and legacy paths so the guest sees the SAME screen either way.
-          var _ptConfirm=function(){
-            if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
-            overlay.remove();
-            inner.innerHTML='';
-            showCaptainFeedback(inner, tt, false);
-          };
-          // ── LEGACY direct-write (pre-v8 fallback). Marks bill_requested on
-          //    the reservation + cover straight from the browser. Post-v8 rules
-          //    DENY this; that's why the server path runs first.
-          var _ptLegacy=function(){
-            if(firestore&&cv.ref){
-              firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
-                .then(function(snap){snap.forEach(function(d){d.ref.update({paymentStatus:'bill_requested',orderTotal:tt,tabTotal:tt});});}).catch(function(){});
-              firestore.collection('covers').doc(cv.ref).set({paymentStatus:'bill_requested',orderTotal:tt},{merge:true}).catch(function(){});
-            }
-            _ptConfirm();
-          };
-          // ── SERVER-FIRST (Phase 3): requestBill recomputes the total + stamps
-          //    bill_requested on the cover + linked table doc(s). FAIL-OPEN: any
-          //    non-OK / outage falls back to the legacy direct-write so the
-          //    captain is always alerted.
-          try{
-            if(window.REQUEST_BILL_URL && cv.ref){
-              var _ptCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-              fetch(window.REQUEST_BILL_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-                coverDocId:_ptCoverId, bookingRef:cv.ref||'', linkedTableRef:cv.linkedTableRef||''
-              })}).then(function(r){return r.json();}).then(function(resp){
-                if(resp&&resp.ok&&resp.notified){ _ptConfirm(); }
-                else if(resp&&resp.reason==='already_settled'){ _ptConfirm(); }
-                else { _ptLegacy(); }
-              }).catch(function(){ _ptLegacy(); });
-            } else { _ptLegacy(); }
-          }catch(_ePt){ _ptLegacy(); }
+          // Mark bill_requested on reservation so captain gets alerted
+          if(firestore&&cv.ref){
+            firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
+              .then(function(snap){snap.forEach(function(d){d.ref.update({paymentStatus:'bill_requested',orderTotal:tt,tabTotal:tt});});}).catch(function(){});
+            firestore.collection('covers').doc(cv.ref).set({paymentStatus:'bill_requested',orderTotal:tt},{merge:true}).catch(function(){});
+          }
+          // Stop the wallet listener BEFORE updating DOM — prevents onSnapshot from re-rendering over the feedback screen
+          if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
+          overlay.remove();
+          // Show captain on way + feedback
+          inner.innerHTML='';
+          showCaptainFeedback(inner, tt, false);
         };
         sheet.appendChild(ptBtn);
 
@@ -2986,7 +2257,7 @@ function renderWalletPage(bookingRef){
           addBtn.className='wv-add';
           addBtn.textContent='Add +';
           addBtn.onclick=(function(k,it,cat2){return function(){
-            cart[k]={n:it.n,p:_effPrice(it.n,it.p),cat:cat2,qty:1,t:it.t||'drink',alc:it.alc===false?false:(it.t==='food'?false:true),v:it.v};updateCartBar();updateTabFooter();buildMenu2(catObj,itemsDiv);
+            cart[k]={n:it.n,p:_effPrice(it.n,it.p),cat:cat2,qty:1,t:it.t||'drink',alc:it.alc===false?false:(it.t==='food'?false:true)};updateCartBar();updateTabFooter();buildMenu2(catObj,itemsDiv);
           };})(key,item,catObj.cat);
           ctrl.appendChild(addBtn);
         } else {
@@ -3381,8 +2652,8 @@ function renderWalletPage(bookingRef){
           conf.appendChild(vb);
         }
         inner.appendChild(conf);
-        generateLocalQR('conf-qr-wrap', 'https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
-      setTimeout(function(){generateLocalQR('conf-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
+        generateLocalQR('conf-qr-wrap', 'https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
+      setTimeout(function(){generateLocalQR('conf-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
         // Add feedback form below QR
         showCaptainFeedback(inner, total, true);},400);
       }).catch(function(e){
@@ -3401,10 +2672,6 @@ function renderWalletPage(bookingRef){
     // from flashing on initial cache-empty / transient-empty snapshots
     // for a returning customer whose breadcrumb is from a prior visit.
     var _seenLiveDocThisSession=false;
-    // ⚡ 2026-07-06 v3.419 — flips TRUE on the FIRST covers onSnapshot delivery
-    // (empty or not); from that moment the fast-lane REST prefetch paint (below,
-    // near _startCoversListener('ref')) is suppressed — SDK data always wins.
-    var _pfLiveSeen=false;
     function _startTableListener(){
       if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
       _walletUnsub=firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1)
@@ -3527,13 +2794,12 @@ function renderWalletPage(bookingRef){
           renderWalletContent({
             ref:bookingRef,name:td.customerName||'',phone:td.phone||'',
             coverBalance:td.coverBalance||0,coverActivated:td.coverActivated||0,
-            coverActivatedAt:td.coverActivatedAt||null,
             coverUsed:td.coverUsed||0,transactions:[],
             eventTitle:(td.tableId||'')+' · '+(td.floorLabel||''),
             tableId:td.tableId,floor:td.floor,floorLabel:td.floorLabel||'',
             date:td.date,arrivalTime:td.arrivalTime,partySize:td.partySize,
             actualArrivalTime:td.actualArrivalTime||null,
-            isTableBooking:true,tabRounds:td.tabRounds||[],tabTotal:td.tabTotal||0,expiresAt:td.expiresAt||null,
+            isTableBooking:true,tabRounds:td.tabRounds||[],tabTotal:td.tabTotal||0,expiresAt:null,
             // 🆕 2026-06-07 — bartender's bill-level discount/SC mirrored onto the
             // tableReservations doc (by setCoverBillDiscount) so the table guest's
             // VIEW BILL + YOUR TAB grand match the bar.
@@ -3558,7 +2824,6 @@ function renderWalletPage(bookingRef){
       if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
       _walletUnsub=firestore.collection('covers').where(field,'==',bookingRef).limit(1)
         .onSnapshot(function(snap){
-          _pfLiveSeen=true; // ⚡ v3.419 — SDK is live; fast-lane prefetch must no longer paint
           inner.innerHTML='';
           if(snap.empty){
             if(field==='ref'){_startCoversListener('bookingId');return;}
@@ -3598,20 +2863,22 @@ function renderWalletPage(bookingRef){
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.05);"><span style="color:#3D3D3D;font-size:12px;">Date</span><span style="font-weight:700;font-size:13px;">'+(ev3?ev3.date:'Tonight')+'</span></div>'
                     +'<div style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:#3D3D3D;font-size:12px;">Entry</span><span style="font-weight:700;font-size:13px;color:#00C864;">FREE before 9 PM</span></div>'
                     +'</div>'
-                    /* 🆕 2026-07-05 (Khushi) — guest list = NO scanner QR. Entry is
-                       logged by name at the door, so the pass shows only the ref
-                       + a "give your name" note (old gl-qr-wrap QR removed). */
                     +'<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:20px 16px;margin-bottom:16px;text-align:center;">'
-                    +'<div style="font-size:13px;font-weight:800;color:#000;margin-bottom:4px;">📋 No QR needed</div>'
-                    +'<div style="font-size:12px;color:#3D3D3D;margin-bottom:8px;">Give your name &amp; number at the entrance</div>'
+                    /* 🔴 2026-05-21 (Khushi LIVE-BUG) — wrapper bg MUST be #fff.
+                       qrcodejs doesn't render a quiet zone, so the dark navy bg
+                       made the QR unscannable on every phone. Padded white frame
+                       gives the ~4-module quiet zone every scanner requires. */
+                    +'<div id="gl-qr-wrap" style="width:140px;height:140px;margin:0 auto 12px;background:#fff;border:8px solid #000;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 2px 14px rgba(242,199,68,.15);"></div>'
+                    +'<div style="font-size:13px;font-weight:800;color:#000;margin-bottom:4px;">Show this QR at the door</div>'
                     +'<div style="font-family:monospace;font-size:14px;color:#000;letter-spacing:2px;">'+sanitize(bookingRef)+'</div>'
                     +'</div>'
                     +'<div style="background:rgba(0,200,100,.06);border:2px solid #23A094;border-radius:8px;padding:18px 20px;text-align:center;">'
                     +'<div style="font-size:24px;margin-bottom:10px;">✅</div>'
                     +'<div style="font-size:14px;font-weight:800;color:#00C864;margin-bottom:6px;">You\'re on the list!</div>'
-                    +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Give your name at the entrance. Free entry before 9 PM.<br>After 9 PM, a cover charge may apply at the door.</div>'
+                    +'<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">Show your QR at the entrance. Free entry before 9 PM.<br>After 9 PM, a cover charge may apply at the door.</div>'
                     +'</div>';
                   inner.appendChild(glDiv);
+                  setTimeout(function(){generateLocalQR('gl-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef)+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));},200);
               };
               // 🔴 2026-05-21 (Khushi LIVE-BUG) — guestlist tier picked on the
               // BOOKING page routes through saveBooking() → writes to `bookings`
@@ -3699,7 +2966,7 @@ function renderWalletPage(bookingRef){
                     '<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">When you arrive, show your QR at the entrance. Our door staff will check you in and activate your cover wallet.<br><br>Your cover balance will be loaded and you can start ordering drinks & food!</div>'+
                   '</div>';
                 inner.appendChild(ticketDiv);
-                setTimeout(function(){generateLocalQR('ticket-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef));},200);
+                setTimeout(function(){generateLocalQR('ticket-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef)+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));},200);
               } else {
                 inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'+
                   '<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'+
@@ -3714,6 +2981,26 @@ function renderWalletPage(bookingRef){
           }
           var doc=snap.docs[0];
           var cv=Object.assign({id:doc.id},doc.data());
+          // 🔒 2026-07-09 — wallet-secret gate: prevents cover-ID enumeration.
+          // ONLY enforced on ?wallet= URLs (customer entry point). ?verify= URLs are
+          // scanned by POS staff inside the venue and must stay secret-free so the
+          // bartender scan still works after the gate was introduced.
+          var _qsGate=new URLSearchParams(window.location.search||'');
+          var _isWalletEntry=_qsGate.has('wallet');
+          // For ?verify=: only enforce when &s= is explicitly present in the URL.
+          // Pre-arrival booking QRs (before door activation) carry no secret — allow through.
+          // Post-activation in-wallet QRs always carry &s= so they are always verified.
+          var _verifyHasSecret=_qsGate.has('verify')&&_qsGate.has('s');
+          var _wsec=(_isWalletEntry||_verifyHasSecret)?(_qsGate.get('s')||''):null;
+          if(_wsec!==null && cv.walletSecret && _wsec!==cv.walletSecret){
+            loadDiv.style.display='none';
+            inner.innerHTML='<div style="text-align:center;padding:80px 20px;">'
+              +'<div style="font-size:48px;margin-bottom:14px;">🔒</div>'
+              +'<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;margin-bottom:10px;">Invalid Wallet Link</div>'
+              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;">This link is not valid.<br>Please use the link sent to your WhatsApp.</div>'
+              +'</div>';
+            return;
+          }
           // 🆕 2026-05-27 v3.52 (Khushi LIVE-NIGHT) — REF-PREFIX SAFETY NET.
           // Pre-v3.50 covers docs (activated before the POS bundle that stamps
           // isTableBooking on the covers doc went live) were missing the flag,
@@ -3818,35 +3105,6 @@ function renderWalletPage(bookingRef){
           inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:#FF5733;">Error loading wallet: '+sanitize(e.message)+'</div>';
         });
     }
-    /* ⚡ 2026-07-06 v3.419 (Khushi) — WALLET FAST-LANE PAINT. wallet.html fires a
-       Firestore REST prefetch for this cover at HTML-parse time (window.__HOD_WPF,
-       in parallel with the SDK download). If it resolves BEFORE the SDK's first
-       covers snapshot, paint the wallet from it immediately via the SAME
-       renderWalletContent() the live path uses — turning the ~4-5s serial boot
-       into ~1-2s. GUARDS (all fail-open, display-only, zero writes):
-       - only when the prefetch ref matches THIS bookingRef, consumed once;
-       - never after any live snapshot has arrived (_pfLiveSeen) or a table/
-         thank-you paint happened (_seenLiveDocThisSession) — live data always
-         wins, the onSnapshot repaint simply overwrites the fast paint;
-       - table wallets (isTableBooking/linkedTableRef/tableId/table-ref prefixes)
-         are skipped — they need the SDK merge + released-marker paths;
-       - any error → silently fall through to today's flow (spinner → snapshot).
-       On index.html (SPA wallet, SDK already warm) __HOD_WPF doesn't exist → no-op. */
-    try{
-      var _wpf=window.__HOD_WPF;
-      if(_wpf && _wpf.ref===bookingRef && !_wpf.used && _wpf.p && typeof _wpf.p.then==='function'){
-        _wpf.used=true;
-        _wpf.p.then(function(cv0){
-          try{
-            if(!cv0 || _pfLiveSeen || _seenLiveDocThisSession) return;
-            if(cv0.isTableBooking || cv0.linkedTableRef || cv0.tableId) return;
-            if(/^(HODTAB|TBL-|AGG-)/i.test(bookingRef)) return;
-            inner.innerHTML='';
-            renderWalletContent(cv0);
-          }catch(_e){/* fail-open — live snapshot repaints */}
-        }).catch(function(){});
-      }
-    }catch(_e){}
     _startCoversListener('ref');
   } else {
     inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:#3D3D3D;">Connect to load your wallet.</div>';
@@ -3865,9 +3123,6 @@ function generateLocalQR(elId,data){
     var qEl=document.getElementById(elId);
     if(qEl&&typeof QRCode!=='undefined'&&!qEl.hasAttribute('data-qr')){
       qEl.setAttribute('data-qr','1');
-      // 🔴 2026-07-04 — force white even if an ancestor got auto-darkened.
-      qEl.style.background='#fff';
-      qEl.style.colorScheme='only light';
       var w=qEl.clientWidth||140, h=qEl.clientHeight||140;
       var sz=Math.max(96,Math.min(w,h)-8); // small inner margin so QR never touches edge
       new QRCode(qEl,{text:data,width:sz,height:sz,colorDark:'#000000',colorLight:'#FFFFFF',correctLevel:QRCode.CorrectLevel.M});
@@ -3892,11 +3147,7 @@ function renderCustomerWallet(bookingRef){
       if(snap.empty){
         var pendingDiv=document.createElement('div');
         pendingDiv.style.cssText='padding:12px 16px;border-radius:8px;background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.15);font-size:12px;color:#3D3D3D;text-align:center;';
-        // 🆕 2026-07-05 (Khushi) — guest-list refs have NO wallet & NO QR by
-        // design (entry logged by name at the door); don't tell them to scan.
-        pendingDiv.textContent=/^(GL-|HODGL)/i.test(String(bookingRef||''))
-          ?'Guest list entry — no QR needed. Give your name & number at the door.'
-          :'Cover wallet not activated yet. Show QR at door.';
+        pendingDiv.textContent='Cover wallet not activated yet. Show QR at door.';
         wrap.appendChild(pendingDiv);return;
       }
       var cv=snap.docs[0].data();
@@ -3904,24 +3155,9 @@ function renderCustomerWallet(bookingRef){
       var used=cv.coverUsed||0;
       var total=cv.coverActivated||cv.coverPaid||0;
       // Check if event is over — cover date or expiresAt
-      // 🆕 2026-06-08 v3.256 (Khushi MIDNIGHT BALANCE) — this card was using the
-      // UTC calendar date (toISOString) which rolls a day ahead from ~5:30AM IST,
-      // while a cover stays VALID until next-day NOON (getCoverExpiryFor). That
-      // could flash ₹0 for a guest who still had balance. Mirror the main wallet
-      // render's noon-anchored operational date (before noon IST → use yesterday's
-      // local date) so the balance never zeroes before the cover truly expires.
-      // The club runs past midnight (till ~2AM): at midnight getHours()<12 so the
-      // anchor = the operational night = cv.date → balance HOLDS, never resets.
-      // 🆕 2026-06-16 v3.304 (Khushi) — was a NOON-anchored date rollover (kept the
-      // card "alive" until 12pm next day); now mirrors the main wallet render: the
-      // cover goes INACTIVE at 3:00 AM IST the morning after the operational night
-      // (party end). expiresAt (POS covers = 3 AM) wins; no-expiresAt covers fall
-      // back to the SAME 3 AM cutoff derived from cv.date (= getCoverExpiryFor).
       var cvDate=cv.date||cv.eventDate||(cv.activatedAt?cv.activatedAt.split('T')[0]:'');
-      var _coverExpiryFromDateB=function(ds){var p=String(ds||'').split('-').map(Number);if(p.length<3||!p[0]||!p[1]||!p[2])return null;return new Date(Date.UTC(p[0],p[1]-1,p[2]+1,3,0,0)-(5*60+30)*60000);};
-      var _nowMsB=Date.now();
-      var _dateExpB=cv.expiresAt?null:_coverExpiryFromDateB(cvDate);
-      var isExpired=(cv.expiresAt&&new Date(cv.expiresAt).getTime()<_nowMsB)||(_dateExpB&&_dateExpB.getTime()<_nowMsB);
+      var todayStr=new Date().toISOString().split('T')[0];
+      var isExpired=(cv.expiresAt&&new Date(cv.expiresAt)<new Date())||(cvDate&&cvDate<todayStr);
       if(isExpired){bal=0;} // show 0 balance for past events
       var pct=total>0?Math.round((used/total)*100):0;
 
@@ -3969,86 +3205,23 @@ function renderCustomerWallet(bookingRef){
 
 // ── NIGHT SUMMARY for Analytics
 function renderTopUp(bookingId, diffAmt){
-  diffAmt = diffAmt || 0;
+  // Self-recharge removed. Old ?topup= links redirect back to the wallet.
   var wrap=document.createElement('div');
-  wrap.style.cssText='min-height:100vh;background:#F4F4F0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;';
-
-  var hdr3=document.createElement('div');
-  hdr3.style.cssText='background:rgba(244,244,240,.95);border-bottom:2px solid #000;padding:14px 20px;display:flex;align-items:center;gap:12px;position:fixed;top:0;left:0;right:0;z-index:100;';
-  // 🆕 2026-06-14 v3.285 — back button on the Top-Up page (Khushi audit). Returns to
-  // this cover's WALLET view by swapping ?topup= → ?wallet= (host-agnostic; works on
-  // the live site AND dev preview). Falls back to the site origin if anything throws.
-  hdr3.innerHTML='<button id="tu-back-btn" type="button" aria-label="Back to wallet" style="background:#fff;border:2px solid #000;border-radius:8px;font-size:13px;font-weight:800;color:#000;cursor:pointer;font-family:var(--ff);padding:6px 12px;">&#8592; Back</button>'
-    +'<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;">HOD</div>'
-    +'<div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:#3D3D3D;">TOP UP COVER</div>';
-  wrap.appendChild(hdr3);
-  // Default the back target to a SAFE home navigation (strip ?topup=). Once the
-  // cover loads we repoint it to that cover's wallet via the RESOLVED identity
-  // (cv.ref||cv.bookingId) — the raw ?topup= value may be a cover doc ID, which
-  // the wallet view can't open (renderWalletPage queries by ref then bookingId).
-  try{
-    var _tuBack=hdr3.querySelector('#tu-back-btn');
-    if(_tuBack){_tuBack.onclick=function(){
-      try{ window.location.href = window.location.origin + window.location.pathname; }
-      catch(_){ window.location.href='https://hodclub.in'; }
-    };}
-  }catch(_){}
-
-  var card=document.createElement('div');
-  card.style.cssText='margin-top:70px;width:100%;max-width:380px;background:#fff;border:2px solid #000;border-radius:18px;padding:28px;';
-  card.innerHTML='<div style="text-align:center;margin-bottom:20px;">'
-    +'<div style="font-size:40px;margin-bottom:10px;">💰</div>'
-    +'<div style="font-size:16px;font-weight:900;color:#000;">Top Up Your Cover</div>'
-    +'<div style="font-size:12px;color:#3D3D3D;margin-top:4px;">Add more balance to continue enjoying HOD</div>'
+  wrap.style.cssText='min-height:100vh;background:#F4F4F0;display:flex;align-items:center;justify-content:center;padding:24px;';
+  var _wref=String(bookingId||'').replace(/[<>"']/g,'');
+  var _backHref=window.location.origin+window.location.pathname+(_wref?'?wallet='+encodeURIComponent(_wref):'');
+  wrap.innerHTML='<div style="background:#fff;border:2px solid #000;border-radius:18px;padding:32px 24px;max-width:340px;width:100%;text-align:center;box-shadow:6px 6px 0 #000;">'
+    +'<div style="font-size:36px;margin-bottom:14px;">🍸</div>'
+    +'<div style="font-size:17px;font-weight:900;color:#000;margin-bottom:10px;">Head to the bar</div>'
+    +'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;margin-bottom:22px;">Online top-up is no longer available. Show your QR to the bartender — they will load your wallet and take your order.</div>'
+    +'<a href="'+_backHref+'" style="display:block;width:100%;padding:14px;border-radius:10px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);text-decoration:none;box-sizing:border-box;">← Back to my wallet</a>'
     +'</div>';
-
-  var loading=document.createElement('div');
-  loading.innerHTML='<div style="text-align:center;padding:20px;color:#3D3D3D;">Loading your balance…</div>';
-  card.appendChild(loading);
-  wrap.appendChild(card);
-
-  if(!firestore){loading.innerHTML='<div style="color:#FF5733;text-align:center;">Firebase not connected.</div>';return wrap;}
-
-  // Find cover — try direct doc ID first (fast), then fall back to bookingId query
-  // The topup URL may contain either the coverDocId or the raw bookingId
-  var sanitizedId = bookingId.replace(/[^a-zA-Z0-9_-]/g,'_');
-  firestore.collection('covers').doc(sanitizedId).get()
-    .then(function(directDoc){
-      if(directDoc.exists){
-        loading.innerHTML='';
-        var cv=directDoc.data();cv.id=directDoc.id;
-        renderTopUpContent(card,cv,diffAmt);
-      } else {
-        // Fallback: query by bookingId field
-        return firestore.collection('covers').where('bookingId','==',bookingId).limit(1).get()
-          .then(function(snap){
-            loading.innerHTML='';
-            if(snap.empty){card.innerHTML+='<div style="color:#FF5733;text-align:center;font-size:13px;padding:20px;">Cover not found. Please contact HOD staff.</div>';return;}
-            var cv=snap.docs[0].data();cv.id=snap.docs[0].id;
-            renderTopUpContent(card,cv,diffAmt);
-          });
-      }
-    })
-    .catch(function(){loading.innerHTML='<div style="color:#FF5733;text-align:center;padding:20px;">Error loading cover. Please try again.</div>';});
-
   return wrap;
 }
 
 function renderTopUpContent(card, cv, diffAmt){
       var bal=cv.coverBalance||0;
       var isLockedAmt = diffAmt > 0; // came from cover activation diff link
-
-      // 🆕 2026-06-14 v3.285 — now that the cover is resolved, repoint the Back
-      // button to THIS cover's wallet using the identity the wallet view can open
-      // (ref preferred, then bookingId). Falls back to the safe home target set above.
-      try{
-        var _tuBack2=document.getElementById('tu-back-btn');
-        var _wref=cv.ref||cv.bookingId||'';
-        if(_tuBack2&&_wref){_tuBack2.onclick=function(){
-          try{ window.location.href = window.location.origin + window.location.pathname + '?wallet=' + encodeURIComponent(_wref); }
-          catch(_){ window.location.href='https://hodclub.in'; }
-        };}
-      }catch(_){}
 
       // Header card — show different message based on context
       var balDiv=document.createElement('div');
@@ -4180,15 +3353,10 @@ function renderTopUpContent(card, cv, diffAmt){
 }
 
 
-// Register on window so main-file loader stubs can delegate.
-// NOTE: renderWalletContent is INTENTIONALLY NOT exposed here — it is a closure
-// defined INSIDE renderWalletPage (it relies on that function's locals: `inner`,
-// `cv`, `bookingRef`). Assigning it at this IIFE-top scope threw
-// `ReferenceError: Can't find variable: renderWalletContent`, which crashed the
-// whole wallet.js load → "My Bookings" broke. Nothing ever read it (index.html
-// only delegates to _renderWalletPage / _renderTopUp / _renderCustomerWallet).
+// Register on window so main-file loader stubs can delegate
 window._renderWalletPage = renderWalletPage;
 window._renderTopUp = renderTopUp;
 window._renderCustomerWallet = renderCustomerWallet;
-console.log("[HOD] wallet.js loaded (v3.413 — cigarettes no SC/GST + bar self-order 'Yet to redeem' badge)");
+window._renderWalletContent = renderWalletContent;
+console.log("[HOD] wallet.js loaded");
 })();
