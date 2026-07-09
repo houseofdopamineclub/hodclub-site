@@ -1706,32 +1706,7 @@ function renderWalletPage(bookingRef){
             // The old editable amount field (the "box inside the box") is removed so
             // the modal is just the headline + the two recharge buttons below.
             var _selRcAmt=Math.max(1,_shortfall);
-            // PAY ONLINE (Razorpay) — server-verified recharge (existing path).
-            var _rcPayBtn2=document.createElement('button');
-            _rcPayBtn2.style.cssText='width:100%;padding:14px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:10px;letter-spacing:.4px;';
-            _rcPayBtn2.textContent='💳 PAY ONLINE & ORDER';
-            _rcPayBtn2.onclick=function(){
-              if(!_selRcAmt){showToast('Enter an amount','err',2000);return;}
-              _rcPayBtn2.disabled=true;_rcPayBtn2.textContent='Opening payment...';
-              var _coverRef4=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-              hodPayAndCredit({
-                amount:_selRcAmt, coverRef:_coverRef4, kind:'topup',
-                name:cv.name||'', phone:cv.phone||'',
-                description:'Wallet Recharge ₹'+_selRcAmt, payBtn:_rcPayBtn2,
-                onSuccess:function(newBalance){
-                  _ov.remove();
-                  try{ cv.coverBalance=(cv.coverBalance||0)+_selRcAmt; renderWalletContent(cv); }catch(_e){}
-                  hodRechargeSuccessPopup(_selRcAmt);
-                },
-                onError:function(msg){
-                  _ov.remove();
-                  showToast('⚠️ '+msg,'err',10000);
-                },
-                onClose:function(){_rcPayBtn2.disabled=false;_rcPayBtn2.textContent='💳 PAY ONLINE & ORDER';}
-              });
-            };
-            _md.appendChild(_rcPayBtn2);
-            // 🆕 RECHARGE AT BAR — park the order so the bartender sees it on
+            // RECHARGE AT BAR — park the order so the bartender sees it on
             // scan/search and recharges + serves at the bar.
             var _rcBarBtn=document.createElement('button');
             _rcBarBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:rgba(123,47,190,.18);border:1.5px solid rgba(123,47,190,.55);color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);margin-bottom:14px;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:8px;';
