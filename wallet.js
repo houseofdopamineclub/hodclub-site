@@ -381,72 +381,6 @@ function renderWalletPage(bookingRef){
       return;
     }
     // Table bookings start with 0 balance — show menu anyway
-    if(bal<=0&&!cv.isTableBooking){
-      // Show recharge banner — menu continues below
-      var emptyBanner=document.createElement('div');
-      // 🔴 2026-05-13 v2 (Khushi) — recolor purple → red/yellow/white theme.
-      emptyBanner.style.cssText='background:#FFE0F6;border:2px solid #000;border-radius:8px;padding:20px;margin-bottom:16px;text-align:center;box-shadow:3px 3px 0 #000;';
-      emptyBanner.innerHTML='<div style="font-size:28px;margin-bottom:8px;">⚡</div>'
-        +'<div style="font-size:15px;font-weight:900;color:#000;margin-bottom:6px;">Load your wallet to start ordering</div>'
-        +'<div style="font-size:12px;color:#000;line-height:1.6;margin-bottom:14px;">Enter an amount below and pay online, or show your QR above to the bartender — they can recharge for you too.</div>';
-      var _rcAmt=0;
-      // ── 2026-05-11 (Khushi feature) — CUSTOM AMOUNT INPUT on empty-wallet banner.
-      // 🆕 2026-06-03 v3.205 (Khushi) — quick-amount chips (₹500/999/1499/1999)
-      // REMOVED entirely, and the input's inner 2px border + number-spinner box
-      // removed (the "box inside the amount box" looked bad). Now ONE clean
-      // amount field. Min ₹1, max ₹50,000; blank/invalid → Pay button blocks
-      // (no ₹0 send). type=text + inputmode=numeric kills the browser spinner.
-      var _emptyCustomWrap=document.createElement('div');
-      _emptyCustomWrap.style.cssText='margin:4px 0 10px;';
-      _emptyCustomWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:#3D3D3D;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;text-align:center;">Enter recharge amount</div>';
-      var _emptyCustomRow=document.createElement('div');
-      _emptyCustomRow.style.cssText='display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:8px;border:2px solid #000;background:#fff;';
-      _emptyCustomRow.innerHTML='<span style="font-family:var(--ff);font-size:16px;font-weight:900;color:#000;">₹</span>';
-      var _emptyCustomInput=document.createElement('input');
-      _emptyCustomInput.type='text';_emptyCustomInput.inputMode='numeric';_emptyCustomInput.setAttribute('pattern','[0-9]*');
-      _emptyCustomInput.placeholder='Enter amount';
-      _emptyCustomInput.style.cssText='flex:1;background:transparent;border:none;outline:none;color:#000;font-family:var(--ff);font-size:16px;font-weight:900;width:100%;';
-      _emptyCustomInput.oninput=function(){
-        var v=parseInt((_emptyCustomInput.value||'').replace(/[^0-9]/g,''),10);
-        if(isNaN(v)||v<1){_emptyCustomRow.style.borderColor='#FF5733';_rcAmt=0;return;}
-        if(v>50000){v=50000;}
-        _emptyCustomInput.value=String(v);
-        _emptyCustomRow.style.borderColor='#000';
-        _rcAmt=v;
-      };
-      _emptyCustomRow.appendChild(_emptyCustomInput);
-      _emptyCustomWrap.appendChild(_emptyCustomRow);
-      emptyBanner.appendChild(_emptyCustomWrap);
-      var rcPayBtn=document.createElement('button');
-      rcPayBtn.style.cssText='width:100%;padding:12px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000000;font-size:14px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.4px;';
-      rcPayBtn.textContent='💳 Pay & Recharge';
-      rcPayBtn.onclick=function(){
-        if(!_rcAmt){showToast('Select an amount first','err',2000);return;}
-        rcPayBtn.disabled=true;rcPayBtn.textContent='Opening payment...';
-        // V4 2026-05-11 — server-verified recharge (Razorpay signature check
-        // before crediting wallet). Replaces direct Firestore client write.
-        var _coverRef3=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-        hodPayAndCredit({
-          amount:_rcAmt, coverRef:_coverRef3, kind:'topup',
-          name:cv.name||'', phone:cv.phone||'',
-          description:'Wallet Recharge ₹'+_rcAmt, payBtn:rcPayBtn,
-          onSuccess:function(newBalance){
-            try{ cv.coverBalance=(cv.coverBalance||0)+_rcAmt; renderWalletContent(cv); }catch(_e){}
-            hodRechargeSuccessPopup(_rcAmt);
-          },
-          onError:function(msg){
-            rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';
-            showToast('⚠️ '+msg,'err',10000);
-          },
-          onClose:function(){rcPayBtn.disabled=false;rcPayBtn.textContent='💳 Pay & Recharge';}
-        });
-      };
-      emptyBanner.appendChild(rcPayBtn);
-      // 🆕 2026-06-03 v3.205 (Khushi) — DO NOT append the recharge card here.
-      // It is now placed BELOW the balance + QR (see append after the QR
-      // section). Desired order: customer details → balance → scanner →
-      // recharge → "recharge above" note. Don't return — menu continues below.
-    }
 
     // 🆕 2026-06-02 (Khushi) — LINKED-TABLE wallet: surface the assigned
     // table PROMINENTLY the moment the wallet opens, so the guest knows they
@@ -514,11 +448,6 @@ function renderWalletPage(bookingRef){
     qrSec.appendChild(qrWrap);qrSec.appendChild(qrInfo2);inner.appendChild(qrSec);
     generateLocalQR('wallet-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
 
-    // 🆕 2026-06-03 v3.205 (Khushi) — RECHARGE card placed HERE, below the
-    // balance + QR (order: customer details → balance → scanner → recharge →
-    // "recharge above" note in evInfo). emptyBanner is created above only when
-    // bal<=0 && !isTableBooking; var-hoisted so it's undefined otherwise.
-    if(typeof emptyBanner!=='undefined' && emptyBanner){ inner.appendChild(emptyBanner); }
 
     // For event tickets — show bartender instruction then the menu below
     if(!cv.isTableBooking){
@@ -550,8 +479,8 @@ function renderWalletPage(bookingRef){
           +'<div style="font-size:11px;color:#000;line-height:1.5;">Balance <strong style="color:#000;">₹'+((cv.coverActivated||0).toLocaleString('en-IN'))+'</strong> deducts as you order.</div>';
         }
       } else {
-        evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">RECHARGE TO ORDER</div>'
-          +'<div style="font-size:11px;color:#000;line-height:1.5;">Recharge above, or ask bartender — they accept cash, UPI or card.</div>';
+        evInfo.innerHTML='<div style="font-size:13px;font-weight:900;color:#000;margin-bottom:6px;letter-spacing:.3px;">WALLET NOT YET LOADED</div>'
+          +'<div style="font-size:11px;color:#000;line-height:1.5;">Ask the bartender to load your wallet — they accept cash, UPI or card.</div>';
       }
       inner.appendChild(evInfo);
     }
@@ -1004,10 +933,16 @@ function renderWalletPage(bookingRef){
       var _hasPrepaid = Number(cv.coverBalance||0)>0 || Number(cv.coverActivated||0)>0;
       var checkoutBtn=document.createElement('button');
       checkoutBtn.id='tab-checkout-btn';
-      checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#23A094;border:2px solid #000;color:#fff;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:800;letter-spacing:.5px;box-shadow:4px 4px 0 #000;display:flex;align-items:center;justify-content:center;gap:10px;';
-      checkoutBtn.innerHTML=_hasPrepaid
-        ? '<span style="font-size:18px;">🔔</span><span>Call Captain to Settle Bill</span>'
-        : '<span style="font-size:18px;">✅</span><span>Done Ordering — Settle Your Bill</span>';
+      if(_hasPrepaid){
+        checkoutBtn.style.cssText='width:100%;padding:16px 18px;border-radius:8px;background:#23A094;border:2px solid #000;color:#fff;cursor:pointer;font-family:var(--ff);font-size:18px;font-weight:800;letter-spacing:.5px;box-shadow:4px 4px 0 #000;display:flex;align-items:center;justify-content:center;gap:10px;';
+        checkoutBtn.innerHTML='<span style="font-size:18px;">🔔</span><span>Call Captain to Settle Bill</span>';
+      } else {
+        // 🛡 2026-07-09 — solid Digitory red, no gradient, 2-line hierarchy.
+        checkoutBtn.style.cssText='width:100%;padding:14px 18px;border-radius:8px;background:#B83227;border:none;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;';
+        checkoutBtn.innerHTML=''
+          +'<span style="font-family:var(--ff);font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;line-height:1.2;color:#fff;">Done Ordering?</span>'
+          +'<span style="font-family:var(--ff);font-size:11px;font-weight:700;color:#fff;opacity:.9;">Tap to settle your final bill</span>';
+      }
       checkoutWrap.appendChild(checkoutBtn);
       // (Tax-hint pill moved up under Running Tab — see taxHintTop above.)
       submitCard.appendChild(checkoutWrap);
