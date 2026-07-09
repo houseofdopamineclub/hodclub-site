@@ -363,7 +363,7 @@ function renderWalletPage(bookingRef){
         +'<div style="font-size:11px;color:#3D3D3D;">Show this to your captain on arrival</div>'
         +'<div style="font-family:monospace;font-size:14px;color:#000;margin-top:8px;letter-spacing:2px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>';
       waitDiv.appendChild(qrWait);
-      generateLocalQR('wallet-qr-wait','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
+      generateLocalQR('wallet-qr-wait','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
       // Waiting message
       var waitMsg=document.createElement('div');
       waitMsg.style.cssText='background:#fff;border:2px solid #000;border-radius:8px;padding:24px 20px;text-align:center;margin-bottom:16px;box-shadow:3px 3px 0 #000;';
@@ -512,7 +512,7 @@ function renderWalletPage(bookingRef){
       +_walletNote
       +'<div style="font-size:'+(_isTbl?'10px':'11px')+';color:#000;margin-top:'+(_isTbl?'4px':'6px')+';font-family:monospace;letter-spacing:1px;">'+sanitize(cv.ref||cv.bookingId||'')+'</div>';
     qrSec.appendChild(qrWrap);qrSec.appendChild(qrInfo2);inner.appendChild(qrSec);
-    generateLocalQR('wallet-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
+    generateLocalQR('wallet-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
 
     // 🆕 2026-06-03 v3.205 (Khushi) — RECHARGE card placed HERE, below the
     // balance + QR (order: customer details → balance → scanner → recharge →
@@ -1232,7 +1232,7 @@ function renderWalletPage(bookingRef){
           // 🆕 2026-07-02 — truthful sync status (sending → sent / couldn't-send).
           var _bsStatus='<div id="bs-park-status"></div>';
           _bsMd.innerHTML=_bsHdr+_bsStatus+_bsQR+_bsRef+_bsItemsHtml+_bsBal+_bsHint;
-          generateLocalQR('bs-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
+          generateLocalQR('bs-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||''));
           var _bsCloseX=document.createElement('button');
           _bsCloseX.setAttribute('aria-label','Close');
           _bsCloseX.innerHTML='✕';
@@ -2005,7 +2005,7 @@ function renderWalletPage(bookingRef){
             overlay.onclick=function(e){if(e.target===overlay)overlay.remove();};
             document.body.appendChild(overlay);
             // Generate QR
-            setTimeout(function(){generateLocalQR('order-qr-popup','https://hodclub.in/?verify='+(cv.ref||cv.bookingId||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));},100);
+            setTimeout(function(){generateLocalQR('order-qr-popup','https://hodclub.in/?verify='+(cv.ref||cv.bookingId||'')+'');},100);
             }; // end _showBartenderQR
 
             // 🆕 2026-05-20 — branch on linkedTableRef.
@@ -3381,8 +3381,8 @@ function renderWalletPage(bookingRef){
           conf.appendChild(vb);
         }
         inner.appendChild(conf);
-        generateLocalQR('conf-qr-wrap', 'https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
-      setTimeout(function(){generateLocalQR('conf-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));
+        generateLocalQR('conf-qr-wrap', 'https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
+      setTimeout(function(){generateLocalQR('conf-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(cv.ref||cv.bookingId||cv.id||'')+'');
         // Add feedback form below QR
         showCaptainFeedback(inner, total, true);},400);
       }).catch(function(e){
@@ -3699,7 +3699,7 @@ function renderWalletPage(bookingRef){
                     '<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">When you arrive, show your QR at the entrance. Our door staff will check you in and activate your cover wallet.<br><br>Your cover balance will be loaded and you can start ordering drinks & food!</div>'+
                   '</div>';
                 inner.appendChild(ticketDiv);
-                setTimeout(function(){generateLocalQR('ticket-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef)+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));},200);
+                setTimeout(function(){generateLocalQR('ticket-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef));},200);
               } else {
                 inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'+
                   '<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'+
@@ -3714,23 +3714,6 @@ function renderWalletPage(bookingRef){
           }
           var doc=snap.docs[0];
           var cv=Object.assign({id:doc.id},doc.data());
-          // 🔒 2026-07-09 — wallet-secret gate: prevents cover-ID enumeration.
-          // Only enforced on ?wallet= URLs (customer entry point). ?verify= URLs are
-          // scanned by POS staff inside the venue. For ?verify=: enforce only when
-          // &s= is explicitly in the URL (pre-arrival booking QRs carry no secret).
-          var _qsGate=new URLSearchParams(window.location.search||'');
-          var _isWalletEntry=_qsGate.has('wallet');
-          var _verifyHasSecret=_qsGate.has('verify')&&_qsGate.has('s');
-          var _wsec=(_isWalletEntry||_verifyHasSecret)?(_qsGate.get('s')||''):null;
-          if(_wsec!==null && cv.walletSecret && _wsec!==cv.walletSecret){
-            loadDiv.style.display='none';
-            inner.innerHTML='<div style="text-align:center;padding:80px 20px;">'
-              +'<div style="font-size:48px;margin-bottom:14px;">🔒</div>'
-              +'<div style="font-family:var(--ff);font-size:18px;font-weight:900;color:#000;margin-bottom:10px;">Invalid Wallet Link</div>'
-              +'<div style="font-size:13px;color:#3D3D3D;line-height:1.7;">This link is not valid.<br>Please use the link sent to your WhatsApp.</div>'
-              +'</div>';
-            return;
-          }
           // 🆕 2026-05-27 v3.52 (Khushi LIVE-NIGHT) — REF-PREFIX SAFETY NET.
           // Pre-v3.50 covers docs (activated before the POS bundle that stamps
           // isTableBooking on the covers doc went live) were missing the flag,
