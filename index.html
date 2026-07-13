@@ -775,6 +775,10 @@ var VERIFY_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/verifyRechargePayment';
 // filtering client-side. Fail-open: the lookup handler falls back to the old
 // direct Firestore queries if this endpoint is unreachable.
 var MYBOOKINGS_LOOKUP_URL = HOD_FUNCTIONS_BASE + '/myBookingsLookup';
+// 🔒 2026-07-13 (VAPT #2 full close) — WhatsApp OTP gate for My Bookings.
+// The lookup now REQUIRES a 6-digit code WhatsApped to the number being
+// looked up, so only the phone's owner can see its bookings.
+var MYBOOKINGS_OTP_URL = HOD_FUNCTIONS_BASE + '/myBookingsRequestOtp';
 // 🆕 2026-06-15 v3.296 (Phase 3) — customer MONEY/PAYMENT writes move server-side.
 // The browser no longer writes tabRounds / tabTotal / paymentStatus / amountPaid
 // directly to Firestore; it POSTs to these Cloud Functions which recompute the
@@ -4715,6 +4719,72 @@ function renderMyBookings(){
   lookupBtn.style.cssText='width:100%;margin-top:10px;padding:13px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--ff);';
   lookupBtn.textContent='Find My Bookings →';
   var resultsDiv=document.createElement('div');resultsDiv.id='my-bk-results';resultsDiv.style.marginTop='20px';
+  // 🔒 2026-07-13 (VAPT #2 full close) — WhatsApp OTP panel. Shown when a lookup
+  // is attempted without a warm cache or a live verified code. The code itself is
+  // verified SERVER-side; this panel only collects it. window._hodBkOtp holds the
+  // last verified {phone10, code, ts} so re-renders / cache-expiry re-lookups
+  // within the code's 10-min life don't re-challenge the guest.
+  var otpWrap=document.createElement('div');
+  otpWrap.style.cssText='display:none;margin-top:14px;padding:16px;background:#fff;border:2px solid #000;border-radius:8px;box-shadow:4px 4px 0 rgba(0,0,0,.85);';
+  var otpTitle=document.createElement('div');
+  otpTitle.style.cssText='font-size:13px;font-weight:800;color:#000;margin-bottom:4px;';
+  otpTitle.textContent='🔒 Verify it\u2019s you';
+  var otpSub=document.createElement('div');
+  otpSub.style.cssText='font-size:12px;color:#3D3D3D;margin-bottom:10px;';
+  var otpInp=document.createElement('input');
+  otpInp.type='tel';otpInp.inputMode='numeric';otpInp.maxLength=6;otpInp.placeholder='······';
+  otpInp.style.cssText='width:100%;box-sizing:border-box;padding:13px;background:#fff;border:2px solid #000;border-radius:8px;color:#000;font-family:var(--ff);font-size:18px;font-weight:800;letter-spacing:6px;text-align:center;outline:none;';
+  var otpErr=document.createElement('div');
+  otpErr.style.cssText='display:none;font-size:12px;font-weight:700;color:#C00;margin-top:8px;';
+  var otpBtn=document.createElement('button');
+  otpBtn.style.cssText='width:100%;margin-top:10px;padding:13px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:14px;font-weight:800;cursor:pointer;font-family:var(--ff);';
+  otpBtn.textContent='Verify & Show Bookings \u2192';
+  var otpResend=document.createElement('button');
+  otpResend.type='button';
+  otpResend.style.cssText='display:block;margin:10px auto 0;background:none;border:none;color:#3D3D3D;font-size:12px;font-weight:700;text-decoration:underline;cursor:pointer;font-family:var(--ff);';
+  otpResend.textContent='Resend code';
+  otpWrap.appendChild(otpTitle);otpWrap.appendChild(otpSub);otpWrap.appendChild(otpInp);otpWrap.appendChild(otpErr);otpWrap.appendChild(otpBtn);otpWrap.appendChild(otpResend);
+  var _otpPhone10='';
+  function _otpShowErr(m){if(m){otpErr.textContent=m;otpErr.style.display='block';}else{otpErr.style.display='none';}}
+  function _otpMask(p){return '+91 '+p.slice(0,5)+' '+p.slice(5);}
+  function _requestBkOtp(phone10,reshowMsg){
+    _otpPhone10=phone10;
+    lookupBtn.textContent='Find My Bookings \u2192';lookupBtn.disabled=false;
+    resultsDiv.innerHTML='';
+    otpWrap.style.display='block';
+    otpInp.value='';
+    if(reshowMsg){
+      // wrong/expired code — reopen the panel WITHOUT sending a fresh WhatsApp
+      otpSub.textContent='Enter the latest code we sent to '+_otpMask(phone10)+', or tap Resend.';
+      _otpShowErr(reshowMsg);
+      try{otpInp.focus();}catch(_e){}
+      return;
+    }
+    _otpShowErr('');
+    otpSub.textContent='Sending your code on WhatsApp\u2026';
+    fetch(MYBOOKINGS_OTP_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone10})})
+      .then(function(r){return r.json().then(function(j){return {s:r.status,j:j};}).catch(function(){return {s:r.status,j:null};});})
+      .then(function(x){
+        if(x.j&&x.j.ok){
+          otpSub.textContent='We\u2019ve WhatsApped a 6-digit code to '+_otpMask(phone10)+'. It\u2019s valid for 10 minutes.';
+          try{otpInp.focus();}catch(_e){}
+          return;
+        }
+        if(x.s===429){otpSub.textContent='';_otpShowErr('Too many attempts from this device. Please try again in a little while.');return;}
+        otpSub.textContent='';
+        _otpShowErr('Couldn\u2019t send the code. Make sure '+_otpMask(phone10)+' is on WhatsApp \u2014 or reach us on WhatsApp/Instagram.');
+      })
+      .catch(function(){otpSub.textContent='';_otpShowErr('Couldn\u2019t send the code \u2014 check your connection and tap Resend.');});
+  }
+  otpBtn.onclick=function(){
+    var c=(otpInp.value||'').replace(/\D/g,'');
+    if(c.length!==6){_otpShowErr('Enter the 6-digit code from WhatsApp.');return;}
+    _otpShowErr('');
+    try{window._hodBkOtp={phone10:_otpPhone10,code:c,ts:Date.now()};}catch(_e){}
+    if(phoneInp.value.replace(/\D/g,'').slice(-10)!==_otpPhone10){phoneInp.value=_otpPhone10;}
+    lookupBtn.onclick();
+  };
+  otpResend.onclick=function(){if(_otpPhone10)_requestBkOtp(_otpPhone10);};
   // 🆕 2026-06-27 v3.393 — client-side mirror of the Cloud Function's `combined`
   // normalization, used ONLY when the deployed function doesn't return `combined`
   // (it predates that field). Inputs are already server-filtered to this phone, so
@@ -4747,6 +4817,14 @@ function renderMyBookings(){
     // moment then disappeared"). renderMyBookings now auto-replays this lookup (from
     // the 5-min cache → ZERO extra reads) so the results re-appear after any re-render.
     try{window._hodLastBkPhone=phoneInp.value;}catch(_e){}
+    // 🔒 2026-07-13 (VAPT #2 full close) — OTP gate. Without a warm 5-min cache
+    // for this number OR a live verified code (<9 min old, matching phone), we
+    // first WhatsApp a code and collect it — the server refuses code-less lookups.
+    var _cachedPre=window['_hodLookup_'+phone10];
+    var _cacheWarm=!!(_cachedPre&&(Date.now()-_cachedPre.ts)<300000);
+    var _otp=window._hodBkOtp;
+    var _otpLive=!!(_otp&&_otp.phone10===phone10&&(Date.now()-_otp.ts)<9*60000);
+    if(!_cacheWarm&&!_otpLive){_requestBkOtp(phone10);return;}
     lookupBtn.textContent='Searching...';lookupBtn.disabled=true;
     // Search bookings, table reservations, AND guest list
     // 🔴 2026-05-24 COST FIX: tableReservations + guestlist were unbounded.
@@ -4785,14 +4863,19 @@ function renderMyBookings(){
       function _lookupOnce(){
         var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
         var to=ctrl?setTimeout(function(){try{ctrl.abort();}catch(_e){}},22000):null;
-        var opt={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone10})};
+        var opt={method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:phone10,code:(_otpLive&&_otp?_otp.code:'')})};
         if(ctrl)opt.signal=ctrl.signal;
         return fetch(MYBOOKINGS_LOOKUP_URL,opt)
           .then(function(resp){if(to)clearTimeout(to);if(!resp.ok)throw new Error('lookup http '+resp.status);return resp.json();})
           .catch(function(e){if(to)clearTimeout(to);throw e;});
       }
+      var _authFail=false,_rateFail=false;
       _fetch=_lookupOnce()
-        .catch(function(e1){console.warn('[My Bookings] lookup attempt 1 failed:',e1&&e1.message);return _lookupOnce();})
+        .catch(function(e1){
+          // 401 (bad/expired code) and 429 (rate limit) are DEFINITIVE — retrying
+          // would just burn another code attempt / throttle slot.
+          if(/lookup http (401|429)/.test(String(e1&&e1.message)))throw e1;
+          console.warn('[My Bookings] lookup attempt 1 failed:',e1&&e1.message);return _lookupOnce();})
         .then(function(j){
           if(!j||j.ok!==true)throw new Error('lookup bad payload');
           // 🆕 v3.352 — server returns a pre-normalized + sorted `combined` array.
@@ -4808,13 +4891,27 @@ function renderMyBookings(){
           return r;
         })
         .catch(function(_e){
-          console.warn('[My Bookings] server lookup failed:',_e&&_e.message);
+          var _m=String((_e&&_e.message)||'');
+          if(_m.indexOf('lookup http 401')>=0)_authFail=true;
+          if(_m.indexOf('lookup http 429')>=0)_rateFail=true;
+          console.warn('[My Bookings] server lookup failed:',_m);
           return null; // signal error state to the render handler below
         });
     }
     _fetch.then(function(results){
       lookupBtn.textContent='Find My Bookings →';lookupBtn.disabled=false;
+      if(results!==null){otpWrap.style.display='none';} // verified — put the code panel away
       if(results===null){
+        // 🔒 wrong/expired OTP — reopen the code panel (no fresh WhatsApp sent)
+        if(_authFail){
+          try{delete window._hodBkOtp;}catch(_e){}
+          _requestBkOtp(phone10,'That code didn\u2019t match or has expired \u2014 enter the latest code, or tap Resend.');
+          return;
+        }
+        if(_rateFail){
+          resultsDiv.innerHTML='<div style="text-align:center;padding:32px 16px;"><div style="font-size:28px;margin-bottom:10px">\u23F3</div><div style="font-weight:700;font-size:14px;color:#000;margin-bottom:8px;">Too many attempts \u2014 please try again in a little while.</div><div style="font-size:12px;color:#3D3D3D;">If you need help right now, reach us on WhatsApp or Instagram.</div></div>';
+          return;
+        }
         // Server unreachable — show retry prompt. Never fall back to broad reads.
         resultsDiv.innerHTML='<div style="text-align:center;padding:32px 16px;"><div style="font-size:28px;margin-bottom:10px">⚠️</div><div style="font-weight:700;font-size:14px;color:#000;margin-bottom:8px;">Couldn\'t load bookings. Please try again.</div><div style="font-size:12px;color:#3D3D3D;">If the problem continues, reach us on WhatsApp or Instagram.</div></div>';
         try{delete window[_ck];}catch(_e){}
@@ -4933,7 +5030,7 @@ function renderMyBookings(){
       }
     });
   };
-  inputWrap.appendChild(inputLabel);inputWrap.appendChild(inputRow);inputWrap.appendChild(lookupBtn);inputWrap.appendChild(resultsDiv);
+  inputWrap.appendChild(inputLabel);inputWrap.appendChild(inputRow);inputWrap.appendChild(lookupBtn);inputWrap.appendChild(otpWrap);inputWrap.appendChild(resultsDiv);
   body2.appendChild(inputWrap);
   wrap.appendChild(body2);
   // 🆕 2026-06-12 v3.272 — if a number was looked up moments ago, re-run the lookup
