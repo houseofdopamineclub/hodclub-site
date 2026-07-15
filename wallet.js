@@ -315,6 +315,10 @@ function renderWalletPage(bookingRef){
     var _hodDateExpiry=function(ds){var p=String(ds||'').split('-').map(Number);if(p.length<3||!p[0]||!p[1]||!p[2])return null;return new Date(Date.UTC(p[0],p[1]-1,p[2]+1,3,0,0)-(5*60+30)*60000);};
     var _hasActivity=Number(cv.coverActivated||0)>0||Number(cv.coverBalance||0)>0||(Array.isArray(cv.tabRounds)&&cv.tabRounds.length>0)||cv.paymentStatus==='paid';
     var _nowMs2=Date.now();
+    // 🆕 2026-07-15 ONE-NIGHT EXTENSION (football match): covers stamped by POS
+    // tonight carry expiresAt = 2:00/3:00 AM IST 2026-07-16; lift those stamps to
+    // 4:00 AM (owner raised 3 → 4). Any stamp 00:00–03:00 IST on 2026-07-16 → 4:00 AM.
+    var _liftExp=function(ms){var lo=Date.UTC(2026,6,15,18,30,0),three=Date.UTC(2026,6,15,21,30,0),four=Date.UTC(2026,6,15,22,30,0);return (ms>=lo&&ms<=three)?four:ms;};
     var _dateExp2=cv.expiresAt?null:_hodDateExpiry(_cvDate2);
     // 🆕 2026-06-24 v3.380 (Khushi) — TABLE RESERVATION wallets now expire on the
     // SAME 3 AM-after-the-night cutoff as cover wallets. Previously expiry was
@@ -329,7 +333,7 @@ function renderWalletPage(bookingRef){
     // instead of wrongly showing expired. Fail-open: blank/unparseable date →
     // _dateExp2 null → never expired.
     var _expiryArmed=!!cv.isTableBooking||_hasActivity;
-    var _isWalletExpired=_expiryArmed&&((cv.expiresAt&&new Date(cv.expiresAt).getTime()<_nowMs2)||(_dateExp2&&_dateExp2.getTime()<_nowMs2));
+    var _isWalletExpired=_expiryArmed&&((cv.expiresAt&&_liftExp(new Date(cv.expiresAt).getTime())<_nowMs2)||(_dateExp2&&_dateExp2.getTime()<_nowMs2));
     if(_isWalletExpired){
       var _expIsTbl=!!cv.isTableBooking;
       var _expDate=sanitize(cv.date||cv.eventDate||'this night');
@@ -938,7 +942,7 @@ function renderWalletPage(bookingRef){
         checkoutBtn.innerHTML='<span style="font-size:18px;">🔔</span><span>Call Captain to Settle Bill</span>';
       } else {
         // 🛡 2026-07-09 — solid Digitory red, no gradient, 2-line hierarchy.
-        checkoutBtn.style.cssText='width:100%;padding:14px 18px;border-radius:8px;background:#B83227;border:none;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;';
+        checkoutBtn.style.cssText='width:100%;padding:14px 18px;border-radius:8px;background:#B83227;border:2px solid #B83227;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;';
         checkoutBtn.innerHTML=''
           +'<span style="font-family:var(--ff);font-size:15px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;line-height:1.2;color:#fff;">Done Ordering?</span>'
           +'<span style="font-family:var(--ff);font-size:11px;font-weight:700;color:#fff;opacity:.9;">Tap to settle your final bill</span>';
@@ -988,10 +992,6 @@ function renderWalletPage(bookingRef){
         if(placeBtn){placeBtn.style.opacity=ct>0?'1':'.45';}
         var _nw=document.getElementById('tab-note-wrap');if(_nw){_nw.style.display=ct>0?'block':'none';}
         var hasTab=(_placedDisplay+ct)>0;
-        if(checkoutBtn){
-          checkoutBtn.style.color='#fff';
-          checkoutBtn.style.borderColor=hasTab?'rgba(0,0,0,.3)':'rgba(0,0,0,.12)';
-        }
       }
 
       var _origUCB=updateCartBar;
@@ -3848,7 +3848,9 @@ function renderCustomerWallet(bookingRef){
       var _coverExpiryFromDateB=function(ds){var p=String(ds||'').split('-').map(Number);if(p.length<3||!p[0]||!p[1]||!p[2])return null;return new Date(Date.UTC(p[0],p[1]-1,p[2]+1,3,0,0)-(5*60+30)*60000);};
       var _nowMsB=Date.now();
       var _dateExpB=cv.expiresAt?null:_coverExpiryFromDateB(cvDate);
-      var isExpired=(cv.expiresAt&&new Date(cv.expiresAt).getTime()<_nowMsB)||(_dateExpB&&_dateExpB.getTime()<_nowMsB);
+      // 🆕 2026-07-15 ONE-NIGHT EXTENSION (football match): lift tonight's 2/3 AM stamps to 4 AM (owner raised 3 → 4).
+      var _liftExpB=function(ms){var lo=Date.UTC(2026,6,15,18,30,0),three=Date.UTC(2026,6,15,21,30,0),four=Date.UTC(2026,6,15,22,30,0);return (ms>=lo&&ms<=three)?four:ms;};
+      var isExpired=(cv.expiresAt&&_liftExpB(new Date(cv.expiresAt).getTime())<_nowMsB)||(_dateExpB&&_dateExpB.getTime()<_nowMsB);
       if(isExpired){bal=0;} // show 0 balance for past events
       var pct=total>0?Math.round((used/total)*100):0;
 
