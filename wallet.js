@@ -315,10 +315,10 @@ function renderWalletPage(bookingRef){
     var _hodDateExpiry=function(ds){var p=String(ds||'').split('-').map(Number);if(p.length<3||!p[0]||!p[1]||!p[2])return null;return new Date(Date.UTC(p[0],p[1]-1,p[2]+1,3,0,0)-(5*60+30)*60000);};
     var _hasActivity=Number(cv.coverActivated||0)>0||Number(cv.coverBalance||0)>0||(Array.isArray(cv.tabRounds)&&cv.tabRounds.length>0)||cv.paymentStatus==='paid';
     var _nowMs2=Date.now();
-    // 🆕 2026-07-15 ONE-NIGHT EXTENSION (football match): covers stamped by POS
-    // tonight carry expiresAt = 2:00/3:00 AM IST 2026-07-16; lift those stamps to
-    // 4:00 AM (owner raised 3 → 4). Any stamp 00:00–03:00 IST on 2026-07-16 → 4:00 AM.
-    var _liftExp=function(ms){var lo=Date.UTC(2026,6,15,18,30,0),three=Date.UTC(2026,6,15,21,30,0),four=Date.UTC(2026,6,15,22,30,0);return (ms>=lo&&ms<=three)?four:ms;};
+    // 🆕 EXTENDED NIGHTS (football finals weekend): nights of Sat 2026-07-18 and
+    // Sun 2026-07-19 run to 5:00 AM IST. Stamps 00:00–03:00 IST on the morning
+    // after (Jul 19 / Jul 20) are lifted to 5:00 AM. Remove after the weekend.
+    var _liftExp=function(ms){var days=[19,20];for(var i=0;i<days.length;i++){var d=days[i],lo=Date.UTC(2026,6,d-1,18,30,0),three=Date.UTC(2026,6,d-1,21,30,0),five=Date.UTC(2026,6,d-1,23,30,0);if(ms>=lo&&ms<=three)return five;}return ms;};
     var _dateExp2=cv.expiresAt?null:_hodDateExpiry(_cvDate2);
     // 🆕 2026-06-24 v3.380 (Khushi) — TABLE RESERVATION wallets now expire on the
     // SAME 3 AM-after-the-night cutoff as cover wallets. Previously expiry was
@@ -3848,8 +3848,8 @@ function renderCustomerWallet(bookingRef){
       var _coverExpiryFromDateB=function(ds){var p=String(ds||'').split('-').map(Number);if(p.length<3||!p[0]||!p[1]||!p[2])return null;return new Date(Date.UTC(p[0],p[1]-1,p[2]+1,3,0,0)-(5*60+30)*60000);};
       var _nowMsB=Date.now();
       var _dateExpB=cv.expiresAt?null:_coverExpiryFromDateB(cvDate);
-      // 🆕 2026-07-15 ONE-NIGHT EXTENSION (football match): lift tonight's 2/3 AM stamps to 4 AM (owner raised 3 → 4).
-      var _liftExpB=function(ms){var lo=Date.UTC(2026,6,15,18,30,0),three=Date.UTC(2026,6,15,21,30,0),four=Date.UTC(2026,6,15,22,30,0);return (ms>=lo&&ms<=three)?four:ms;};
+      // 🆕 EXTENDED NIGHTS (football finals weekend): nights of Jul 18 & 19 → 5 AM IST; lift 2/3 AM stamps on the mornings after.
+      var _liftExpB=function(ms){var days=[19,20];for(var i=0;i<days.length;i++){var d=days[i],lo=Date.UTC(2026,6,d-1,18,30,0),three=Date.UTC(2026,6,d-1,21,30,0),five=Date.UTC(2026,6,d-1,23,30,0);if(ms>=lo&&ms<=three)return five;}return ms;};
       var isExpired=(cv.expiresAt&&_liftExpB(new Date(cv.expiresAt).getTime())<_nowMsB)||(_dateExpB&&_dateExpB.getTime()<_nowMsB);
       if(isExpired){bal=0;} // show 0 balance for past events
       var pct=total>0?Math.round((used/total)*100):0;
