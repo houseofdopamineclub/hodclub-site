@@ -55,7 +55,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.421";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-23 keyboard fix)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.422";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-23 keyboard fix)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -7037,8 +7037,18 @@ try{ window._hodHideSplash && window._hodHideSplash(); }catch(_e){}
 //      to the center of the modal so the typed digits are visible above the keypad.
 // Desktop is untouched (matchMedia gate). Everything is try/catch fail-open —
 // a quirk here must NEVER block a paying customer from booking.
+// 🆕 2026-07-23 v3.422 (owner) — REWRITE for Instagram's ANDROID WebView, where
+// the keyboard is an OVERLAY: it pans the VISUAL viewport down while our
+// position:fixed .mbg stays anchored to the LAYOUT viewport, so v3.421's clamp +
+// scrollIntoView computed against the wrong coordinate space and did nothing.
+// Now: (a) the .mbg overlay is translated by visualViewport.offsetTop so it always
+// sits inside the VISIBLE area; (b) the modal is clamped to the LIVE visible
+// height; (c) the focused field is force-scrolled INSIDE the modal by manual
+// scrollTop math (no scrollIntoView — it gets cancelled by the keyboard
+// animation in Meta's WebView), retried at 250/650/1100ms as the keyboard settles.
 try{(function(){
   var _mob=window.matchMedia&&window.matchMedia('(max-width:480px)');
+  function _bg(){return document.querySelector('.mbg');}
   function _openModal(){var m=document.querySelector('.mbg .modal');return m||document.querySelector('.modal');}
   function _clamp(){
     try{
@@ -7046,7 +7056,28 @@ try{(function(){
       var m=_openModal();if(!m)return;
       var vv=window.visualViewport;
       var h=vv?Math.floor(vv.height):window.innerHeight;
+      var top=vv?Math.floor(vv.offsetTop||0):0;
       if(h>0)m.style.maxHeight=(h-16)+'px';
+      // Keep the fixed overlay pinned inside the VISIBLE viewport even when the
+      // browser pans for an overlay keyboard (offsetTop>0 = we've been panned).
+      var bg=_bg();
+      if(bg)bg.style.transform=top>0?('translateY('+top+'px)'):'';
+    }catch(_e){}
+  }
+  // Force the focused field into the visible band of the modal by direct
+  // scrollTop math — coordinate-space safe, unlike scrollIntoView here.
+  function _reveal(t){
+    try{
+      var m=_openModal();if(!m||!t||!m.contains(t))return;
+      _clamp();
+      var vv=window.visualViewport;
+      var vTop=vv?(vv.offsetTop||0):0;
+      var vH=vv?vv.height:window.innerHeight;
+      var r=t.getBoundingClientRect();
+      // target: field sits ~35% down the VISIBLE area (label above it stays readable)
+      var want=vTop+vH*0.35;
+      var delta=r.top-want;
+      if(Math.abs(delta)>8)m.scrollTop+=delta;
     }catch(_e){}
   }
   if(window.visualViewport){
@@ -7061,22 +7092,22 @@ try{(function(){
       if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return;
       var m=_openModal();if(!m||!m.contains(t))return;
       _clamp();
-      setTimeout(function(){
-        try{
-          _clamp();
-          t.scrollIntoView({block:'center',behavior:'smooth'});
-        }catch(_e){}
-      },300);
+      // keyboard open animation timing varies wildly in Meta's WebView — retry
+      // the reveal as it settles; each pass is cheap and idempotent.
+      setTimeout(function(){_reveal(t);},250);
+      setTimeout(function(){_reveal(t);},650);
+      setTimeout(function(){_reveal(t);},1100);
     }catch(_e){}
   });
-  // When the keyboard CLOSES (field blurred), release the clamp so the modal
-  // gets its full height back for browsing the rest of the form.
+  // When the keyboard CLOSES (field blurred), release the clamp + overlay shift
+  // so the modal gets its full height back for browsing the rest of the form.
   document.addEventListener('focusout',function(){
     setTimeout(function(){
       try{
         var a=document.activeElement;
         if(a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName))return; // moved to next field
         var m=_openModal();if(m)m.style.maxHeight='';
+        var bg=_bg();if(bg)bg.style.transform='';
       }catch(_e){}
     },250);
   });
