@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<!-- 🆕 2026-07-23 (owner: Insta/FB Android) — interactive-widget=resizes-content
+     makes the Android in-app WebView SHRINK the page when the keypad opens
+     (instead of panning over it), so the booking form + CTA stay scrollable.
+     maximum-scale=1 kills the input-tap auto-zoom on the same browsers.
+     iOS ignores unknown keys, so this is Android-only in effect. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,interactive-widget=resizes-content"/>
 <!-- 🔴 2026-07-04 (Khushi LIVE-BUG) — dark-mode Androids force-darken the page
      (Chrome/WebView Auto Dark), inverting the white QR box to BLACK → scanner
      machines can't read inverted QRs. "only light" opts the page out. -->
@@ -50,7 +55,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.420";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-06)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.421";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-23 keyboard fix)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
