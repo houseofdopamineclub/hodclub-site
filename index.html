@@ -278,7 +278,22 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
 /* MODAL */
 .mbg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px);padding:16px;animation:fadeIn .2s ease;}
 .modal{background:#F4F4F0;border:2px solid #000;border-radius:8px;width:100%;max-width:540px;max-height:94vh;overflow-y:auto;animation:fadeUp .32s cubic-bezier(.23,1,.32,1);position:relative;scroll-behavior:auto;}
-@media(max-width:480px){.modal{border-radius:6px;}.mbg{padding:8px;}.m-body{padding:16px;}}
+/* 🆕 2026-07-23 (owner: Insta/FB ad landings) — the Meta in-app browser mishandles
+   the keyboard: (a) inputs <16px trigger iOS auto-zoom that pans the field UNDER
+   the keyboard (typed digits invisible), (b) 94vh + vertical centering ignores the
+   keyboard-shrunk visible area so the Total/CTA hides behind the keypad, (c) inner
+   modal scroll fights the page scroll. Mobile fixes: top-anchored modal, dvh units
+   (dynamic viewport = keyboard-aware where supported), 16px inputs, momentum
+   scrolling. A JS visualViewport clamp below covers browsers without dvh. */
+@media(max-width:480px){
+  .modal{border-radius:6px;}
+  .mbg{padding:8px;align-items:flex-start;}
+  .m-body{padding:16px;}
+  .modal{max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  /* !important so inline-styled 13px inputs (BOOK A TABLE / guest-list forms)
+     are covered too — anything typeable inside any overlay must be ≥16px. */
+  .mbg input,.mbg select,.mbg textarea,.modal input,.modal select,.modal textarea{font-size:16px!important;}
+}
 .modal::-webkit-scrollbar{width:3px;}
 .modal-x{position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:50%;background:#fff;border:2px solid #000;color:#000;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:10;transition:all .2s;}
 .modal-x:hover{background:#FF5733;color:#000;border-color:#000;}
@@ -7005,6 +7020,62 @@ render();
 // ⚡ 2026-06-06 — first paint is up; drop the splash now (fail-open timeout in the
 // <body> splash script is the backstop if this line is ever skipped).
 try{ window._hodHideSplash && window._hodHideSplash(); }catch(_e){}
+
+// 🆕 2026-07-23 (owner: Insta/FB ad landings) — KEYBOARD-SAFE booking modal for
+// the Meta in-app browser. Two document-level, fail-open handlers (delegated, so
+// they survive every re-render — the modal is rebuilt by render() constantly):
+//   1. visualViewport clamp: when the keyboard opens, the VISIBLE area shrinks
+//      but 100vh/100dvh may not (Meta's WebView lags dvh support). Clamp the open
+//      .modal's max-height to the LIVE visualViewport height so the Total + BOOK
+//      NOW CTA are always reachable by scrolling INSIDE the modal.
+//   2. focus scroll: after a field is tapped (keyboard settle ≈ 300ms), scroll it
+//      to the center of the modal so the typed digits are visible above the keypad.
+// Desktop is untouched (matchMedia gate). Everything is try/catch fail-open —
+// a quirk here must NEVER block a paying customer from booking.
+try{(function(){
+  var _mob=window.matchMedia&&window.matchMedia('(max-width:480px)');
+  function _openModal(){var m=document.querySelector('.mbg .modal');return m||document.querySelector('.modal');}
+  function _clamp(){
+    try{
+      if(!_mob||!_mob.matches)return;
+      var m=_openModal();if(!m)return;
+      var vv=window.visualViewport;
+      var h=vv?Math.floor(vv.height):window.innerHeight;
+      if(h>0)m.style.maxHeight=(h-16)+'px';
+    }catch(_e){}
+  }
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',_clamp);
+    window.visualViewport.addEventListener('scroll',_clamp);
+  }
+  window.addEventListener('resize',_clamp);
+  document.addEventListener('focusin',function(ev){
+    try{
+      if(!_mob||!_mob.matches)return;
+      var t=ev.target;
+      if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return;
+      var m=_openModal();if(!m||!m.contains(t))return;
+      _clamp();
+      setTimeout(function(){
+        try{
+          _clamp();
+          t.scrollIntoView({block:'center',behavior:'smooth'});
+        }catch(_e){}
+      },300);
+    }catch(_e){}
+  });
+  // When the keyboard CLOSES (field blurred), release the clamp so the modal
+  // gets its full height back for browsing the rest of the form.
+  document.addEventListener('focusout',function(){
+    setTimeout(function(){
+      try{
+        var a=document.activeElement;
+        if(a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName))return; // moved to next field
+        var m=_openModal();if(m)m.style.maxHeight='';
+      }catch(_e){}
+    },250);
+  });
+})();}catch(_e){}
 </script>
 </body>
 </html>
