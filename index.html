@@ -55,7 +55,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.422";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-23 keyboard fix)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.424";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-23 keyboard fix)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -2415,6 +2415,7 @@ function render(){
       if(S.view==='privacy'){ kids.push(renderPrivacy()); }
       else if(S.view==='myBookings'){ kids.push(renderMyBookings()); }
       else if(S.view==='tables'){ kids.push(renderTableReservations()); }
+      else if(S.view==='menu'){ kids.push(renderPublicMenu()); }
       else if(S.view==='wallet'){ kids.push(renderWalletPage(S._walletRef)); }
       else if(S.view==='topup'){ kids.push(renderTopUp(S._topupBookingId, S._topupDiff||0)); }
       else { kids.push(renderHome()); }
@@ -5073,6 +5074,117 @@ function renderMyBookings(){
   return wrap;
 }
 
+// 🆕 2026-07-24 v3.424 (owner) — PUBLIC MENU SCANNER (hodclub.in/?menu).
+// Read-only menu for table-QR scans: no login, no wallet, no ordering.
+// LIVE-SYNC — this deliberately reuses the wallet menu's entire data pipeline:
+//   • item ADD/DELETE/price edits: hodGetMenuByTab() reads window.HOD_*_MENU,
+//     kept fresh by the venueMenu 30s poll — that poll's gate looks for
+//     #wallet-menu-content, which this view mounts (same id, on purpose).
+//   • OOS/discount toggles: the posMenuOverrides live listener attaches for the
+//     same reason and calls window.__rebuildWalletMenu(), which this view
+//     re-points at its own rebuild while mounted. OOS items are HIDDEN
+//     (owner decision 2026-07-24), matching the wallet's buildMenu behaviour.
+//   • item-level `oos:true` flags never even reach here — applyToWindow's
+//     visibleOnly() already strips them.
+function renderPublicMenu(){
+  var wrap=document.createElement('div');
+  wrap.style.cssText='min-height:100vh;background:#F4F4F0;max-width:680px;margin:0 auto;padding:20px 14px 70px;';
+  // ── Header
+  var hdr=document.createElement('div');
+  hdr.style.cssText='text-align:center;margin-bottom:16px;';
+  hdr.innerHTML='<div style="font-family:var(--ff);font-weight:900;font-size:26px;color:#000;letter-spacing:1px;">H.O.D</div>'
+    +'<div style="font-size:11px;letter-spacing:3px;color:#3D3D3D;font-weight:700;">HOUSE OF DOPAMINE · MENU</div>';
+  wrap.appendChild(hdr);
+  // ── Tab bar
+  if(!S._menuTab)S._menuTab='food';
+  var TABS_DEF=[['food','FOOD'],['liquor','LIQUOR'],['nab','NAB'],['smoke','SMOKE']];
+  var tabBar=document.createElement('div');
+  tabBar.style.cssText='display:flex;gap:6px;margin-bottom:14px;';
+  TABS_DEF.forEach(function(t){
+    var b=document.createElement('button');
+    var on=S._menuTab===t[0];
+    b.textContent=t[1];
+    b.style.cssText='flex:1;padding:10px 4px;font-family:var(--ff);font-weight:800;font-size:12px;letter-spacing:1px;border:2px solid #000;border-radius:8px;cursor:pointer;'
+      +(on?'background:#FF90E8;color:#000;box-shadow:2px 2px 0 #000;':'background:#fff;color:#000;');
+    b.onclick=function(){S._menuTab=t[0];render();};
+    tabBar.appendChild(b);
+  });
+  wrap.appendChild(tabBar);
+  // ── Content — id is LOAD-BEARING: it arms the venueMenu poll gate + the
+  // posMenuOverrides live listener (both look for this exact element).
+  var content=document.createElement('div');
+  content.id='wallet-menu-content';
+  wrap.appendChild(content);
+  function build(){
+    try{
+      content.innerHTML='';
+      var data=hodGetMenuByTab(S._menuTab)||[];
+      var cats=[];
+      data.forEach(function(c){
+        // hide override-OOS items (item-level oos already stripped upstream)
+        var v=(c.items||[]).filter(function(it){var ov=_ovFor(it.n);return !(ov&&ov.outOfStock);});
+        if(v.length)cats.push({cat:c.cat,items:v});
+      });
+      if(!cats.length){
+        content.innerHTML='<div style="text-align:center;padding:50px 10px;color:#3D3D3D;font-size:13px;font-family:var(--ff);">Nothing in this section right now — check another tab.</div>';
+        return;
+      }
+      cats.forEach(function(c){
+        var sec=document.createElement('div');
+        sec.style.cssText='background:#fff;border:2px solid #000;border-radius:10px;margin-bottom:12px;overflow:hidden;';
+        var h=document.createElement('div');
+        h.style.cssText='padding:9px 14px;font-family:var(--ff);font-weight:800;font-size:13px;letter-spacing:1px;background:#000;color:#fff;';
+        h.textContent=String(c.cat||'').toUpperCase();
+        sec.appendChild(h);
+        (c.items||[]).forEach(function(it,i){
+          var row=document.createElement('div');
+          row.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 14px;'+(i>0?'border-top:1px solid #E5E5E0;':'');
+          var left=document.createElement('div');
+          left.style.cssText='flex:1;min-width:0;';
+          var nameLine='<span style="font-size:14px;color:#000;font-weight:600;">'
+            +sanitize(it.n)+'</span>';
+          // veg / non-veg marker — FOOD items only, and only when flag is set
+          if(it.t==='food'&&it.v===true)nameLine='<span style="color:#1E9E4A;font-size:11px;margin-right:6px;">●</span>'+nameLine;
+          else if(it.t==='food'&&it.v===false)nameLine='<span style="color:#C0392B;font-size:11px;margin-right:6px;">▲</span>'+nameLine;
+          var subLine=it.sub?'<div style="font-size:11px;color:#8A8A85;margin-top:2px;">'+sanitize(String(it.sub))+'</div>':'';
+          left.innerHTML=nameLine+subLine;
+          var priceWrap=document.createElement('div');
+          priceWrap.style.cssText='flex:none;text-align:right;font-family:var(--ff);';
+          var base=Number(it.p)||0;
+          var eff=_effPrice(it.n,base);
+          if(eff<base){
+            priceWrap.innerHTML='<div style="font-size:11px;color:#8A8A85;text-decoration:line-through;">₹'+base+'</div>'
+              +'<div style="font-size:14px;font-weight:800;color:#000;">₹'+eff+'</div>';
+          }else{
+            priceWrap.innerHTML='<div style="font-size:14px;font-weight:800;color:#000;">₹'+base+'</div>';
+          }
+          row.appendChild(left);row.appendChild(priceWrap);
+          sec.appendChild(row);
+        });
+        content.appendChild(sec);
+      });
+      // footer note
+      var ft=document.createElement('div');
+      ft.style.cssText='text-align:center;padding:18px 8px 0;font-size:10px;color:#8A8A85;letter-spacing:1px;';
+      ft.textContent='PRICES EXCLUSIVE OF TAXES · MENU UPDATES LIVE';
+      content.appendChild(ft);
+    }catch(e){
+      content.innerHTML='<div style="text-align:center;padding:40px;color:#C0392B;font-size:12px;">Menu failed to load — please rescan the QR.</div>';
+      console.warn('[public-menu] build failed',e);
+    }
+  }
+  build();
+  // Live repaints: overrides listener + venueMenu poll both call this.
+  window.__rebuildWalletMenu=build;
+  return wrap;
+}
+// venueMenu add/delete/price edits dispatch 'hod-menu-updated' (applyToWindow);
+// repaint the scanner menu when it's the active view. Registered ONCE here at
+// parse time — NOT inside renderPublicMenu — so re-renders never stack handlers.
+window.addEventListener('hod-menu-updated',function(){
+  try{ if(S.view==='menu'&&typeof window.__rebuildWalletMenu==='function')window.__rebuildWalletMenu(); }catch(e){}
+});
+
 function renderPrivacy(){
   var wrap=document.createElement('div');
   wrap.style.cssText='max-width:680px;margin:0 auto;padding:60px 28px;';
@@ -5208,6 +5320,13 @@ function renderPrivacy(){
     }
     else if(params.get('page')==='privacy'){
       S.view='privacy';
+    }
+    // 🆕 2026-07-24 v3.424 (owner) — PUBLIC MENU SCANNER: hodclub.in/?menu is the
+    // QR-scannable read-only menu. Reads the SAME live venueMenu + posMenuOverrides
+    // the POS Menu Editor writes, so adds/deletes/OOS toggles replicate here with
+    // zero extra plumbing. OOS items are HIDDEN (owner decision, 2026-07-24).
+    else if(params.has('menu')){
+      S.view='menu';
     }
     else if(params.get('tab')==='tables'){
       S._homeTab='tables';
@@ -7058,6 +7177,12 @@ try{(function(){
       var h=vv?Math.floor(vv.height):window.innerHeight;
       var top=vv?Math.floor(vv.offsetTop||0):0;
       if(h>0)m.style.maxHeight=(h-16)+'px';
+      // 🆕 v3.423 — the PHONE field is the LAST field: with nothing below it the
+      // scroller hits its limit before lifting it above the keypad. While the
+      // keyboard is open, add scroll room at the bottom equal to the keyboard
+      // height so even the last field can be pulled up into the visible band.
+      var kb=Math.max(0,window.innerHeight-h-top);
+      m.style.paddingBottom=kb>40?(kb+24)+'px':'';
       // Keep the fixed overlay pinned inside the VISIBLE viewport even when the
       // browser pans for an overlay keyboard (offsetTop>0 = we've been panned).
       var bg=_bg();
@@ -7106,7 +7231,7 @@ try{(function(){
       try{
         var a=document.activeElement;
         if(a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName))return; // moved to next field
-        var m=_openModal();if(m)m.style.maxHeight='';
+        var m=_openModal();if(m){m.style.maxHeight='';m.style.paddingBottom='';}
         var bg=_bg();if(bg)bg.style.transform='';
       }catch(_e){}
     },250);
