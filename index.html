@@ -7350,16 +7350,66 @@ try{(function(){
       if(Math.abs(r.top-target)>12)window.scrollBy(0,r.top-target);
     }catch(_e){}
   }
+  // v4.4 — SAME CURE FOR THE "BOOK A TABLE" SHEET (#tbl-book-panel), which is
+  // its own position:fixed bottom drawer (+ fixed blurred #tbl-backdrop), so it
+  // had the exact same buried-input disease as .mbg. While a field inside it is
+  // focused: un-glue the sheet into the document at the current scroll spot,
+  // swap the backdrop to a blur-free absolute dim, add keyboard room via a
+  // spacer, reveal the field. Everything is restored when typing ends.
+  function _tblEnter(panel){
+    try{
+      if(panel._hodTblAbs)return;
+      panel._hodTblAbs=true;
+      panel._hodPrevCss=panel.style.cssText;
+      var y=window.scrollY||window.pageYOffset||0;
+      panel.style.position='absolute';
+      panel.style.top=(y+8)+'px';
+      panel.style.bottom='auto';
+      panel.style.transform='none';
+      panel.style.transition='none';
+      var bd=document.getElementById('tbl-backdrop');
+      if(bd){
+        bd._hodPrevCss=bd.style.cssText;
+        var docH=Math.max(document.documentElement.scrollHeight,window.innerHeight);
+        bd.style.position='absolute';
+        bd.style.top='0px';bd.style.left='0px';bd.style.right='0px';bd.style.bottom='auto';
+        bd.style.height=Math.max(docH,y+window.innerHeight)+'px';
+        bd.style.backdropFilter='none';
+        bd.style.webkitBackdropFilter='none';
+      }
+      if(!document.getElementById('hod-kb-spacer')){
+        var sp=document.createElement('div');
+        sp.id='hod-kb-spacer';
+        sp.style.cssText='height:70vh;pointer-events:none;';
+        document.body.appendChild(sp);
+      }
+    }catch(_e){}
+  }
+  function _tblExit(){
+    try{
+      var panel=document.getElementById('tbl-book-panel');
+      if(panel&&panel._hodTblAbs){
+        panel._hodTblAbs=false;
+        if(panel._hodPrevCss!=null)panel.style.cssText=panel._hodPrevCss;
+      }
+      var bd=document.getElementById('tbl-backdrop');
+      if(bd&&bd._hodPrevCss!=null){bd.style.cssText=bd._hodPrevCss;bd._hodPrevCss=null;}
+      var sp=document.getElementById('hod-kb-spacer');
+      if(sp)sp.remove();
+    }catch(_e){}
+  }
   var _roomTimer=null;
   document.addEventListener('focusin',function(ev){
     try{
       if(!_m())return;
       var t=ev.target;
       if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return;
-      var bg=document.querySelector('.mbg');
-      if(!bg)return;
       if(_roomTimer){clearTimeout(_roomTimer);_roomTimer=null;}
-      bg.style.paddingBottom='70vh'; // spare height for the keyboard pan
+      var bg=document.querySelector('.mbg');
+      var tbl=t.closest&&t.closest('#tbl-book-panel');
+      if(tbl){_tblEnter(tbl);}
+      else if(bg){bg.style.paddingBottom='70vh';} // spare height for the keyboard pan
+      else return;
       setTimeout(function(){_reveal(t);},350);
       setTimeout(function(){if(document.activeElement===t)_reveal(t);},800);
     }catch(_e){}
@@ -7374,6 +7424,7 @@ try{(function(){
           if(t&&/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return; // moved to next field
           var bg=document.querySelector('.mbg');
           if(bg)bg.style.paddingBottom='24px';
+          _tblExit();
         }catch(_e){}
       },400);
     }catch(_e){}
