@@ -55,7 +55,7 @@ src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.424";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-23 keyboard fix)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v4.0";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-08-06 v4 keyboard fix)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -7145,97 +7145,139 @@ render();
 // <body> splash script is the backstop if this line is ever skipped).
 try{ window._hodHideSplash && window._hodHideSplash(); }catch(_e){}
 
-// 🆕 2026-07-23 (owner: Insta/FB ad landings) — KEYBOARD-SAFE booking modal for
-// the Meta in-app browser. Two document-level, fail-open handlers (delegated, so
-// they survive every re-render — the modal is rebuilt by render() constantly):
-//   1. visualViewport clamp: when the keyboard opens, the VISIBLE area shrinks
-//      but 100vh/100dvh may not (Meta's WebView lags dvh support). Clamp the open
-//      .modal's max-height to the LIVE visualViewport height so the Total + BOOK
-//      NOW CTA are always reachable by scrolling INSIDE the modal.
-//   2. focus scroll: after a field is tapped (keyboard settle ≈ 300ms), scroll it
-//      to the center of the modal so the typed digits are visible above the keypad.
-// Desktop is untouched (matchMedia gate). Everything is try/catch fail-open —
-// a quirk here must NEVER block a paying customer from booking.
-// 🆕 2026-07-23 v3.422 (owner) — REWRITE for Instagram's ANDROID WebView, where
-// the keyboard is an OVERLAY: it pans the VISUAL viewport down while our
-// position:fixed .mbg stays anchored to the LAYOUT viewport, so v3.421's clamp +
-// scrollIntoView computed against the wrong coordinate space and did nothing.
-// Now: (a) the .mbg overlay is translated by visualViewport.offsetTop so it always
-// sits inside the VISIBLE area; (b) the modal is clamped to the LIVE visible
-// height; (c) the focused field is force-scrolled INSIDE the modal by manual
-// scrollTop math (no scrollIntoView — it gets cancelled by the keyboard
-// animation in Meta's WebView), retried at 250/650/1100ms as the keyboard settles.
+// 🆕 2026-08-06 v4 KEYBOARD FIX (Insta/WhatsApp in-app browsers) — REWRITE.
+// The old visualViewport clamp (v3.421–v3.424) failed live: Meta WebViews report
+// stale/zero visualViewport offsets, so every counter-translate guessed wrong and
+// the typed phone/email stayed buried under the keypad.
+// v4 stops fighting the keyboard entirely: on first field focus we UN-GLUE the
+// .mbg overlay from position:fixed to position:absolute at the top of the page,
+// collapse the page behind it (one scroll surface), disable the modal's inner
+// scroller, and let the browser's NATIVE "pan the document to the caret"
+// behaviour do the work — like a plain web page, which Meta WebViews handle fine.
+// While a field is focused we add ~70vh of temporary scroll room (an overlay
+// keyboard reveals fields by SCROLLING the document — with zero spare height the
+// last fields can never rise above the keypad) and nudge the field to ~30% of
+// the visible height. Everything is try/catch fail-open; desktop untouched.
 try{(function(){
   var _mob=window.matchMedia&&window.matchMedia('(max-width:480px)');
+  var K={on:false,y:0,spacer:null};
   function _bg(){return document.querySelector('.mbg');}
-  function _openModal(){var m=document.querySelector('.mbg .modal');return m||document.querySelector('.modal');}
-  function _clamp(){
+  function _isField(t){return t&&/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName);}
+  function _style(bg){
     try{
-      if(!_mob||!_mob.matches)return;
-      var m=_openModal();if(!m)return;
-      var vv=window.visualViewport;
-      var h=vv?Math.floor(vv.height):window.innerHeight;
-      var top=vv?Math.floor(vv.offsetTop||0):0;
-      if(h>0)m.style.maxHeight=(h-16)+'px';
-      // 🆕 v3.423 — the PHONE field is the LAST field: with nothing below it the
-      // scroller hits its limit before lifting it above the keypad. While the
-      // keyboard is open, add scroll room at the bottom equal to the keyboard
-      // height so even the last field can be pulled up into the visible band.
-      var kb=Math.max(0,window.innerHeight-h-top);
-      m.style.paddingBottom=kb>40?(kb+24)+'px':'';
-      // Keep the fixed overlay pinned inside the VISIBLE viewport even when the
-      // browser pans for an overlay keyboard (offsetTop>0 = we've been panned).
-      var bg=_bg();
-      if(bg)bg.style.transform=top>0?('translateY('+top+'px)'):'';
+      bg.style.position='absolute';
+      bg.style.top='0';bg.style.left='0';bg.style.right='0';bg.style.bottom='auto';
+      bg.style.minHeight='100vh';
+      /* iOS: a document-sized backdrop blur freezes page scrolling — drop the
+         blur while un-glued, keep the dark dim. */
+      bg.style.backdropFilter='none';bg.style.webkitBackdropFilter='none';
+      bg.style.overscrollBehavior='auto';
+      bg.style.alignItems='flex-start';
+      bg.style.transform='';
+      var m=bg.querySelector('.modal');
+      if(m){
+        /* one scroll surface: the DOCUMENT scrolls, not the modal */
+        m.style.maxHeight='none';m.style.overflowY='visible';
+        /* overscroll:contain on a non-scrollable modal traps the touch */
+        m.style.overscrollBehavior='auto';
+        m.style.paddingBottom='';
+      }
     }catch(_e){}
   }
-  // Force the focused field into the visible band of the modal by direct
-  // scrollTop math — coordinate-space safe, unlike scrollIntoView here.
+  function _hideSiblings(bg){
+    try{
+      var root=document.getElementById('root');if(!root)return;
+      var kids=root.children;
+      for(var i=0;i<kids.length;i++){var k=kids[i];
+        if(k!==bg&&k.style.display!=='none')k.style.display='none';
+      }
+    }catch(_e){}
+  }
+  function _engage(){
+    var bg=_bg();if(!bg)return;
+    if(!K.on){
+      K.on=true;
+      K.y=window.scrollY||window.pageYOffset||0;
+      _hideSiblings(bg);
+      /* scroll to top ONCE on first engage — never on re-renders, or typing
+         yanks the field back under the keypad */
+      window.scrollTo(0,0);
+    }
+    _style(bg);
+  }
+  function _release(){
+    if(!K.on)return;K.on=false;
+    _unroom();
+    try{
+      var root=document.getElementById('root');
+      if(root){var kids=root.children;
+        for(var i=0;i<kids.length;i++)kids[i].style.display='';}
+    }catch(_e){}
+    try{window.scrollTo(0,K.y||0);}catch(_e){}
+  }
+  function _room(){
+    try{
+      if(!K.spacer){
+        K.spacer=document.createElement('div');
+        K.spacer.id='hod-kb-room';
+        K.spacer.style.cssText='height:70vh;pointer-events:none;';
+      }
+      if(!K.spacer.parentNode)document.body.appendChild(K.spacer);
+    }catch(_e){}
+  }
+  function _unroom(){
+    try{if(K.spacer&&K.spacer.parentNode)K.spacer.parentNode.removeChild(K.spacer);}catch(_e){}
+  }
   function _reveal(t){
     try{
-      var m=_openModal();if(!m||!t||!m.contains(t))return;
-      _clamp();
+      if(!t||!document.contains(t))return;
       var vv=window.visualViewport;
       var vTop=vv?(vv.offsetTop||0):0;
       var vH=vv?vv.height:window.innerHeight;
       var r=t.getBoundingClientRect();
-      // target: field sits ~35% down the VISIBLE area (label above it stays readable)
-      var want=vTop+vH*0.35;
-      var delta=r.top-want;
-      if(Math.abs(delta)>8)m.scrollTop+=delta;
+      var want=vTop+vH*0.30;
+      var d=r.top-want;
+      if(Math.abs(d)>8)window.scrollBy(0,d);
     }catch(_e){}
   }
-  if(window.visualViewport){
-    window.visualViewport.addEventListener('resize',_clamp);
-    window.visualViewport.addEventListener('scroll',_clamp);
-  }
-  window.addEventListener('resize',_clamp);
   document.addEventListener('focusin',function(ev){
     try{
       if(!_mob||!_mob.matches)return;
-      var t=ev.target;
-      if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return;
-      var m=_openModal();if(!m||!m.contains(t))return;
-      _clamp();
-      // keyboard open animation timing varies wildly in Meta's WebView — retry
-      // the reveal as it settles; each pass is cheap and idempotent.
-      setTimeout(function(){_reveal(t);},250);
-      setTimeout(function(){_reveal(t);},650);
-      setTimeout(function(){_reveal(t);},1100);
+      var t=ev.target;if(!_isField(t))return;
+      var bg=_bg();if(!bg||!bg.contains(t))return;
+      _engage();_room();
+      /* keyboard open timing varies wildly in Meta WebViews — retry as it settles */
+      setTimeout(function(){_reveal(t);},350);
+      setTimeout(function(){_reveal(t);},800);
     }catch(_e){}
   });
-  // When the keyboard CLOSES (field blurred), release the clamp + overlay shift
-  // so the modal gets its full height back for browsing the rest of the form.
   document.addEventListener('focusout',function(){
     setTimeout(function(){
       try{
         var a=document.activeElement;
-        if(a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName))return; // moved to next field
-        var m=_openModal();if(m){m.style.maxHeight='';m.style.paddingBottom='';}
-        var bg=_bg();if(bg)bg.style.transform='';
+        var bg=_bg();
+        if(_isField(a)&&bg&&bg.contains(a))return; /* moved to next field */
+        _unroom();
       }catch(_e){}
     },250);
   });
+  /* render() rebuilds #root's children constantly: re-apply the un-glue to the
+     fresh .mbg node, re-collapse resurrected siblings, and fully restore the
+     page the moment the modal is gone. */
+  try{
+    var _root=document.getElementById('root');
+    if(_root&&window.MutationObserver){
+      new MutationObserver(function(){
+        try{
+          if(!K.on)return;
+          var bg=_bg();
+          if(!bg){_release();return;}
+          _hideSiblings(bg);
+          _style(bg);
+        }catch(_e){}
+      }).observe(_root,{childList:true});
+    }
+  }catch(_e){}
 })();}catch(_e){}
 </script>
 </body>
