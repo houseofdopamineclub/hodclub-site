@@ -7238,5 +7238,133 @@ try{(function(){
   });
 })();}catch(_e){}
 </script>
+<script>
+/* 🆕 2026-08-05 v4 — IN-APP BROWSER KEYBOARD FIX (WhatsApp + Instagram ads).
+   ROOT CAUSE of "typed email is invisible until keyboard is hidden": the
+   booking overlay (.mbg) is position:FIXED. In Meta/WhatsApp WebViews the
+   keyboard is an OVERLAY — the browser pans the DOCUMENT to bring the focused
+   input into view, but a fixed overlay is glued to the layout viewport and
+   does NOT pan with the document, so the caret ends up under the keypad.
+   v3.421–v3.423 tried to counter-translate the fixed overlay using
+   visualViewport offsets; live testing (owner deployed 5×) proved several
+   WebViews report stale/zero offsets, so the clamp never moved anything.
+   v4 stops fighting: while a modal is open ON A PHONE, the overlay is
+   converted to position:ABSOLUTE at the current scroll position — it becomes
+   part of the document, so the browser's NATIVE keyboard pan works exactly
+   like a plain web page and the typed text is always visible. The modal's
+   inner scroller is disabled (page scrolls instead) so there is only ONE
+   scroll context for the browser to pan.
+   Also neutralises the old v3.423 clamp (which re-adds an inner scroller on
+   focus) by re-clearing its styles AFTER its retry timers fire.
+   Desktop untouched. Every handler is try/catch fail-open — a quirk here must
+   NEVER block a paying customer from booking. */
+try{(function(){
+  var _mob=window.matchMedia&&window.matchMedia('(max-width:480px)');
+  function _m(){return _mob&&_mob.matches;}
+  function _unclamp(bg){
+    try{
+      if(!bg||!bg._hodAbs)return;
+      var m=bg.querySelector('.modal');
+      if(m){m.style.maxHeight='none';m.style.paddingBottom='';m.style.overflowY='visible';}
+      bg.style.transform='';
+    }catch(_e){}
+  }
+  function _apply(bg){
+    try{
+      if(!_m()||!bg||bg._hodAbs)return;
+      bg._hodAbs=true;
+      var y=window.scrollY||window.pageYOffset||0;
+      var docH=Math.max(document.documentElement.scrollHeight,window.innerHeight);
+      bg.style.position='absolute';
+      bg.style.top=y+'px';
+      bg.style.bottom='auto';
+      bg.style.height='auto';
+      // dim everything from the open point down to the end of the page so the
+      // page behind never peeks out below the overlay while scrolling
+      bg.style.minHeight=Math.max(window.innerHeight,docH-y)+'px';
+      bg.style.alignItems='flex-start';
+      _unclamp(bg);
+    }catch(_e){}
+  }
+  // Watch for the modal being (re)built by render() — it is recreated on every
+  // state change, so a one-time patch is not enough.
+  try{
+    var mo=new MutationObserver(function(){
+      try{var bg=document.querySelector('.mbg');if(bg)_apply(bg);}catch(_e){}
+    });
+    mo.observe(document.body,{childList:true,subtree:true});
+  }catch(_e){}
+  try{var bg0=document.querySelector('.mbg');if(bg0)_apply(bg0);}catch(_e){}
+  // The old v3.423 block re-clamps on focus/viewport events with retries at
+  // 250/650/1100ms. Our listeners are registered LATER so they run AFTER its
+  // synchronous work, and our timers fire slightly later than its retries —
+  // last writer wins, native panning stays in charge.
+  function _lateUnclamp(){
+    var bg=document.querySelector('.mbg');
+    if(!bg)return;
+    _apply(bg);_unclamp(bg);
+    setTimeout(function(){_unclamp(document.querySelector('.mbg'));},300);
+    setTimeout(function(){_unclamp(document.querySelector('.mbg'));},700);
+    setTimeout(function(){_unclamp(document.querySelector('.mbg'));},1200);
+  }
+  document.addEventListener('focusin',function(ev){
+    try{
+      if(!_m())return;
+      var t=ev.target;
+      if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return;
+      _lateUnclamp();
+    }catch(_e){}
+  });
+  if(window.visualViewport){
+    try{
+      window.visualViewport.addEventListener('resize',function(){if(_m())_lateUnclamp();});
+      window.visualViewport.addEventListener('scroll',function(){if(_m())_lateUnclamp();});
+    }catch(_e){}
+  }
+})();}catch(_e){}
+</script>
+<script>
+/* 🆕 2026-08-05 — "OPEN IN BROWSER" escape bar for in-app browsers.
+   Detects Instagram / Facebook / WhatsApp-style Android WebViews and shows a
+   slim dismissible bar. Android: one tap bounces to the phone's real browser
+   via an intent: URL. iPhone: Apple allows no forced hand-off, so we show the
+   built-in menu instruction + copy the link. Fail-open; desktop untouched. */
+try{(function(){
+  var ua=navigator.userAgent||'';
+  var isInApp=/Instagram|FBAN|FBAV|FB_IAB/i.test(ua)||(/Android/i.test(ua)&&/\bwv\b/.test(ua));
+  if(!isInApp)return;
+  try{if(sessionStorage.getItem('hodInappBarHidden'))return;}catch(_e){}
+  var isAndroid=/Android/i.test(ua);
+  var bar=document.createElement('div');
+  bar.id='hod-inapp-bar';
+  bar.style.cssText='position:sticky;top:0;left:0;right:0;z-index:99999;background:#000;color:#fff;display:flex;align-items:center;gap:10px;padding:8px 12px;font-family:inherit;font-size:12px;font-weight:700;';
+  var msg=document.createElement('div');
+  msg.style.cssText='flex:1;line-height:1.35;';
+  msg.textContent=isAndroid?'Booking is smoother in your browser':'Smoother in Safari: tap \u22EF above \u2192 "Open in external browser"';
+  var btn=document.createElement('button');
+  btn.textContent=isAndroid?'OPEN IN BROWSER':'COPY LINK';
+  btn.style.cssText='background:#FF90E8;color:#000;border:2px solid #fff;border-radius:6px;padding:6px 10px;font-weight:900;font-size:11px;letter-spacing:.4px;cursor:pointer;white-space:nowrap;';
+  btn.onclick=function(){
+    try{
+      var url=location.href.replace(/^https?:\/\//,'');
+      if(isAndroid){
+        location.href='intent://'+url+'#Intent;scheme=https;action=android.intent.action.VIEW;end';
+      }else{
+        var full=location.href;
+        if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(full);}
+        btn.textContent='COPIED \u2713 \u2014 paste in Safari';
+      }
+    }catch(_e){}
+  };
+  var x=document.createElement('button');
+  x.textContent='\u2715';
+  x.setAttribute('aria-label','Dismiss');
+  x.style.cssText='background:none;border:none;color:#fff;font-size:14px;font-weight:900;cursor:pointer;padding:4px;';
+  x.onclick=function(){try{bar.remove();sessionStorage.setItem('hodInappBarHidden','1');}catch(_e){}};
+  bar.appendChild(msg);bar.appendChild(btn);bar.appendChild(x);
+  function _mount(){try{document.body.insertBefore(bar,document.body.firstChild);}catch(_e){}}
+  if(document.body)_mount();else document.addEventListener('DOMContentLoaded',_mount);
+})();}catch(_e){}
+</script>
 </body>
 </html>
