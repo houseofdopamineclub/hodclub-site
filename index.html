@@ -7265,7 +7265,13 @@ try{(function(){
     try{
       if(!bg||!bg._hodAbs)return;
       var m=bg.querySelector('.modal');
-      if(m){m.style.maxHeight='none';m.style.paddingBottom='';m.style.overflowY='visible';}
+      if(m){
+        m.style.maxHeight='none';m.style.paddingBottom='';m.style.overflowY='visible';
+        // v4.1: overscroll-behavior:contain on a NON-scrollable modal traps the
+        // touch and blocks the page from scrolling ("can't scroll back up").
+        m.style.overscrollBehavior='auto';
+        m.style.webkitOverflowScrolling='auto';
+      }
       bg.style.transform='';
     }catch(_e){}
   }
@@ -7276,13 +7282,21 @@ try{(function(){
       var y=window.scrollY||window.pageYOffset||0;
       var docH=Math.max(document.documentElement.scrollHeight,window.innerHeight);
       bg.style.position='absolute';
-      bg.style.top=y+'px';
+      // v4.1: cover the WHOLE document (top:0), not just from the open point —
+      // fixes the raw page peeking out above the modal, and the dim stays
+      // continuous whichever way the user scrolls.
+      bg.style.top='0px';
       bg.style.bottom='auto';
       bg.style.height='auto';
-      // dim everything from the open point down to the end of the page so the
-      // page behind never peeks out below the overlay while scrolling
-      bg.style.minHeight=Math.max(window.innerHeight,docH-y)+'px';
+      bg.style.minHeight=Math.max(docH,y+window.innerHeight)+'px';
       bg.style.alignItems='flex-start';
+      // keep the modal visually where the user opened it
+      bg.style.paddingTop=(y+8)+'px';
+      // v4.1: a document-sized backdrop-filter blur freezes scrolling on iOS —
+      // drop the blur (keep the dark dim) while in absolute mode.
+      bg.style.backdropFilter='none';
+      bg.style.webkitBackdropFilter='none';
+      bg.style.animation='none';
       _unclamp(bg);
     }catch(_e){}
   }
