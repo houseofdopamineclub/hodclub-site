@@ -7285,7 +7285,11 @@ try{(function(){
       }
       if(bg._hodAbs)return;
       bg._hodAbs=true;
-      if(_savedY===null){_savedY=window.scrollY||window.pageYOffset||0;}
+      // v4.3: jump to the pop-up's top ONLY on the very first open — render()
+      // recreates .mbg on every state change, and re-jumping to 0 mid-typing
+      // yanked the focused field back under the keyboard (live video 4:42 PM).
+      var firstOpen=(_savedY===null);
+      if(firstOpen){_savedY=window.scrollY||window.pageYOffset||0;}
       bg.style.position='absolute';
       bg.style.top='0px';
       bg.style.bottom='auto';
@@ -7329,6 +7333,51 @@ try{(function(){
     mo.observe(document.body,{childList:true,subtree:true});
   }catch(_e){}
   try{var bg0=document.querySelector('.mbg');if(bg0)_apply(bg0);}catch(_e){}
+  // v4.3 — KEYBOARD ROOM + REVEAL. With an overlay keyboard the page can only
+  // pan as far as its own spare height; a pop-up trimmed to fit the screen has
+  // NO spare height, so bottom fields (phone number) stayed buried under the
+  // keypad. While a field is focused, temporarily give the dark curtain extra
+  // bottom room, then scroll the field into the upper (visible) part of the
+  // screen. Retries at 350/800ms as the keyboard settles. Room is removed when
+  // the field loses focus, so the "endless dark scrolling" never comes back.
+  function _reveal(t){
+    try{
+      if(!t||!t.getBoundingClientRect)return;
+      var vv=window.visualViewport;
+      var vis=(vv&&vv.height)?vv.height:window.innerHeight*0.45;
+      var r=t.getBoundingClientRect();
+      var target=vis*0.3; // put the field ~30% down the VISIBLE area
+      if(Math.abs(r.top-target)>12)window.scrollBy(0,r.top-target);
+    }catch(_e){}
+  }
+  var _roomTimer=null;
+  document.addEventListener('focusin',function(ev){
+    try{
+      if(!_m())return;
+      var t=ev.target;
+      if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return;
+      var bg=document.querySelector('.mbg');
+      if(!bg)return;
+      if(_roomTimer){clearTimeout(_roomTimer);_roomTimer=null;}
+      bg.style.paddingBottom='70vh'; // spare height for the keyboard pan
+      setTimeout(function(){_reveal(t);},350);
+      setTimeout(function(){if(document.activeElement===t)_reveal(t);},800);
+    }catch(_e){}
+  });
+  document.addEventListener('focusout',function(){
+    try{
+      if(!_m())return;
+      if(_roomTimer)clearTimeout(_roomTimer);
+      _roomTimer=setTimeout(function(){
+        try{
+          var t=document.activeElement;
+          if(t&&/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return; // moved to next field
+          var bg=document.querySelector('.mbg');
+          if(bg)bg.style.paddingBottom='24px';
+        }catch(_e){}
+      },400);
+    }catch(_e){}
+  });
 })();}catch(_e){}
 </script>
 <script>
