@@ -3609,7 +3609,13 @@ function renderWalletPage(bookingRef){
                     '<div style="font-size:12px;color:#3D3D3D;line-height:1.7;">When you arrive, show your QR at the entrance. Our door staff will check you in and activate your cover wallet.<br><br>Your cover balance will be loaded and you can start ordering drinks & food!</div>'+
                   '</div>';
                 inner.appendChild(ticketDiv);
-                setTimeout(function(){generateLocalQR('ticket-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef)+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''));},200);
+                // 🔴 2026-08-05 FIX — this branch runs when NO covers doc exists yet
+                // (online "pay at venue" ticket, wallet not activated): `cv` is only
+                // defined in the cover-found branch below, so referencing it here threw
+                // ReferenceError and the whole ticket page died (HODTIC links blank).
+                // Pre-arrival QR carries the booking's secret when present, else none
+                // (staff ?verify= scans don't require one).
+                setTimeout(function(){generateLocalQR('ticket-qr-wrap','https://hodclub.in/?verify='+encodeURIComponent(bookingRef)+(bk&&bk.walletSecret?'&s='+encodeURIComponent(bk.walletSecret):''));},200);
               } else {
                 inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'+
                   '<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'+
