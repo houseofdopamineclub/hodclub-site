@@ -7166,6 +7166,7 @@ try{ window._hodHideSplash && window._hodHideSplash(); }catch(_e){}
 // scrollTop math (no scrollIntoView — it gets cancelled by the keyboard
 // animation in Meta's WebView), retried at 250/650/1100ms as the keyboard settles.
 try{(function(){
+  return; // ⛔ 2026-08-05 v4.2 — v3.42x clamp DISABLED: its 250/650/1100ms retries fought the v4 absolute-overlay fix below (visible triple flicker + phantom second scroll area). v4 owns keyboard handling now.
   var _mob=window.matchMedia&&window.matchMedia('(max-width:480px)');
   function _bg(){return document.querySelector('.mbg');}
   function _openModal(){var m=document.querySelector('.mbg .modal');return m||document.querySelector('.modal');}
@@ -7258,83 +7259,76 @@ try{(function(){
    focus) by re-clearing its styles AFTER its retry timers fire.
    Desktop untouched. Every handler is try/catch fail-open — a quirk here must
    NEVER block a paying customer from booking. */
+/* v4.2 (2026-08-05, after live video review):
+   - the v3.42x clamp above is now fully DISABLED (it re-clamped 3× per focus →
+     visible triple flicker + a phantom inner scroll area = "scroll twice").
+   - while the modal is open on a phone, the PAGE BEHIND is collapsed
+     (display:none on the modal's siblings inside #root). The document is then
+     exactly as tall as the pop-up — no more scrolling through acres of dark
+     curtain above/below, and only ONE scroll surface exists.
+   - scroll position of the events page is saved on open and restored on close. */
 try{(function(){
   var _mob=window.matchMedia&&window.matchMedia('(max-width:480px)');
   function _m(){return _mob&&_mob.matches;}
-  function _unclamp(bg){
-    try{
-      if(!bg||!bg._hodAbs)return;
-      var m=bg.querySelector('.modal');
-      if(m){
-        m.style.maxHeight='none';m.style.paddingBottom='';m.style.overflowY='visible';
-        // v4.1: overscroll-behavior:contain on a NON-scrollable modal traps the
-        // touch and blocks the page from scrolling ("can't scroll back up").
-        m.style.overscrollBehavior='auto';
-        m.style.webkitOverflowScrolling='auto';
-      }
-      bg.style.transform='';
-    }catch(_e){}
-  }
+  var _savedY=null; // events-page scroll position while a modal is open
   function _apply(bg){
     try{
-      if(!_m()||!bg||bg._hodAbs)return;
+      if(!_m()||!bg)return;
+      // collapse the page behind on EVERY render pass (render() recreates the
+      // siblings each time, so this must be idempotent, not one-shot).
+      var root=document.getElementById('root');
+      if(root){
+        for(var i=0;i<root.children.length;i++){
+          var ch=root.children[i];
+          if(ch!==bg&&ch.style.display!=='none')ch.style.display='none';
+        }
+      }
+      if(bg._hodAbs)return;
       bg._hodAbs=true;
-      var y=window.scrollY||window.pageYOffset||0;
-      var docH=Math.max(document.documentElement.scrollHeight,window.innerHeight);
+      if(_savedY===null){_savedY=window.scrollY||window.pageYOffset||0;}
       bg.style.position='absolute';
-      // v4.1: cover the WHOLE document (top:0), not just from the open point —
-      // fixes the raw page peeking out above the modal, and the dim stays
-      // continuous whichever way the user scrolls.
       bg.style.top='0px';
       bg.style.bottom='auto';
       bg.style.height='auto';
-      bg.style.minHeight=Math.max(docH,y+window.innerHeight)+'px';
+      bg.style.minHeight='100vh';
       bg.style.alignItems='flex-start';
-      // keep the modal visually where the user opened it
-      bg.style.paddingTop=(y+8)+'px';
-      // v4.1: a document-sized backdrop-filter blur freezes scrolling on iOS —
-      // drop the blur (keep the dark dim) while in absolute mode.
+      bg.style.paddingTop='8px';
+      bg.style.paddingBottom='24px';
+      // a large backdrop-filter blur freezes scrolling on iOS — dim only.
       bg.style.backdropFilter='none';
       bg.style.webkitBackdropFilter='none';
       bg.style.animation='none';
-      _unclamp(bg);
+      var m=bg.querySelector('.modal');
+      if(m){
+        // ONE scroll surface: the page itself. No inner scroller, no traps.
+        m.style.maxHeight='none';m.style.paddingBottom='';m.style.overflowY='visible';
+        m.style.overscrollBehavior='auto';
+        m.style.webkitOverflowScrolling='auto';
+      }
+      window.scrollTo(0,0); // pop-up starts at its top
     }catch(_e){}
   }
-  // Watch for the modal being (re)built by render() — it is recreated on every
-  // state change, so a one-time patch is not enough.
+  function _restore(){
+    try{
+      if(_savedY===null)return;
+      var y=_savedY;_savedY=null;
+      // render() has already rebuilt the page fresh (no display:none on the
+      // new siblings) — just put the user back where they were.
+      window.scrollTo(0,y);
+    }catch(_e){}
+  }
+  // Watch render(): the modal is recreated on every state change.
   try{
     var mo=new MutationObserver(function(){
-      try{var bg=document.querySelector('.mbg');if(bg)_apply(bg);}catch(_e){}
+      try{
+        var bg=document.querySelector('.mbg');
+        if(bg)_apply(bg);
+        else if(_savedY!==null)_restore();
+      }catch(_e){}
     });
     mo.observe(document.body,{childList:true,subtree:true});
   }catch(_e){}
   try{var bg0=document.querySelector('.mbg');if(bg0)_apply(bg0);}catch(_e){}
-  // The old v3.423 block re-clamps on focus/viewport events with retries at
-  // 250/650/1100ms. Our listeners are registered LATER so they run AFTER its
-  // synchronous work, and our timers fire slightly later than its retries —
-  // last writer wins, native panning stays in charge.
-  function _lateUnclamp(){
-    var bg=document.querySelector('.mbg');
-    if(!bg)return;
-    _apply(bg);_unclamp(bg);
-    setTimeout(function(){_unclamp(document.querySelector('.mbg'));},300);
-    setTimeout(function(){_unclamp(document.querySelector('.mbg'));},700);
-    setTimeout(function(){_unclamp(document.querySelector('.mbg'));},1200);
-  }
-  document.addEventListener('focusin',function(ev){
-    try{
-      if(!_m())return;
-      var t=ev.target;
-      if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName))return;
-      _lateUnclamp();
-    }catch(_e){}
-  });
-  if(window.visualViewport){
-    try{
-      window.visualViewport.addEventListener('resize',function(){if(_m())_lateUnclamp();});
-      window.visualViewport.addEventListener('scroll',function(){if(_m())_lateUnclamp();});
-    }catch(_e){}
-  }
 })();}catch(_e){}
 </script>
 <script>
