@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="only light">
+  <title>HOD — Enquiry</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#f4f4f0;color:#000;font:16px Inter,system-ui,-apple-system,sans-serif}
+    .top{background:#ffd700;border-bottom:2px solid #000;padding:9px;text-align:center;font-size:11px;font-weight:800;letter-spacing:1.5px}
+    .wrap{max-width:620px;margin:0 auto;padding:28px 18px 55px}
+    .brand{font-size:13px;font-weight:900;letter-spacing:2px}
+    .card{background:#fff;border:2px solid #000;border-radius:10px;padding:25px;margin-top:22px;box-shadow:6px 6px 0 rgba(0,0,0,.13)}
+    h1{font-size:30px;line-height:1;margin:10px 0}
+    p{line-height:1.55;color:#3d3d3d}
+    .field{margin:15px 0}
+    label{display:block;font-size:11px;font-weight:900;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+    input,select,textarea{width:100%;padding:12px;border:2px solid #000;border-radius:7px;background:#fff;color:#000;font:inherit}
+    input:focus,select:focus,textarea:focus{outline:3px solid #ff90e8;outline-offset:1px}
+    input[readonly]{background:#eee;color:#555}
+    textarea{min-height:110px;resize:vertical}
+    button{width:100%;padding:14px;background:#ff90e8;border:2px solid #000;border-radius:7px;color:#000;font:800 15px inherit;cursor:pointer}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .notice{padding:11px;border:2px solid #000;border-radius:7px;background:#f4f4f0;margin:14px 0;white-space:pre-line}
+    .error{border-color:#d22;background:#fff0f0}
+    .hidden{display:none}
+    .hint{font-size:12px;color:#555;margin-top:5px}
+  </style>
+</head>
+<body>
+  <div class="top">HOUSE OF DOPAMINE · SECURE ENQUIRY</div>
+  <main class="wrap">
+    <div class="brand">HOD</div>
+    <section class="card">
+      <h1 id="title">Enquiry details</h1>
+      <p>Tell our team a little more. Submission is an enquiry only and does not confirm approval, payment, entry, or a performance date.</p>
+      <div id="message" class="notice hidden" role="status" aria-live="polite"></div>
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="instagramUsername">Instagram ID</label>
+          <input id="instagramUsername" name="instagramUsername" autocomplete="off" placeholder="@yourprofile" required maxlength="100">
+          <div class="hint" id="instagramHint">Captured automatically when available.</div>
+        </div>
+        <div class="field">
+          <label for="phone">Phone number</label>
+          <input id="phone" name="phone" inputmode="tel" autocomplete="tel" required maxlength="15" pattern="(?:\+?91[\s-]?)?[6-9]\d{9}">
+        </div>
+
+        <div id="collab">
+          <div class="field">
+            <label for="followers">Follower count</label>
+            <input id="followers" name="followerCount" type="number" inputmode="numeric" required min="0" max="100000000">
+          </div>
+          <div class="field">
+            <label for="preference">Collaboration type</label>
+            <select id="preference" name="preference" required>
+              <option value="">Select one</option>
+              <option value="paid">Paid collaboration</option>
+              <option value="barter">Barter collaboration</option>
+              <option value="open">Open to either</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="expectedAmount">Expected amount (optional)</label>
+            <input id="expectedAmount" name="expectedAmount" type="number" inputmode="numeric" min="0" max="10000000">
+          </div>
+          <div class="field">
+            <label for="proposal">Collaboration proposal (optional)</label>
+            <textarea id="proposal" name="proposal" maxlength="1000"></textarea>
+          </div>
+        </div>
+
+        <div id="dj" class="hidden">
+          <div class="field">
+            <label for="pay">Preferred performance fee</label>
+            <select id="pay" name="compensationPreference">
+              <option value="">Select one</option>
+              <option value="preferred_amount">I have a preferred amount</option>
+              <option value="negotiable">Negotiable</option>
+              <option value="open">Open to discussion</option>
+            </select>
+          </div>
+          <div class="field" id="amountField">
+            <label for="amount">Preferred amount</label>
+            <input id="amount" name="preferredAmount" type="number" inputmode="numeric" min="0" max="10000000">
+          </div>
+          <div class="field">
+            <label for="artist">Artist name (optional)</label>
+            <input id="artist" name="artistName" maxlength="80">
+          </div>
+          <div class="field">
+            <label for="genre">Genre (optional)</label>
+            <input id="genre" name="genre" maxlength="80">
+          </div>
+          <div class="field">
+            <label for="city">City (optional)</label>
+            <input id="city" name="city" maxlength="60">
+          </div>
+          <div class="field">
+            <label for="link">Public music or profile link (optional)</label>
+            <input id="link" name="publicLink" type="url" maxlength="300" placeholder="https://">
+          </div>
+        </div>
+
+        <button id="submit" type="submit">Submit enquiry</button>
+      </form>
+    </section>
+  </main>
+  <script>
+    const ENDPOINT="https://asia-south1-hod-tickets.cloudfunctions.net/whatsappWebhook/enquiry";
+    const q=new URLSearchParams(location.search);
+    const token=q.get("t")||"";
+    const type=q.get("type")==="dj"?"dj":"collaboration";
+    const form=document.querySelector("#form");
+    const message=document.querySelector("#message");
+    const submit=document.querySelector("#submit");
+    const instagram=document.querySelector("#instagramUsername");
+    const phone=document.querySelector("#phone");
+    const pay=document.querySelector("#pay");
+    const amount=document.querySelector("#amount");
+    const setMessage=(text,isError=false)=>{
+      message.textContent=text;
+      message.className="notice"+(isError?" error":"");
+    };
+    document.querySelector("#collab").classList.toggle("hidden",type==="dj");
+    document.querySelector("#dj").classList.toggle("hidden",type!=="dj");
+    document.querySelector("#title").textContent=type==="dj"?"DJ request":"Collaboration request";
+    for(const input of document.querySelectorAll("#collab input,#collab select,#collab textarea")){
+      input.required=type==="collaboration"&&["followers","preference"].includes(input.id);
+    }
+    pay.required=type==="dj";
+    const syncAmountRequirement=()=>{
+      amount.required=type==="dj"&&pay.value==="preferred_amount";
+      document.querySelector("#amountField").classList.toggle("hidden",type!=="dj"||pay.value!=="preferred_amount");
+    };
+    pay.addEventListener("change",syncAmountRequirement);
+    syncAmountRequirement();
+
+    async function loadPrefill(){
+      if(!token){
+        setMessage("This link is invalid. Please message HOD again for a fresh secure link.",true);
+        submit.disabled=true;
+        return;
+      }
+      try{
+        const response=await fetch(`${ENDPOINT}?t=${encodeURIComponent(token)}&type=${type}`);
+        const data=await response.json();
+        if(!response.ok)throw new Error(data.error||"This form link is unavailable.");
+        if(data.instagramUsername){
+          instagram.value=data.instagramUsername.replace(/^@/,"");
+          instagram.readOnly=true;
+          document.querySelector("#instagramHint").textContent="Captured from your Instagram conversation.";
+        }
+        if(data.phone)phone.value=data.phone;
+      }catch(error){
+        setMessage(error.message,true);
+        submit.disabled=true;
+      }
+    }
+
+    form.addEventListener("submit",async(event)=>{
+      event.preventDefault();
+      if(!form.reportValidity())return;
+      submit.disabled=true;
+      setMessage("Submitting your enquiry…");
+      try{
+        const payload=Object.assign(Object.fromEntries(new FormData(form).entries()),{t:token,type});
+        const response=await fetch(ENDPOINT,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(payload),
+        });
+        const data=await response.json();
+        if(!response.ok)throw new Error(data.error||"Could not submit your enquiry.");
+        form.classList.add("hidden");
+        setMessage(data.message||"I’ve saved the information you provided, and our team can review it.\nYou can send the remaining details here anytime.\nLearn more at https://hodclub.in, or call/WhatsApp +91 96864 44906 to have a conversation with our team.");
+      }catch(error){
+        setMessage(error.message,true);
+        submit.disabled=false;
+      }
+    });
+    loadPrefill();
+  </script>
+</body>
+</html>
