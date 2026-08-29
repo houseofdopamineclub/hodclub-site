@@ -1,373 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,interactive-widget=resizes-content" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="color-scheme" content="only light" />
-  <title>HOD — Menu</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-
+  <meta name="description" content="House of Dopamine Koramangala food and drink menu." />
+  <meta name="robots" content="index,follow" />
+  <title>HOD — Food &amp; Drink Menu</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #F4F4F0;
-      --pink: #FF90E8;
-      --text: #000000;
-      --border: 2px solid #000;
-      --ff: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    * { box-sizing: border-box; }
+    :root { --bg:#F4F4F0; --ink:#000; --pink:#FF90E8; --green:#23A094; }
+    html, body { margin:0; min-height:100%; background:var(--bg); color:var(--ink); font-family:Inter,Arial,sans-serif; }
+    body { padding: max(14px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom)); }
+    .shell { width:min(100%, 1040px); margin:0 auto; }
+    header {
+      display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;
+      margin-bottom:12px; padding:14px 16px; background:#fff; border:2px solid var(--ink);
+      border-radius:12px; box-shadow:4px 4px 0 var(--ink);
     }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--ff);
-      min-height: 100vh;
-      overflow-x: hidden;
-      -webkit-font-smoothing: antialiased;
+    h1 { margin:0; font-size:clamp(20px,4vw,30px); font-weight:900; letter-spacing:-.5px; }
+    .sub { margin-top:4px; color:#555; font-size:12px; font-weight:700; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .button {
+      display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:9px 14px;
+      border:2px solid var(--ink); border-radius:8px; color:var(--ink); background:var(--pink);
+      text-decoration:none; font-size:12px; font-weight:900; box-shadow:2px 2px 0 var(--ink);
     }
-    .wrap {
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 20px 14px 70px;
+    .button.secondary { background:#fff; }
+    .viewer {
+      width:100%; height:calc(100vh - 128px); min-height:620px; display:block; background:#fff;
+      border:2px solid var(--ink); border-radius:12px; box-shadow:4px 4px 0 var(--ink);
     }
-    .hdr {
-      text-align: center;
-      margin-bottom: 24px;
+    .fallback {
+      display:none; padding:36px 18px; text-align:center; background:#fff; border:2px solid var(--ink);
+      border-radius:12px; font-weight:800;
     }
-    .hdr-title {
-      font-weight: 900;
-      font-size: 28px;
-      letter-spacing: 1px;
-    }
-    .hdr-sub {
-      font-size: 11px;
-      letter-spacing: 3px;
-      color: #3D3D3D;
-      font-weight: 700;
-      margin-top: 4px;
-    }
-    
-    .tabs {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 20px;
-    }
-    .tab-btn {
-      flex: 1;
-      padding: 12px 4px;
-      font-family: var(--ff);
-      font-weight: 800;
-      font-size: 13px;
-      letter-spacing: 1px;
-      border: var(--border);
-      border-radius: 8px;
-      cursor: pointer;
-      background: #fff;
-      color: #000;
-      transition: all 0.2s;
-    }
-    .tab-btn.active {
-      background: var(--pink);
-      box-shadow: 2px 2px 0 #000;
-      transform: translateY(-1px);
-    }
-    
-    .state-msg {
-      text-align: center;
-      padding: 60px 20px;
-      background: #fff;
-      border: var(--border);
-      border-radius: 10px;
-      font-weight: 600;
-      font-size: 14px;
-      color: #3D3D3D;
-      box-shadow: 4px 4px 0 rgba(0,0,0,0.1);
-    }
-    .state-msg a {
-      color: var(--text);
-      font-weight: 800;
-    }
-    
-    .cat-card {
-      background: #fff;
-      border: var(--border);
-      border-radius: 10px;
-      margin-bottom: 16px;
-      overflow: hidden;
-      box-shadow: 4px 4px 0 rgba(0,0,0,0.06);
-    }
-    .cat-head {
-      padding: 10px 14px;
-      font-weight: 800;
-      font-size: 14px;
-      letter-spacing: 1.5px;
-      background: #000;
-      color: #fff;
-      text-transform: uppercase;
-    }
-    .item-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px;
-      border-top: 1px solid #E5E5E0;
-    }
-    .cat-card .item-row:first-of-type {
-      border-top: none;
-    }
-    .item-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .item-name-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .item-name {
-      font-size: 15px;
-      font-weight: 700;
-      color: #000;
-      line-height: 1.3;
-    }
-    .veg-mark {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 1px solid #1E9E4A;
-      position: relative;
-      flex-shrink: 0;
-    }
-    .veg-mark::after {
-      content: "";
-      position: absolute;
-      inset: 2px;
-      background: #1E9E4A;
-      border-radius: 50%;
-    }
-    .nonveg-mark {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border: 1px solid #C0392B;
-      position: relative;
-      flex-shrink: 0;
-    }
-    .nonveg-mark::after {
-      content: "";
-      position: absolute;
-      bottom: 2px;
-      left: 2px;
-      border-left: 3px solid transparent;
-      border-right: 3px solid transparent;
-      border-bottom: 5px solid #C0392B;
-    }
-    .item-sub {
-      font-size: 12px;
-      color: #666;
-      margin-top: 4px;
-      line-height: 1.4;
-    }
-    .item-price-wrap {
-      flex: none;
-      text-align: right;
-    }
-    .base-price-strike {
-      font-size: 12px;
-      color: #8A8A85;
-      text-decoration: line-through;
-      margin-bottom: 2px;
-    }
-    .price-final {
-      font-size: 15px;
-      font-weight: 800;
-      color: #000;
-    }
-    
-    .footer {
-      text-align: center;
-      padding: 30px 10px;
-      font-size: 11px;
-      color: #8A8A85;
-      letter-spacing: 1px;
-      font-weight: 600;
-    }
-    .footer a {
-      color: inherit;
+    footer { padding:16px 4px 0; text-align:center; color:#555; font-size:11px; font-weight:700; }
+    footer a { color:inherit; font-weight:900; }
+    @media (max-width:640px) {
+      body { padding-left:10px; padding-right:10px; }
+      header { padding:12px; box-shadow:3px 3px 0 var(--ink); }
+      .actions { width:100%; }
+      .button { flex:1; }
+      .viewer { height:calc(100vh - 182px); min-height:520px; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="hdr">
-      <div class="hdr-title">H.O.D</div>
-      <div class="hdr-sub">HOUSE OF DOPAMINE &middot; MENU</div>
-    </div>
-    
-    <div class="tabs" id="tabs">
-      <button class="tab-btn active" data-tab="food">FOOD</button>
-      <button class="tab-btn" data-tab="liquor">LIQUOR</button>
-      <button class="tab-btn" data-tab="nab">NAB</button>
-      <button class="tab-btn" data-tab="smoke">SMOKE</button>
-    </div>
-    
-    <div id="content">
-      <div class="state-msg">Loading menu...</div>
-    </div>
-    
-    <div class="footer">
-      PRICES EXCLUSIVE OF TAXES &middot; MENU UPDATES LIVE<br/><br/>
-      Need help? <a href="tel:+919686444906">+91 96864 44906</a>
-    </div>
-  </div>
-
-  <script>
-    var ENDPOINT = "https://asia-south1-hod-tickets.cloudfunctions.net/whatsappWebhook/menu";
-
-    var state = {
-      tab: 'food',
-      docs: { food: null, liquor: null, nab: null, smoke: null },
-      loaded: false,
-      error: false
-    };
-
-    var contentEl = document.getElementById('content');
-    var tabsEl = document.getElementById('tabs');
-    
-    // Tab switching
-    tabsEl.addEventListener('click', function(e) {
-      var btn = e.target.closest('.tab-btn');
-      if (!btn) return;
-      var newTab = btn.getAttribute('data-tab');
-      if (newTab === state.tab) return;
-      
-      state.tab = newTab;
-      Array.from(tabsEl.children).forEach(function(b) {
-        b.classList.toggle('active', b === btn);
-      });
-      render();
-    });
-
-    function sanitize(str) {
-      var div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    }
-
-    function render() {
-      if (state.error) {
-        contentEl.innerHTML = '<div class="state-msg">Menu unavailable at the moment.<br/><br/>Please try again later or ask your server.<br/><br/><a href="tel:+919686444906">Call +91 96864 44906</a></div>';
-        return;
-      }
-      if (!state.loaded) {
-        contentEl.innerHTML = '<div class="state-msg">Loading live menu...</div>';
-        return;
-      }
-      
-      var doc = state.docs[state.tab];
-      if (!doc || !Array.isArray(doc.categories) || doc.categories.length === 0) {
-        contentEl.innerHTML = '<div class="state-msg">Nothing available in this section right now.</div>';
-        return;
-      }
-
-      var html = '';
-      var hasItems = false;
-      
-      doc.categories.forEach(function(c) {
-        if (!c.items || !Array.isArray(c.items) || c.items.length === 0) return;
-        
-        var liveItems = c.items.filter(function(it) {
-          return it && it.n;
-        });
-        
-        if (liveItems.length === 0) return;
-        hasItems = true;
-        
-        html += '<div class="cat-card">';
-        html += '<div class="cat-head">' + sanitize(c.cat || 'Other') + '</div>';
-        
-        liveItems.forEach(function(it) {
-          var nameHtml = sanitize(it.n);
-          
-          // Veg / Non-veg icons for food
-          if (state.tab === 'food' || it.t === 'food') {
-            if (it.v === true) {
-              nameHtml = '<span class="veg-mark"></span>' + nameHtml;
-            } else if (it.v === false) {
-              nameHtml = '<span class="nonveg-mark"></span>' + nameHtml;
-            }
-          }
-          
-          html += '<div class="item-row">';
-          html += '  <div class="item-info">';
-          html += '    <div class="item-name-wrap"><div class="item-name">' + nameHtml + '</div></div>';
-          if (it.sub) {
-            html += '    <div class="item-sub">' + sanitize(String(it.sub)) + '</div>';
-          }
-          html += '  </div>';
-          
-          html += '  <div class="item-price-wrap">';
-          var base = Number(it.p) || 0;
-          var offer = Number(it.discountPrice);
-          if (Number.isFinite(offer) && offer >= 0 && offer < base) {
-            html += '<div class="base-price-strike">₹' + base + '</div>';
-            html += '<div class="price-final">₹' + offer + '</div>';
-          } else {
-            html += '<div class="price-final">₹' + base + '</div>';
-          }
-          html += '  </div>';
-          html += '</div>';
-        });
-        html += '</div>';
-      });
-      
-      if (!hasItems) {
-        contentEl.innerHTML = '<div class="state-msg">All items in this section are currently out of stock.</div>';
-      } else {
-        contentEl.innerHTML = html;
-      }
-    }
-
-    function fetchMenu() {
-      return fetch(ENDPOINT)
-        .then(function(res) {
-          if (!res.ok) throw new Error('Network error');
-          return res.json();
-        })
-        .then(function(data) {
-          if (!data || !data.ok || !data.tabs) throw new Error('Invalid data');
-          state.docs.food = data.tabs.food;
-          state.docs.liquor = data.tabs.liquor;
-          state.docs.nab = data.tabs.nab;
-          state.docs.smoke = data.tabs.smoke;
-          state.loaded = true;
-          state.error = false;
-          render();
-        })
-        .catch(function(err) {
-          console.error('Menu load error:', err);
-          if (!state.loaded) {
-            state.error = true;
-            render();
-          }
-        });
-    }
-
-    function boot() {
-      fetchMenu();
-      
-      setInterval(function() {
-        if (document.visibilityState === 'visible') fetchMenu();
-      }, 30000);
-      
-      document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') fetchMenu();
-      });
-    }
-
-    boot();
-  </script>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>H.O.D — FOOD &amp; DRINK MENU</h1>
+        <div class="sub">HOUSE OF DOPAMINE · KORAMANGALA</div>
+      </div>
+      <div class="actions">
+        <a class="button" href="./HOD-CLUB-FOOD-AND-DRINK.pdf" target="_blank" rel="noopener">OPEN FULL SCREEN</a>
+        <a class="button secondary" href="./HOD-CLUB-FOOD-AND-DRINK.pdf" download>DOWNLOAD PDF</a>
+      </div>
+    </header>
+    <object class="viewer" data="./HOD-CLUB-FOOD-AND-DRINK.pdf#view=FitH" type="application/pdf" aria-label="HOD food and drink menu">
+      <div class="fallback">
+        Your browser cannot show the menu here.<br /><br />
+        <a class="button" href="./HOD-CLUB-FOOD-AND-DRINK.pdf" target="_blank" rel="noopener">OPEN MENU PDF</a>
+      </div>
+    </object>
+    <footer>
+      Prices shown in the official menu PDF. For same-night availability, call
+      <a href="tel:+919686444906">+91 96864 44906</a>.
+    </footer>
+  </main>
 </body>
 </html>
