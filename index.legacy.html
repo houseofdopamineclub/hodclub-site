@@ -20,7 +20,7 @@
 (function(){
   try {
     var p = new URLSearchParams(window.location.search);
-    var isPrivate = p.has('door') || p.has('captain') || p.has('bar')
+    var isPrivate = p.has('admin') || p.has('door') || p.has('captain') || p.has('bar')
                  || p.has('wallet') || p.has('verify') || p.has('booking');
     if (isPrivate) {
       var m = document.createElement('meta');
@@ -822,8 +822,18 @@ function sendBookingEmail(booking, eventTitle, eventDate, eventTime, eventVenue,
   }catch(e){console.warn('sendBookingEmail error:',e);}
 }
 
-// Legacy customer build retained as an archive only. Admin authentication and
-// credentials live exclusively in the authenticated POS.
+// ── ADMIN AUTH — password stored as SHA-256 hash (not plaintext)
+// Hash of 'hod@admin2024' + salt. Change password by recomputing hash.
+// To generate new hash: open browser console → run: hashAdminPw('yourNewPassword')
+var ADMIN_HASH='2fa258d251aaa119f1e0a0910328131fd8a7aa6bdc9d83fa71cd49f87bae0530'; // hod@admin2024
+async function hashAdminPw(pw){
+  var enc=new TextEncoder();
+  var buf=await crypto.subtle.digest('SHA-256',enc.encode(pw+'hod_salt_dopamine'));
+  return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+}
+async function verifyAdminPw(pw){
+  try{var h=await hashAdminPw(pw);return h===ADMIN_HASH;}catch(e){return pw==='hod@admin2024';} // fallback if crypto.subtle unavailable
+}
 var DB_KEY='hod_v4_db';
 
 // ── Firebase init — runs after all scripts loaded

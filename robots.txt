@@ -4,7 +4,9 @@
 User-agent: *
 Allow: /
 
-# Block staff URLs (query parameters)
+# Block staff/admin URLs (query parameters)
+Disallow: /*?admin=
+Disallow: /*?admin
 Disallow: /*?door=
 Disallow: /*?door
 Disallow: /*?captain=
@@ -20,7 +22,8 @@ Disallow: /*?verify
 Disallow: /*?booking=
 Disallow: /*?booking
 
-# Block any future staff paths if added
+# Block any future /admin /door /captain paths if added
+Disallow: /admin
 Disallow: /door
 Disallow: /captain
 Disallow: /bar

@@ -182,7 +182,8 @@ var RAZORPAY_KEY = "rzp_live_Sgf6ON1mQY95kT";
 // ════════════════════════════════════════════════════════════════
 // 🔒 SERVER-VERIFIED RECHARGE (Mon 11 May 2026 — Khushi feature)
 // ────────────────────────────────────────────────────────────────
-// Replaces every old direct cover-balance write with a 2-step flow:
+// Replaces every old `firestore.collection('covers').doc(ref).update({
+//   coverBalance: increment(amt) })` direct-write with a 2-step flow:
 //   1. POST {amount, coverRef, kind, name, phone} to createOrder
 //      → returns a Razorpay order_id.
 //   2. Open Razorpay JS with that order_id. On success, POST
@@ -204,32 +205,31 @@ var RAZORPAY_KEY = "rzp_live_Sgf6ON1mQY95kT";
 //
 // Endpoints (asia-south1):
 var HOD_FUNCTIONS_BASE = 'https://asia-south1-hod-tickets.cloudfunctions.net';
-// Customer wallet data and mutations are mediated by narrow, fail-closed
-// asia-south1 endpoints. App Check is attached whenever it is available.
+// V2 Mon 11 May — call createWalletOrder (NOT createOrder). The new
+// endpoint writes a server-side {orderId → coverRef, amount, kind} ledger
+// so verifyRechargePayment + razorpayWebhook can resolve the wallet
+// without trusting any client-supplied input.
+var CREATE_ORDER_URL = HOD_FUNCTIONS_BASE + '/createWalletOrder';
+var VERIFY_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/verifyRechargePayment';
+// 🆕 2026-06-15 v3.295 (Phase 2) — My Bookings server lookup. The browser POSTs
+// just { phone } and gets back ONLY that phone's docs (indexed phoneNorm== query
+// server-side), instead of downloading hundreds of other guests' rows and
+// filtering client-side. Fail-open: the lookup handler falls back to the old
+// direct Firestore queries if this endpoint is unreachable.
 var MYBOOKINGS_LOOKUP_URL = HOD_FUNCTIONS_BASE + '/myBookingsLookup';
-var WALLET_PROJECTION_URL = HOD_FUNCTIONS_BASE + '/walletProjection';
-var WALLET_ORDER_URL = HOD_FUNCTIONS_BASE + '/walletOrder';
-var WALLET_ACTION_URL = HOD_FUNCTIONS_BASE + '/walletAction';
-var WALLET_CREATE_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/walletCreateRechargeOrder';
-var WALLET_VERIFY_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/walletVerifyRecharge';
-var WALLET_CREATE_BILL_ORDER_URL = HOD_FUNCTIONS_BASE + '/walletCreateBillOrder';
-var WALLET_VERIFY_BILL_PAYMENT_URL = HOD_FUNCTIONS_BASE + '/walletVerifyBillPayment';
-function hodPublicEndpoint(url,body){
-  var tokenP=Promise.resolve('');
-  try{
-    if(firebase&&firebase.appCheck) tokenP=firebase.appCheck().getToken(false).then(function(x){return (x&&x.token)||'';}).catch(function(){return '';});
-  }catch(_e){}
-  return tokenP.then(function(tok){
-    var headers={'Content-Type':'application/json'};
-    if(tok)headers['X-Firebase-AppCheck']=tok;
-    return fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body||{})}).then(function(r){
-      return r.json().catch(function(){return {};}).then(function(j){
-        if(!r.ok||!j.ok){var e=new Error(j.error||'request_failed');e.status=r.status;throw e;}
-        return j;
-      });
-    });
-  });
-}
+// 🆕 2026-06-15 v3.296 (Phase 3) — customer MONEY/PAYMENT writes move server-side.
+// The browser no longer writes tabRounds / tabTotal / paymentStatus / amountPaid
+// directly to Firestore; it POSTs to these Cloud Functions which recompute the
+// TRUE prices/totals server-side (selfOrderPlace + requestBill), and verify the
+// Razorpay charge before marking a table paid (createTableBillOrder +
+// verifyTableBillPayment). EVERY call is fail-open: on any non-OK response or
+// outage the client falls back to its original direct-write path, so a function
+// outage can never stop a guest from ordering, calling for a bill, or paying.
+// Once these are verified live, Firestore rules v8 block the browser writes.
+var SELF_ORDER_PLACE_URL          = HOD_FUNCTIONS_BASE + '/selfOrderPlace';
+var REQUEST_BILL_URL              = HOD_FUNCTIONS_BASE + '/requestBill';
+var CREATE_TABLE_BILL_ORDER_URL   = HOD_FUNCTIONS_BASE + '/createTableBillOrder';
+var VERIFY_TABLE_BILL_PAYMENT_URL = HOD_FUNCTIONS_BASE + '/verifyTableBillPayment';
 </script>
 
 <!-- POS menu overrides (OOS/discount) live listener + getEffectivePrice (verbatim) -->
