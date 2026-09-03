@@ -348,6 +348,12 @@ function renderWalletPage(bookingRef){
              ?'Your table reservation wallet for <b style="color:#000;">'+_expDate+'</b> has closed now that the night is over. We hope you had a wonderful time at H.O.D! 🥂'
              :'Your H.O.D wallet for <b style="color:#000;">'+_expDate+'</b> has closed now that the night is over. We hope you had a wonderful time! 🥂')
         +'</div>'
+        // 🆕 2026-08-09 (SIDDU incident) — guests tap an OLD wallet link from
+        // WhatsApp history and think TONIGHT'S wallet is broken. Say it plainly.
+        +'<div style="background:rgba(255,144,232,.14);border:2px solid #000;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:700;color:#000;line-height:1.6;margin-bottom:18px;">At the club tonight? This is an OLD link — ask our door team to show you TONIGHT\'S wallet QR.</div>'
+        // 🆕 2026-08-09 (SIDDU incident) — guests tap an OLD wallet link from
+        // WhatsApp history and think TONIGHT'S wallet is broken. Say it plainly.
+        +'<div style="background:rgba(255,144,232,.14);border:2px solid #000;border-radius:10px;padding:10px 14px;font-size:12px;font-weight:700;color:#000;line-height:1.6;margin-bottom:18px;">At the club tonight? This is an OLD link — ask our door team to show you TONIGHT\'S wallet QR.</div>'
         +'<a href="https://hodclub.in/" style="display:inline-block;background:#FF90E8;border:2px solid #000;border-radius:10px;box-shadow:3px 3px 0 #000;padding:11px 22px;font-size:13px;font-weight:900;color:#000;text-decoration:none;letter-spacing:.3px;">Book Your Next Visit →</a>'
         +'</div>';
       inner.appendChild(expDiv);return;
@@ -1050,60 +1056,19 @@ function renderWalletPage(bookingRef){
             _parkState='sent'; _renderParkStatus();
           }
           function _parkFlagsWrite(){
-            // Small non-money write — rules allow this unauth (probe-verified).
-            // Best-effort: the CF round alone already surfaces on bartender scan.
-            if(!firestore)return;
-            var _flags={
-              hasIncomingCustomerOrder:true,
-              incomingOrderAt:new Date().toISOString(),
-              incomingOrderSource:srcTag,
-              atBar:true,
-              atBarAt:new Date().toISOString()
-            };
-            if(_bRNote)_flags.incomingOrderNote=_bRNote;
-            firestore.collection('covers').doc(_bCoverDocId).set(_flags,{merge:true})
-              .catch(function(err){ try{ console.warn('[park-bar] flags write failed (non-fatal)', err&&err.message); }catch(_){} });
+            // walletOrder stamps bar-routing flags atomically with the round.
           }
           function _parkLegacyWrite(){
-            // Old direct write — only reachable if the CF errored. Works iff rules
-            // permit unauth tabRounds writes (they currently don't — hence the CF).
-            try {
-              if(!firestore){ _parkState='fail'; _renderParkStatus(); return; }
-              var _bRoundItems=_items.map(function(it){var _o={n:it.n,p:it.p,qty:it.qty,cat:it.cat,t:it.t||"drink",alc:it.alc===false?false:(it.t==="food"?false:true)};if(it.v===true||it.v===false)_o.v=it.v;return _o;});
-              var _bNewRound={roundNum:getRoundNum(),items:_bRoundItems,roundTotal:ct,status:'preparing',placedAt:new Date().toISOString(),source:srcTag};
-              if(_bRNote)_bNewRound.note=_bRNote;
-              var _bUpdatedRounds=tabRounds.map(function(r){
-                if(r.status==='activated')return Object.assign({},r,{status:'served',servedAt:new Date().toISOString()});
-                return r;
-              }).concat([_bNewRound]);
-              firestore.collection('covers').doc(_bCoverDocId).set({
-                tabRounds:_bUpdatedRounds,tabTotal:getTabTotal()+ct,
-                ref:cv.ref||cv.bookingId||'',name:cv.name||'',phone:cv.phone||'',
-                isTableBooking:!!cv.isTableBooking,tableId:cv.tableId||'',floorLabel:cv.floorLabel||'',
-                hasIncomingCustomerOrder:true,
-                incomingOrderAt:new Date().toISOString(),
-                incomingOrderSource:srcTag,
-                atBar:true,
-                atBarAt:new Date().toISOString()
-              },{merge:true}).then(function(){
-                if(_bRNote){} // note already on the round in legacy path
-                _parkLocalCommit(_bUpdatedRounds);
-              }).catch(function(err){
-                try { console.warn('[park-bar] covers write failed', err && err.message); } catch(_){}
-                _parkState='fail'; _renderParkStatus();
-              });
-            } catch(_eBar) { try { console.warn('[park-bar] write threw',_eBar); } catch(_){} _parkState='fail'; _renderParkStatus(); }
+            _parkState='fail'; _renderParkStatus();
           }
           try {
-            if(window.SELF_ORDER_PLACE_URL){
+            if(window.WALLET_ORDER_URL){
               var _parkRoundKey=(cv.ref||cv.bookingId||'park')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
               var _parkItems=_items.map(function(it){return {n:it.n,qty:it.qty,cat:it.cat};});
-              fetch(window.SELF_ORDER_PLACE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-                coverDocId:_bCoverDocId, bookingRef:cv.ref||cv.bookingId||'', name:cv.name||'', phone:cv.phone||'',
-                isTableBooking:!!cv.isTableBooking, tableId:cv.tableId||'', floorLabel:cv.floorLabel||'',
-                isTableChoice:false, linkedTableRef:'',
-                items:_parkItems, roundKey:_parkRoundKey, note:_bRNote||''
-              })}).then(function(r){return r.json();}).then(function(resp){
+              hodPublicEndpoint(window.WALLET_ORDER_URL,{
+                ref:cv.ref||cv.bookingId||'',secret:_walletGateSecret,location:'bar',
+                items:_parkItems,idempotencyKey:_parkRoundKey,note:_bRNote||''
+              }).then(function(resp){
                 if(!resp||!resp.ok||!resp.tabRounds) throw new Error('cf_park');
                 // Adopt the server's authoritative rounds; stamp note+source on our
                 // round LOCALLY for display (deployed CF drops both — the note also
@@ -1118,7 +1083,7 @@ function renderWalletPage(bookingRef){
                 _parkFlagsWrite();
                 _parkLocalCommit(_srvRounds);
               }).catch(function(errCf){
-                try { console.warn('[park-bar] CF park failed → legacy write', errCf&&errCf.message); } catch(_){}
+                try { console.warn('[park-bar] server order failed', errCf&&errCf.message); } catch(_){}
                 _parkLegacyWrite();
               });
             } else {
@@ -1277,12 +1242,7 @@ function renderWalletPage(bookingRef){
           // otherwise proceed straight to the captain/table flow. Fail-open on any
           // read error or when the table doc can't be resolved.
           var _proceedTable=function(){ placeBtn._loc = 'table'; try { placeBtn.onclick(); } finally { placeBtn._loc = null; } };
-          if (firestore && cv.linkedTableRef) {
-            firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-              if (d.exists && _tableBillIsSettled(d.data()||{})) { _showBillSettledPopup(); }
-              else { _proceedTable(); }
-            }).catch(function(){ _proceedTable(); });
-          } else if (_tableBillIsSettled(cv)) {
+          if (cv.tableBillSettled || _tableBillIsSettled(cv)) {
             _showBillSettledPopup();
           } else {
             _proceedTable();
@@ -1444,77 +1404,17 @@ function renderWalletPage(bookingRef){
             }
           };
           var _runQueryFallback=function(linkWasMissing){
-            firestore.collection('tableReservations').where('linkedCoverRef','==',cv.ref).get().then(function(snap){
-              clearTimeout(_staleTO);
-              if (snap.empty) {
-                // 🆕 2026-06-08 (Khushi) — if this cover HAD a linkedTableRef but
-                // its table doc is GONE (direct lookup returned !exists) AND no
-                // other reservation is linked to this wallet, the table was
-                // RELEASED. releaseTable DELETES the tableReservations doc, so a
-                // missing-link + empty-query is definitive proof the table session
-                // ended. Mark the table button stale (→ "go to the bar" nudge) AND
-                // UNLOCK the bar so the guest can redeem any remaining balance there
-                // (no captain tab left to settle → no double-spend risk).
-                if (linkWasMissing) {
-                  try { console.warn('[picker] linked table released (doc gone + no re-link) — table stale, bar unlocked'); } catch(_){}
-                  _markStale('table released — doc deleted');
-                  try { _unlockBarReleased('table released'); } catch(_){}
-                  try { _showSessionEndedPopup('table released — doc deleted'); } catch(_){}
-                  return;
-                }
-                // No doc was ever linked to this wallet via the
-                // where-field. Can't prove staleness either way — FAIL
-                // OPEN. (Better to accidentally serve one re-seated
-                // table than to block every legitimate customer.)
-                try { console.warn('[picker] no linkedCoverRef match, fail-open'); } catch(_){}
-                _markFresh(); return;
-              }
-              // Walk results; if any non-dead row matches identity → fresh.
-              var fresh=false, lastReason='all linked reservations look dead', _anyOpenRounds=false, _settled=false;
-              snap.forEach(function(d){
-                var tr=d.data()||{};
-                if (_isDeadStatus(tr.status)) { lastReason='all linked reservations dead'; return; }
-                var phN=_normP(tr.customerPhone||tr.phone);
-                if (_cvPhoneN && phN && phN!==_cvPhoneN) { lastReason='phone mismatch — re-seated to …'+phN.slice(-4); return; }
-                fresh=true;
-                // 🆕 2026-06-08 v3.254 — a matching row whose bill is SETTLED blocks
-                // the table order (bar stays open via the settled popup).
-                if (_tableBillIsSettled(tr)) _settled=true;
-                // 🆕 v3.5 — track open captain rounds across any matching row
-                if (_hasOpenRoundsFn(tr.tabRounds)) _anyOpenRounds=true;
-              });
-              if (_settled) { try { _lpOv.remove(); } catch(_){} try { _showBillSettledPopup(); } catch(_){} return; }
-              if (fresh) {
-                _markFresh();
-                if (_anyOpenRounds) {
-                  try { if (typeof _lockBarForOpenTab === 'function') _lockBarForOpenTab('captain table rounds open (via query)'); } catch(_){}
-                }
-              } else { _markStale(lastReason); }
-            }).catch(function(e){
-              clearTimeout(_staleTO);
-              try { console.warn('[picker] query fallback failed, fail-open:', e && e.message); } catch(_){}
-              _markFresh();
-            });
+            clearTimeout(_staleTO);
+            if(cv.tableReleased||_isDeadStatus(cv.tableStatus)){_markStale('table released');_unlockBarReleased('table released');return;}
+            if(cv.tableBillSettled){_showBillSettledPopup();return;}
+            _markFresh();
+            if(_hasOpenRoundsFn(cv.tabRounds)){try{if(typeof _lockBarForOpenTab==='function')_lockBarForOpenTab('captain table rounds open');}catch(_){}}
           };
           try {
             if (!firestore || !cv.ref) {
               clearTimeout(_staleTO);
               _markFresh(); // can't check → let through
-            } else if (cv.linkedTableRef) {
-              // PRIMARY path — direct doc lookup
-              firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-                clearTimeout(_staleTO);
-                if (!d.exists) { _runQueryFallback(true); return; }
-                _evalTableDoc(d.data()||{},'doc');
-              }).catch(function(e){
-                clearTimeout(_staleTO);
-                try { console.warn('[picker] direct lookup failed, falling back to query:', e && e.message); } catch(_){}
-                _runQueryFallback(false);
-              });
-            } else {
-              // No linkedTableRef on cover — use legacy where-query path
-              _runQueryFallback(false);
-            }
+            } else { _runQueryFallback(!!cv.linkedTableRef); }
           } catch(_eStale) {
             clearTimeout(_staleTO);
             _markFresh();
@@ -1778,18 +1678,6 @@ function renderWalletPage(bookingRef){
           // (just-placed) round of the adopted rounds and mirror to the cover +
           // linked table doc so the captain's KOT carries it. Display-only,
           // fail-open; builds off serverRounds so it never reverts CF pricing.
-          if(serverDid && _rNote){
-            try{
-              var _sr=(tabRounds||[]).slice();
-              if(_sr.length){
-                _sr[_sr.length-1]=Object.assign({},_sr[_sr.length-1],{note:_rNote});
-                tabRounds=_sr;
-                var _scid=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-                if(firestore&&_scid){firestore.collection('covers').doc(_scid).set({tabRounds:_sr},{merge:true}).catch(function(){});}
-                if(firestore&&cv.linkedTableRef){firestore.collection('tableReservations').doc(cv.linkedTableRef).update({tabRounds:_sr}).catch(function(){});}
-              }
-            }catch(_eNote){}
-          }
           // 🔴 2026-05-20 (Khushi Bug 1 fix) — AUTO-IMPORT customer's self-
           // order onto the captain's running tab.
           // Before: customer placed soup → only landed on the cover wallet.
@@ -1808,19 +1696,6 @@ function renderWalletPage(bookingRef){
           // and the existing 🔔 CUSTOMER CALLING banner still fires —
           // captain can fall back to manual ADD ORDER like before. Zero
           // regression for pure-cover (non-linked) wallets.
-          if(!serverDid){
-          try {
-            if (cv && cv.linkedTableRef) {
-              var _fv = (window.firebase && window.firebase.firestore && window.firebase.firestore.FieldValue);
-              var _autoRound = Object.assign({}, newRound, { source:'customer_self_order' });
-              var _patch = { tabRounds: (_fv ? _fv.arrayUnion(_autoRound) : updatedRounds) };
-              if (_fv) { _patch.tabTotal = _fv.increment(ct); }
-              firestore.collection('tableReservations').doc(cv.linkedTableRef)
-                .update(_patch)
-                .catch(function(err){ try { console.warn('[auto-import] tableReservations update failed', err && err.message); } catch(_){} });
-            }
-          } catch (_e) {}
-          }
           var placedItems=Object.values(cart).map(function(it){return it.qty+'× '+it.n;}).join(', ');
           var placedItemsArr=Object.values(cart).map(function(it){return {n:it.n,qty:it.qty,p:it.p};});
           cart={};
@@ -1941,13 +1816,8 @@ function renderWalletPage(bookingRef){
                 +'<div style="font-family:var(--ff);font-size:20px;font-weight:900;color:#000;letter-spacing:.4px;">CALLING CAPTAIN…</div>';
               _tnOv.appendChild(_tnMd);
               document.body.appendChild(_tnOv);
-              firestore.collection('tableReservations').doc(_linkedTblRef).update({
-                customerCallRequest:{
-                  at:new Date().toISOString(),
-                  itemsPreview:_placedItemsStr,
-                  total:_placedTotal
-                }
-              }).then(function(){
+              hodPublicEndpoint(window.WALLET_ACTION_URL,{ref:cv.ref||cv.bookingId||'',secret:_walletGateSecret,
+                action:'call_captain',idempotencyKey:'call_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)}).then(function(){
                 _tnMd.innerHTML=
                    '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🔔</div>'
                   +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#23A094;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
@@ -1990,7 +1860,8 @@ function renderWalletPage(bookingRef){
                 // the QR popup shows regardless of the write result.
                 try {
                   var _abId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-                  if(firestore&&_abId){firestore.collection('covers').doc(_abId).set({atBar:true,atBarAt:new Date().toISOString()},{merge:true}).catch(function(){});}
+                  hodPublicEndpoint(window.WALLET_ACTION_URL,{ref:cv.ref||cv.bookingId||'',secret:_walletGateSecret,
+                    action:'location_bar',idempotencyKey:'locbar_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)}).catch(function(){});
                 } catch(_eAB){}
                 _showBartenderQR(true);
               };
@@ -2008,18 +1879,13 @@ function renderWalletPage(bookingRef){
                 // and-forget + fail-open (never blocks the captain ping).
                 try {
                   var _atId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-                  if(firestore&&_atId){firestore.collection('covers').doc(_atId).set({atBar:false,atTableAt:new Date().toISOString()},{merge:true}).catch(function(){});}
+                  // The authenticated location action below clears atBar.
                 } catch(_eAT){}
                 // Write customerCallRequest on the linked tableReservations doc.
                 // Fail-open: if this errors, fall back to bartender QR + show
                 // a hint so the customer still has a path.
-                firestore.collection('tableReservations').doc(_linkedTblRef).update({
-                  customerCallRequest:{
-                    at:new Date().toISOString(),
-                    itemsPreview:_placedItemsStr,
-                    total:_placedTotal
-                  }
-                }).then(function(){
+                hodPublicEndpoint(window.WALLET_ACTION_URL,{ref:cv.ref||cv.bookingId||'',secret:_walletGateSecret,
+                  action:'location_table',idempotencyKey:'loctable_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)}).then(function(){
                   chMd.innerHTML=
                      '<div style="font-size:54px;margin-bottom:10px;line-height:1;">🔔</div>'
                     +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#23A094;margin-bottom:8px;letter-spacing:.3px;">CAPTAIN NOTIFIED!</div>'
@@ -2049,11 +1915,6 @@ function renderWalletPage(bookingRef){
             }
           }
 
-          if(!serverDid && cv.isTableBooking&&cv.ref){
-            firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
-              .then(function(snap){snap.forEach(function(d){d.ref.update({tabRounds:updatedRounds,tabTotal:getTabTotal()});});})
-              .catch(function(){});
-          }
         };
         // ── SERVER-FIRST dispatch (Phase 3). POST the cart (n/qty/cat only) to
         //    selfOrderPlace, which re-prices it server-side, writes the cover
@@ -2063,12 +1924,8 @@ function renderWalletPage(bookingRef){
         //    original direct write) so a guest can always order while rules
         //    still permit it (the transition window before rules v8).
         var _legacyWrite=function(){
-          firestore.collection('covers').doc(coverDocId).set(_coverPatch,{merge:true})
-            .then(function(){ _afterPlace(false); })
-            .catch(function(e){
-              placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
-              showToast('Failed: '+e.message,'err',3000);
-            });
+          placeBtn.disabled=false;placeBtn.textContent=cv.isTableBooking?'🍽️  Place Order':'🍹 Place Order';
+          showToast('Could not place order. Please retry.','err',3000);
         };
         try{
           // 🆕 v3.329 MONEY BUG FIX — selfOrderPlace CF writes 'activated' directly
@@ -2082,14 +1939,10 @@ function renderWalletPage(bookingRef){
             placeBtn.disabled=false;
             placeBtn.textContent='\uD83C\uDF79 Place Order';
             _parkOrderForBartender('customer_self_order_bar');
-          } else if(window.SELF_ORDER_PLACE_URL){
+          } else if(window.WALLET_ORDER_URL){
             var _placeItems=(roundItems||[]).map(function(it){return {n:it.n,qty:it.qty,cat:it.cat};});
-            fetch(window.SELF_ORDER_PLACE_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              coverDocId:coverDocId, bookingRef:cv.ref||cv.bookingId||'', name:cv.name||'', phone:cv.phone||'',
-              isTableBooking:!!cv.isTableBooking, tableId:cv.tableId||'', floorLabel:cv.floorLabel||'',
-              isTableChoice:_isTableChoice, linkedTableRef:cv.linkedTableRef||'',
-              items:_placeItems, roundKey:_placeRoundKey, note:_rNote
-            })}).then(function(r){return r.json();}).then(function(resp){
+            hodPublicEndpoint(window.WALLET_ORDER_URL,{ref:cv.ref||cv.bookingId||'',secret:_walletGateSecret,
+              location:_isTableChoice?'table':'bar',items:_placeItems,idempotencyKey:_placeRoundKey,note:_rNote}).then(function(resp){
               if(!resp||!resp.ok) throw new Error('cf_self_order');
               _afterPlace(true, resp.tabRounds);
             }).catch(function(){ _legacyWrite(); });
@@ -2174,7 +2027,7 @@ function renderWalletPage(bookingRef){
         // Confirm ONLY after a tableReservations write actually lands — the
         // Captain is paged solely off that doc, so a fire-and-forget write that
         // silently fails (offline/rules/transient) must NOT show "Captain notified".
-        var _coverWrite=function(){try{firestore.collection('covers').doc(cv.ref).set(_billPatch,{merge:true}).catch(function(){});}catch(_){}};
+        var _coverWrite=function(){};
         // 🆕 2026-06-15 v3.296 (Phase 3) — the bill_requested money write now goes
         // SERVER-SIDE via requestBill, which recomputes the bill total from the
         // cover's own rounds (falling back to the table doc) and stamps the SAME
@@ -2182,42 +2035,17 @@ function renderWalletPage(bookingRef){
         // original direct-write path, kept as a FAIL-OPEN fallback so a CF outage
         // can never strand a guest who wants to settle.
         var _legacyBill=function(){
-          if(!firestore||!cv.ref){_failNotify();return;}
-          if(cv.linkedTableRef){
-            var _doTblWrite=function(){return firestore.collection('tableReservations').doc(cv.linkedTableRef).update(_billPatch);};
-            var _tryWrite=function(){ _doTblWrite().then(function(){_coverWrite();_confirm();}).catch(function(){_failNotify();}); };
-            firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
-              if(!d.exists){_failNotify();return;}                                  // table doc gone (released) → can't page captain
-              if(_settledChk(d.data()||{})){_alreadySettled();return;}
-              _tryWrite();
-            }).catch(function(){ _failNotify(); });                                 // read failed → can't verify settled-state → do NOT risk reverting a paid table; guest retries / staff steps in
-          }else{
-            firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get().then(function(snap){
-              if(snap.empty){_failNotify();return;}                                 // no table doc for this booking → don't false-confirm
-              var _anySettled=false;
-              snap.forEach(function(d){ if(_settledChk(d.data()||{})) _anySettled=true; });
-              if(_anySettled){_alreadySettled();return;}
-              var _total=0; snap.forEach(function(){_total++;});
-              var _ok=0,_done=0;
-              snap.forEach(function(d){
-                d.ref.update(_billPatch).then(function(){_ok++;}).catch(function(){}).then(function(){
-                  _done++; if(_done===_total){ if(_ok>0){_coverWrite();_confirm();} else {_failNotify();} }
-                });
-              });
-            }).catch(function(){ _failNotify(); });                                 // query error → target unknown → honest fallback
-          }
+          _failNotify();
         };
         // SERVER-FIRST: ask requestBill to page the captain. ok → _confirm;
         // reason 'already_settled' → _alreadySettled; ANY other non-OK / error →
         // _legacyBill (fail-open).
         try{
-          if(window.REQUEST_BILL_URL && cv.ref){
-            var _billCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-            fetch(window.REQUEST_BILL_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              coverDocId:_billCoverId, bookingRef:cv.ref, linkedTableRef:cv.linkedTableRef||''
-            })}).then(function(r){return r.json();}).then(function(resp){
+          if(window.WALLET_ACTION_URL && cv.ref){
+            hodPublicEndpoint(window.WALLET_ACTION_URL,{ref:cv.ref,secret:_walletGateSecret,action:'request_bill',
+              idempotencyKey:'bill_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)}).then(function(resp){
               if(resp&&resp.ok&&resp.notified){ _confirm(); return; }
-              if(resp&&resp.reason==='already_settled'){ _alreadySettled(); return; }
+              if(resp&&resp.alreadySettled){ _alreadySettled(); return; }
               _legacyBill();                                                        // table_gone / no_table / not-notified → legacy retries the live lookup
             }).catch(function(){ _legacyBill(); });
           } else { _legacyBill(); }
@@ -2538,11 +2366,8 @@ function renderWalletPage(bookingRef){
         var _walletBal=Number(cv.coverBalance||0);
         if(_walletBal>=tt && tt>0){
           // Fire bill_requested ONCE so captain knows to walk over with QR scanner.
-          if(firestore&&cv.ref){
-            firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
-              .then(function(snap){snap.forEach(function(d){d.ref.update({paymentStatus:'bill_requested',orderTotal:tt,tabTotal:tt});});}).catch(function(){});
-            firestore.collection('covers').doc(cv.ref).set({paymentStatus:'bill_requested',orderTotal:tt},{merge:true}).catch(function(){});
-          }
+          if(cv.ref)hodPublicEndpoint(window.WALLET_ACTION_URL,{ref:cv.ref,secret:_walletGateSecret,action:'request_bill',
+            idempotencyKey:'bill_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)}).catch(function(){});
           // 🆕 2026-05-27 v3.90 (Khushi LIVE-NIGHT) — GROUND-FLOOR TABLE
           // BOOKINGS now get the SAME full settle flow as every other table
           // booking: "CAPTAIN WILL BE WITH YOU SHORTLY" + feedback form +
@@ -2610,34 +2435,7 @@ function renderWalletPage(bookingRef){
           //      surface a ⚠️ "customer claims paid" hint if needed.
           //   3. On payment.failed event we re-enable the button.
           function _writePaidOnline(pid){
-            if(!firestore||!cv.ref) return Promise.reject(new Error('no_firestore_or_ref'));
-            var nowIso=new Date().toISOString();
-            var paidPatch={
-              paymentStatus:'paid',
-              paymentMethod:'paid_online',
-              paidAt:nowIso,
-              paymentId:pid,
-              amountPaid:tt,
-              orderTotal:tt,
-              tabTotal:tt
-            };
-            function _attempt(n){
-              return firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
-                .then(function(snap){
-                  var ps=[];
-                  snap.forEach(function(d){ ps.push(d.ref.update(paidPatch)); });
-                  ps.push(firestore.collection('covers').doc(cv.ref).set(paidPatch,{merge:true}));
-                  return Promise.all(ps);
-                })
-                .catch(function(err){
-                  if(n<3){
-                    return new Promise(function(res){ setTimeout(res, 400*Math.pow(2,n)); })
-                      .then(function(){ return _attempt(n+1); });
-                  }
-                  throw err;
-                });
-            }
-            return _attempt(0);
+            return Promise.reject(new Error('use_server_payment_verification'));
           }
           function _showPaymentIdFallback(pid){
             // Firestore stamp failed after retries. KEEP captain BILL DUE
@@ -2658,21 +2456,16 @@ function renderWalletPage(bookingRef){
             var okBtn=sheet.querySelector('#_walletPaidOk');
             if(okBtn) okBtn.onclick=function(){ overlay.remove(); };
             // Best-effort fallback marker (silent fail)
-            try {
-              firestore.collection('pendingPaymentNotices').doc(cv.ref).set({
-                bookingRef:cv.ref,
-                paymentId:pid||'',
-                amount:tt,
-                claimedAt:new Date().toISOString(),
-                source:'wallet_paid_online_writefail'
-              }).catch(function(){});
-            } catch(_){}
+            // The verified payment endpoint owns durable payment audit markers.
           }
           // 🆕 2026-06-15 v3.296 (Phase 3) — _legacyPay is the original
           // client-amount flow (RAZORPAY_KEY, no server order, _writePaidOnline).
           // It is kept ONLY as a FAIL-OPEN fallback; the server-verified path
           // (_serverPay below) is tried first.
           var _legacyPay=function(){
+          poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
+          alert('Secure payment is temporarily unavailable. Please retry or pay at the table.');
+          return;
           ensureRazorpay(function(_rzReady){
           if(!_rzReady){ poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt; alert('Could not open payment. Check your connection and try again.'); return; }
           try{
@@ -2737,9 +2530,7 @@ function renderWalletPage(bookingRef){
           //    outage → _legacyPay.
           var _serverPay=function(){
             var _payCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-            fetch(window.CREATE_TABLE_BILL_ORDER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-              coverDocId:_payCoverId, bookingRef:cv.ref||'', linkedTableRef:cv.linkedTableRef||''
-            })}).then(function(r){return r.json();}).then(function(ord){
+            hodPublicEndpoint(window.WALLET_CREATE_BILL_ORDER_URL,{ref:cv.ref||cv.bookingId||'',secret:_walletGateSecret}).then(function(ord){
               // SETTLEMENT FINALITY: server says this bill is already paid →
               // do NOT re-open Razorpay (would double-charge). Mark settled in
               // the UI instead of falling through to _legacyPay.
@@ -2767,9 +2558,9 @@ function renderWalletPage(bookingRef){
                         poBtn.disabled=false;poBtn.innerHTML='\ud83d\udcb3  Pay Online  —  \u20b9'+tt;
                         return;
                       }
-                      fetch(window.VERIFY_TABLE_BILL_PAYMENT_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+                      hodPublicEndpoint(window.WALLET_VERIFY_BILL_PAYMENT_URL,{
                         razorpay_order_id:oid, razorpay_payment_id:pid, razorpay_signature:sig
-                      })}).then(function(r){return r.json();}).then(function(vr){
+                      }).then(function(vr){
                         if(vr&&vr.ok&&vr.marked){
                           overlay.remove();
                           submitOrder(cv,bal,{mode:'online',paymentId:pid,amount:tt,rounds:tabRounds});
@@ -2809,7 +2600,7 @@ function renderWalletPage(bookingRef){
             }).catch(function(){ _legacyPay(); });
           };
           try{
-            if(window.CREATE_TABLE_BILL_ORDER_URL && window.VERIFY_TABLE_BILL_PAYMENT_URL && cv.ref){ _serverPay(); }
+            if(window.WALLET_CREATE_BILL_ORDER_URL && window.WALLET_VERIFY_BILL_PAYMENT_URL && cv.ref){ _serverPay(); }
             else { _legacyPay(); }
           }catch(_eP){ _legacyPay(); }
         };
@@ -2833,23 +2624,16 @@ function renderWalletPage(bookingRef){
           //    the reservation + cover straight from the browser. Post-v8 rules
           //    DENY this; that's why the server path runs first.
           var _ptLegacy=function(){
-            if(firestore&&cv.ref){
-              firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
-                .then(function(snap){snap.forEach(function(d){d.ref.update({paymentStatus:'bill_requested',orderTotal:tt,tabTotal:tt});});}).catch(function(){});
-              firestore.collection('covers').doc(cv.ref).set({paymentStatus:'bill_requested',orderTotal:tt},{merge:true}).catch(function(){});
-            }
-            _ptConfirm();
+            showToast('Could not notify captain. Please retry.','err',4000);
           };
           // ── SERVER-FIRST (Phase 3): requestBill recomputes the total + stamps
           //    bill_requested on the cover + linked table doc(s). FAIL-OPEN: any
           //    non-OK / outage falls back to the legacy direct-write so the
           //    captain is always alerted.
           try{
-            if(window.REQUEST_BILL_URL && cv.ref){
-              var _ptCoverId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-              fetch(window.REQUEST_BILL_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-                coverDocId:_ptCoverId, bookingRef:cv.ref||'', linkedTableRef:cv.linkedTableRef||''
-              })}).then(function(r){return r.json();}).then(function(resp){
+            if(window.WALLET_ACTION_URL && cv.ref){
+              hodPublicEndpoint(window.WALLET_ACTION_URL,{ref:cv.ref,secret:_walletGateSecret,action:'request_bill',
+                idempotencyKey:'bill_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)}).then(function(resp){
                 if(resp&&resp.ok&&resp.notified){ _ptConfirm(); }
                 else if(resp&&resp.reason==='already_settled'){ _ptConfirm(); }
                 else { _ptLegacy(); }
@@ -2994,8 +2778,7 @@ function renderWalletPage(bookingRef){
         // captain's phone — dialling it during service is worse than
         // doing nothing. If firestore isn't ready, show an error toast
         // and ask the guest to wave down a captain instead.
-        var fb=window.firestore || (window.firebase && window.firebase.firestore && window.firebase.firestore());
-        if(!fb){
+        if(!window.WALLET_ACTION_URL||!_walletGateSecret){
           if(typeof showToast==='function') showToast('Connection issue — please wave down a captain.','err',4000);
           return;
         }
@@ -3012,47 +2795,15 @@ function renderWalletPage(bookingRef){
           callBtn.disabled=false;
           callLbl.textContent='Call Waiter';
         }
-        // 🔴 2026-05-20 (Khushi bug fix) — root cause of "couldn't notify":
-        // production Firestore rules reject unauth writes to `waiterCalls`,
-        // so the old code (which depended on that write succeeding) always
-        // showed the red error. Fix: race BOTH surfaces in parallel and
-        // succeed if EITHER lands.
-        //   1. customerCallRequest on tableReservations (linked tables) —
-        //      proven path: same write the "I'M AT MY TABLE" flow uses,
-        //      already allowed by prod rules.
-        //   2. waiterCalls.add (every cover) — works once Khushi deploys
-        //      the unauth rule on Mac; harmless fallback until then.
-        // For a pure bar walk-in (no linkedTableRef) only path #2 is
-        // available — if rules block it we surface an honest "wave to
-        // bartender" message instead of misleading "wave one down".
         try{
           var hasLinkedTable = !!(cv && cv.linkedTableRef);
-          var p1 = hasLinkedTable
-            ? fb.collection('tableReservations').doc(cv.linkedTableRef).update({
-                customerCallRequest: {
-                  at: new Date().toISOString(),
-                  itemsPreview: 'Call Waiter',
-                  total: 0,
-                  source: 'header_call_button'
-                }
-              })
-            : Promise.reject(new Error('no_linked_table'));
-          var p2 = fb.collection('waiterCalls').add({
-            coverRef:cv.ref||cv.bookingId||cv.id||'',
-            customerName:cv.name||'Guest',
-            tableId:cv.tableId||cv.linkedTableId||null,
-            floorLabel:cv.floorLabel||cv.linkedFloorLabel||null,
-            status:'pending',
-            createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-            acknowledgedAt:null,
-            acknowledgedBy:null
-          });
-          Promise.allSettled([p1, p2]).then(function(results){
-            var anyOk = results.some(function(r){ return r.status === 'fulfilled'; });
-            results.forEach(function(r, i){
-              if (r.status === 'rejected') console.warn('[waiterCall] surface '+(i+1)+' failed', r.reason);
-            });
-            if (anyOk) {
+          hodPublicEndpoint(window.WALLET_ACTION_URL,{
+            ref:cv.ref||cv.bookingId||cv.id||'',
+            secret:_walletGateSecret,
+            action:'call_captain',
+            idempotencyKey:'waiter_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)
+          }).then(function(resp){
+            if(resp&&resp.ok) {
               callBtn.style.background='rgba(0,200,100,.18)';
               callBtn.style.borderRadius='8px';
               callBtn.style.padding='4px 8px';
@@ -3068,6 +2819,10 @@ function renderWalletPage(bookingRef){
                 : 'Please show your QR to the bartender — they will help you.';
               if(typeof showToast==='function') showToast(msg,'err',4500);
             }
+          }).catch(function(err){
+            console.warn('[waiterCall] server action failed',err);
+            _resetBtn();_wcCooldownUntil=0;
+            if(typeof showToast==='function') showToast('Could not reach captain — please wave them down.','err',4500);
           });
         }catch(e){
           console.warn('[waiterCall] threw',e);
@@ -3094,24 +2849,18 @@ function renderWalletPage(bookingRef){
     callBtn.onclick=function(){
       var nowMs=Date.now();
       if(nowMs<_cd) return;
-      var fb=window.firestore || (window.firebase && window.firebase.firestore && window.firebase.firestore());
-      if(!fb){
+      if(!window.WALLET_ACTION_URL||!_walletGateSecret||!refStr){
         if(typeof showToast==='function') showToast('Connection issue — please wave down a captain.','err',4000);
         return;
       }
       _cd=nowMs+30000;
       callBtn.disabled=true; callLbl.textContent='Calling…';
       try{
-        fb.collection('waiterCalls').add({
-          coverRef:refStr||'',
-          customerName:'Guest',
-          tableId:null,
-          floorLabel:null,
-          status:'pending',
-          createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-          acknowledgedAt:null,
-          acknowledgedBy:null
-        }).then(function(){
+        hodPublicEndpoint(window.WALLET_ACTION_URL,{
+          ref:refStr,secret:_walletGateSecret,action:'call_captain',
+          idempotencyKey:'waiter_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)
+        }).then(function(resp){
+          if(!resp||!resp.ok)throw new Error('not_notified');
           callBtn.style.background='rgba(0,200,100,.18)';
           callLbl.textContent='✓ Captain notified';
           setTimeout(function(){
@@ -3211,7 +2960,6 @@ function renderWalletPage(bookingRef){
     // amount stamped via _writePaidOnline.
     var _cartTotal=getCartTotal();
     var coverDocId=(cv.bookingId||cv.ref||'').replace(/[^a-zA-Z0-9_-]/g,'_');
-    if(!firestore){showToast('Not connected. Try again.','err',3000);return;}
     var _pay=payInfo||{mode:'cash',amount:_cartTotal};
     var total = (_cartTotal>0) ? _cartTotal : (typeof _pay.amount==='number'?_pay.amount:0);
     var orderData={
@@ -3227,26 +2975,9 @@ function renderWalletPage(bookingRef){
       phone:cv.phone,
       balanceAtOrder:bal
     };
-    var _updatePromises=[firestore.collection('covers').doc(coverDocId).set({pendingOrder:orderData,ref:cv.ref||cv.bookingId||'',name:cv.name||'',phone:cv.phone||''},{merge:true})];
-    // If table booking, also update tableReservations with payment info
-    if(cv.isTableBooking&&cv.ref){
-      _updatePromises.push(
-        firestore.collection('tableReservations').where('bookingRef','==',cv.ref).get()
-          .then(function(snap){
-            snap.forEach(function(d){
-              d.ref.update({
-                orderTotal:orderData.total,
-                paymentMode:orderData.paymentMode,
-                paymentStatus:orderData.status,
-                paymentId:orderData.paymentId||'',
-                amountPaid:orderData.amountPaid,
-                orderedAt:orderData.submittedAt,
-                orderItems:orderData.items
-              });
-            });
-          }).catch(function(){})
-      );
-    }
+    // The order/bill/payment endpoint has already committed authoritative
+    // state. This function only preserves the existing confirmation UI.
+    var _updatePromises=[];
     Promise.all(_updatePromises)
       .then(function(){
         inner.innerHTML='';
@@ -3303,6 +3034,49 @@ function renderWalletPage(bookingRef){
   }
 
   // Load cover from Firebase — real-time listener so captain edits reflect immediately on customer screen
+  // Customer deep links use a secret-bearing server projection. This keeps raw
+  // booking/cover/table documents out of unauthenticated browsers while retaining
+  // the existing wallet renderer and near-live refresh behavior.
+  var _walletGateSecret='';
+  try{
+    var _walletGateQs=new URLSearchParams(window.location.search||'');
+    if(_walletGateQs.has('wallet'))_walletGateSecret=_walletGateQs.get('s')||'';
+    window.__HOD_WALLET_SECRET=_walletGateSecret;
+  }catch(_walletGateErr){}
+  var _walletParams=new URLSearchParams(window.location.search||'');
+  if(bookingRef&&typeof hodPublicEndpoint==='function'&&typeof WALLET_PROJECTION_URL==='string'
+      &&(_walletParams.has('wallet')||_walletParams.has('verify')||_walletParams.has('topup'))){
+    var _walletProjectionBusy=false;
+    var _loadWalletProjection=function(){
+      if(_walletProjectionBusy||document.hidden)return;
+      _walletProjectionBusy=true;
+      hodPublicEndpoint(WALLET_PROJECTION_URL,{ref:bookingRef,secret:_walletGateSecret}).then(function(result){
+        if(result&&result.wallet){
+          var pw=result.wallet;
+          if(pw.kind==='booking'||pw.kind==='guestlist'){
+            inner.innerHTML='<div style="padding:24px;max-width:480px;margin:0 auto;text-align:center;">'
+              +'<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'
+              +'<div style="font-size:22px;font-weight:900;margin-bottom:8px;">Your HOD Ticket</div>'
+              +'<div style="font-size:14px;color:#3D3D3D;margin-bottom:18px;">'+sanitize(pw.eventTitle||'HOD Event')+'</div>'
+              +'<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:18px;text-align:left;">'
+              +'<div style="padding:8px 0;">Date: <b>'+sanitize(pw.date||'')+'</b></div>'
+              +'<div style="padding:8px 0;">Entry: <b>'+sanitize((pw.entryType||'ticket').toUpperCase())+'</b></div>'
+              +'<div style="padding:8px 0;">Reference: <b>'+sanitize(pw.ref||bookingRef)+'</b></div></div>'
+              +(result.legacy?'<div style="font-size:11px;color:#3D3D3D;margin-top:12px;">Legacy link: limited view. Request a fresh link from My Tickets for full wallet access.</div>':'')
+              +'</div>';
+          }else{
+            renderWalletContent(pw);
+          }
+        }
+      }).catch(function(){
+        inner.innerHTML='<div style="text-align:center;padding:80px 20px;"><div style="font-size:48px;margin-bottom:14px;">🔒</div><div style="font-size:18px;font-weight:900;margin-bottom:8px;">Wallet unavailable</div><div style="font-size:13px;color:#3D3D3D;">Please use the latest link sent to your WhatsApp.</div></div>';
+      }).finally(function(){_walletProjectionBusy=false;});
+    };
+    _loadWalletProjection();
+    var _walletProjectionTimer=setInterval(_loadWalletProjection,15000);
+    window.addEventListener('pagehide',function(){clearInterval(_walletProjectionTimer);},{once:true});
+    return wrap;
+  }
   if(firestore&&bookingRef){
     var _walletUnsub=null;
     // Session-scoped flag — true only after we've seen at least one
@@ -3317,7 +3091,7 @@ function renderWalletPage(bookingRef){
     var _pfLiveSeen=false;
     function _startTableListener(){
       if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
-      _walletUnsub=firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1)
+      _walletUnsub=({onSnapshot:function(){return function(){};}})
         .onSnapshot(function(tSnap){
           inner.innerHTML='';
           if(tSnap.empty){
@@ -3358,7 +3132,7 @@ function renderWalletPage(bookingRef){
                 window.__hodRelChkTimer=setTimeout(function(){
                   window.__hodRelChkTimer=null;
                   if(_seenLiveDocThisSession) return; // live doc arrived during the wait
-                  firestore.collection('releasedReservations').doc(bookingRef).get().then(function(mDoc){
+                  Promise.reject(new Error('retired_raw_path')).then(function(mDoc){
                   if(!mDoc.exists) return;
                   // Marker found — render thank-you screen immediately,
                   // overriding any pre-arrival paint that may already be
@@ -3466,7 +3240,7 @@ function renderWalletPage(bookingRef){
     }
     function _startCoversListener(field){
       if(_walletUnsub){_walletUnsub();_walletUnsub=null;}
-      _walletUnsub=firestore.collection('covers').where(field,'==',bookingRef).limit(1)
+      _walletUnsub=({onSnapshot:function(){return function(){};}})
         .onSnapshot(function(snap){
           _pfLiveSeen=true; // ⚡ v3.419 — SDK is live; fast-lane prefetch must no longer paint
           inner.innerHTML='';
@@ -3535,7 +3309,7 @@ function renderWalletPage(bookingRef){
               // permission). If bookings positively matches, render anyway;
               // if bookings is empty/errors, surface error not "not found".
               var _glFromBooking=function(prevErr){
-                firestore.collection('bookings').where('ref','==',bookingRef).limit(1).get()
+                Promise.reject(new Error('retired_raw_path'))
                   .then(function(bs){
                     if(bs&&!bs.empty){
                       var b=bs.docs[0].data();
@@ -3553,14 +3327,14 @@ function renderWalletPage(bookingRef){
                   .catch(function(){inner.innerHTML='<div style="text-align:center;padding:60px 20px;color:#3D3D3D;">Error loading guest list.</div>';});
               };
               var _glFallbackByRef=function(){
-                firestore.collection('guestlist').where('ref','==',bookingRef).limit(1).get()
+                Promise.reject(new Error('retired_raw_path'))
                   .then(function(qs){
                     if(qs&&!qs.empty){_glRender(qs.docs[0].data());}
                     else{_glFromBooking(false);}
                   })
                   .catch(function(){_glFromBooking(true);});
               };
-              firestore.collection('guestlist').doc(bookingRef).get()
+              Promise.reject(new Error('retired_raw_path'))
                 .then(function(glDoc){
                   if(glDoc.exists){_glRender(glDoc.data());}
                   else{_glFallbackByRef();}
@@ -3569,7 +3343,7 @@ function renderWalletPage(bookingRef){
               return;
             }
             // No cover yet — look up booking to show ticket info
-            firestore.collection('bookings').where('ref','==',bookingRef).limit(1).get().then(function(bkSnap){
+            Promise.reject(new Error('retired_raw_path')).then(function(bkSnap){
               inner.innerHTML='';
               if(!bkSnap.empty){
                 var bk=bkSnap.docs[0].data();
@@ -3704,12 +3478,12 @@ function renderWalletPage(bookingRef){
             // renders the cover as-is. Released tables are deleted → no doc → cover
             // rounds render alone (correct).
             if(cv.linkedTableRef){
-              firestore.collection('tableReservations').doc(cv.linkedTableRef).get().then(function(d){
+              Promise.reject(new Error('retired_raw_path')).then(function(d){
                 _mergeRoundsFromTable(d.exists?(d.data()||null):null);
                 renderWalletContent(cv);
               }).catch(function(){renderWalletContent(cv);});
             } else if((cv.isTableBooking||cv.tableId)&&bookingRef){
-              firestore.collection('tableReservations').where('bookingRef','==',bookingRef).limit(1).get().then(function(tSnap){
+              Promise.reject(new Error('retired_raw_path')).then(function(tSnap){
                 _mergeRoundsFromTable(tSnap.empty?null:(tSnap.docs[0].data()||null));
                 renderWalletContent(cv);
               }).catch(function(){renderWalletContent(cv);});
@@ -3728,7 +3502,7 @@ function renderWalletPage(bookingRef){
           // released → render the "🙏 Thank you" screen instead of reopening the
           // active wallet. Live sessions never have this marker, so no regression.
           if(bookingRef && (bookingRef.indexOf('TBL-')===0||bookingRef.indexOf('AGG-')===0||bookingRef.indexOf('HODTAB')===0)){
-            firestore.collection('releasedReservations').doc(bookingRef).get().then(function(mDoc){
+            Promise.reject(new Error('retired_raw_path')).then(function(mDoc){
               if(mDoc.exists){
                 try{ localStorage.setItem('hod_wallet_visited_'+bookingRef,'1'); }catch(e){}
                 inner.innerHTML='<div style="text-align:center;padding:60px 20px;">'
@@ -3813,14 +3587,16 @@ function generateLocalQR(elId,data){
 // ════════════════════════════════════════
 
 // ── P1: Waitlist Admin Tab
-function renderCustomerWallet(bookingRef){
+function renderCustomerWallet(bookingRef,walletSecret){
   var wrap=document.createElement('div');
   wrap.style.cssText='margin-top:16px;';
 
-  if(!firestore){wrap.innerHTML='<div style="text-align:center;padding:20px;color:#3D3D3D;">Firebase not connected.</div>';return wrap;}
+  if(typeof hodPublicEndpoint!=='function'){wrap.innerHTML='<div style="text-align:center;padding:20px;color:#3D3D3D;">Wallet unavailable.</div>';return wrap;}
 
-  firestore.collection('covers').where('ref','==',bookingRef).limit(1).get()
-    .then(function(snap){
+  hodPublicEndpoint(WALLET_PROJECTION_URL,{ref:bookingRef,secret:walletSecret||''})
+    .then(function(result){
+      var projected=result&&result.wallet;
+      var snap={empty:!projected||projected.kind!=='cover',docs:projected?[{data:function(){return projected;}}]:[]};
       wrap.innerHTML='';
       if(snap.empty){
         var pendingDiv=document.createElement('div');
@@ -3942,27 +3718,13 @@ function renderTopUp(bookingId, diffAmt){
   card.appendChild(loading);
   wrap.appendChild(card);
 
-  if(!firestore){loading.innerHTML='<div style="color:#FF5733;text-align:center;">Firebase not connected.</div>';return wrap;}
-
-  // Find cover — try direct doc ID first (fast), then fall back to bookingId query
-  // The topup URL may contain either the coverDocId or the raw bookingId
-  var sanitizedId = bookingId.replace(/[^a-zA-Z0-9_-]/g,'_');
-  firestore.collection('covers').doc(sanitizedId).get()
-    .then(function(directDoc){
-      if(directDoc.exists){
-        loading.innerHTML='';
-        var cv=directDoc.data();cv.id=directDoc.id;
-        renderTopUpContent(card,cv,diffAmt);
-      } else {
-        // Fallback: query by bookingId field
-        return firestore.collection('covers').where('bookingId','==',bookingId).limit(1).get()
-          .then(function(snap){
-            loading.innerHTML='';
-            if(snap.empty){card.innerHTML+='<div style="color:#FF5733;text-align:center;font-size:13px;padding:20px;">Cover not found. Please contact HOD staff.</div>';return;}
-            var cv=snap.docs[0].data();cv.id=snap.docs[0].id;
-            renderTopUpContent(card,cv,diffAmt);
-          });
-      }
+  var _tuSecret='';try{_tuSecret=new URLSearchParams(window.location.search||'').get('s')||'';}catch(_){}
+  hodPublicEndpoint(WALLET_PROJECTION_URL,{ref:bookingId,secret:_tuSecret})
+    .then(function(result){
+      if(!result||!result.wallet||result.wallet.kind!=='cover')throw new Error('cover_unavailable');
+      loading.innerHTML='';
+      var cv=result.wallet;cv.id=cv.id||bookingId;cv.walletSecret=_tuSecret;
+      renderTopUpContent(card,cv,diffAmt);
     })
     .catch(function(){loading.innerHTML='<div style="color:#FF5733;text-align:center;padding:20px;">Error loading cover. Please try again.</div>';});
 
@@ -3980,7 +3742,7 @@ function renderTopUpContent(card, cv, diffAmt){
         var _tuBack2=document.getElementById('tu-back-btn');
         var _wref=cv.ref||cv.bookingId||'';
         if(_tuBack2&&_wref){_tuBack2.onclick=function(){
-          try{ window.location.href = window.location.origin + window.location.pathname + '?wallet=' + encodeURIComponent(_wref); }
+          try{ window.location.href = window.location.origin + window.location.pathname + '?wallet=' + encodeURIComponent(_wref)+(cv.walletSecret?'&s='+encodeURIComponent(cv.walletSecret):''); }
           catch(_){ window.location.href='https://hodclub.in'; }
         };}
       }catch(_){}
@@ -4093,6 +3855,7 @@ function renderTopUpContent(card, cv, diffAmt){
         var _resetBtn=function(){payBtn.disabled=false;payBtn.textContent=isLockedAmt?'Pay ₹'+diffAmt.toLocaleString('en-IN')+' →':'Pay & Top Up →';};
         hodPayAndCredit({
           amount:selectedAmt, coverRef:cv.id, kind:isLockedAmt?'diff_paid':'topup',
+          walletSecret:cv.walletSecret||'',
           name:cv.name||'', phone:cv.phone||'',
           description: isLockedAmt ? 'Cover charge — '+cv.name : 'Cover Top-up — '+cv.name,
           payBtn:payBtn,
