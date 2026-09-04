@@ -27,9 +27,6 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 fbq('init', '1533489350622092');
 fbq('track', 'PageView');
 </script>
-<noscript><img height="1" width="1" style="display:none"
-src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
-/></noscript>
 <!-- End Meta Pixel Code -->
 
 <!-- ⚙️ HOD-CUSTOMER-SITE BUILD: v3.183 · 2026-06-02 — DEPLOY VERIFY MARKER.
@@ -75,7 +72,7 @@ try{document.addEventListener("DOMContentLoaded",function(){var b=document.creat
 (function(){
   try {
     var p = new URLSearchParams(window.location.search);
-    var isPrivate = p.has('admin') || p.has('door') || p.has('captain') || p.has('bar')
+    var isPrivate = p.has('door') || p.has('captain') || p.has('bar')
                  || p.has('wallet') || p.has('verify') || p.has('booking');
     if (isPrivate) {
       var m = document.createElement('meta');
@@ -633,6 +630,9 @@ html,body{background:var(--bg);color:#000;font-family:var(--ff);min-height:100vh
   </script>
 </head>
 <body>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1533489350622092&ev=PageView&noscript=1"
+/></noscript>
 <!-- ⚡ 2026-06-06 — Instant branded splash. Sits above everything and is removed
      the moment the first render() runs (or after a 4.5s fail-open timeout) so the
      customer never stares at a blank white page while the deferred SDK loads. -->
@@ -760,7 +760,7 @@ var RAZORPAY_KEY = "rzp_live_Sgf6ON1mQY95kT";
 // ════════════════════════════════════════════════════════════════
 // 🔒 SERVER-VERIFIED RECHARGE (Mon 11 May 2026 — Khushi feature)
 // ────────────────────────────────────────────────────────────────
-// Replaces every old `firestore.collection('covers').doc(ref).update({
+// Replaces every old direct cover-document update:
 //   coverBalance: increment(amt) })` direct-write with a 2-step flow:
 //   1. POST {amount, coverRef, kind, name, phone} to createOrder
 //      → returns a Razorpay order_id.
@@ -792,13 +792,40 @@ var VERIFY_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/verifyRechargePayment';
 // 🆕 2026-06-15 v3.295 (Phase 2) — My Bookings server lookup. The browser POSTs
 // just { phone } and gets back ONLY that phone's docs (indexed phoneNorm== query
 // server-side), instead of downloading hundreds of other guests' rows and
-// filtering client-side. Fail-open: the lookup handler falls back to the old
-// direct Firestore queries if this endpoint is unreachable.
+// filtering client-side. Fail-closed: endpoint failures show a generic retry
+// state and never fall back to raw Firestore collection reads.
 var MYBOOKINGS_LOOKUP_URL = HOD_FUNCTIONS_BASE + '/myBookingsLookup';
 // 🔒 2026-07-13 (VAPT #2 full close) — WhatsApp OTP gate for My Bookings.
 // The lookup now REQUIRES a 6-digit code WhatsApped to the number being
 // looked up, so only the phone's owner can see its bookings.
 var MYBOOKINGS_OTP_URL = HOD_FUNCTIONS_BASE + '/myBookingsRequestOtp';
+// Public reservation data is now mediated by narrow server projections. These
+// endpoints accept no Firebase account; App Check is attached when available.
+var TABLE_AVAILABILITY_URL = HOD_FUNCTIONS_BASE + '/tableAvailability';
+var CREATE_TABLE_RESERVATION_URL = HOD_FUNCTIONS_BASE + '/createTableReservation';
+var WALLET_PROJECTION_URL = HOD_FUNCTIONS_BASE + '/walletProjection';
+var WALLET_ORDER_URL = HOD_FUNCTIONS_BASE + '/walletOrder';
+var WALLET_ACTION_URL = HOD_FUNCTIONS_BASE + '/walletAction';
+var WALLET_CREATE_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/walletCreateRechargeOrder';
+var WALLET_VERIFY_RECHARGE_URL = HOD_FUNCTIONS_BASE + '/walletVerifyRecharge';
+var WALLET_CREATE_BILL_ORDER_URL = HOD_FUNCTIONS_BASE + '/walletCreateBillOrder';
+var WALLET_VERIFY_BILL_PAYMENT_URL = HOD_FUNCTIONS_BASE + '/walletVerifyBillPayment';
+var CREATE_PUBLIC_BOOKING_URL = HOD_FUNCTIONS_BASE + '/createPublicBooking';
+var CREATE_GUESTLIST_URL = HOD_FUNCTIONS_BASE + '/createGuestListEntry';
+var CREATE_WAITLIST_URL = HOD_FUNCTIONS_BASE + '/createWaitlistEntry';
+var CREATE_WALLET_FEEDBACK_URL = HOD_FUNCTIONS_BASE + '/createWalletFeedback';
+function hodPublicEndpoint(url,body){
+  var tokenP=Promise.resolve('');
+  try{
+    if(firebase&&firebase.appCheck) tokenP=firebase.appCheck().getToken(false).then(function(x){return (x&&x.token)||'';}).catch(function(){return '';});
+  }catch(_e){}
+  return tokenP.then(function(tok){
+    var headers={'Content-Type':'application/json'};if(tok)headers['X-Firebase-AppCheck']=tok;
+    return fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body||{})}).then(function(r){
+      return r.json().catch(function(){return {};}).then(function(j){if(!r.ok||!j.ok){var e=new Error(j.error||'request_failed');e.status=r.status;throw e;}return j;});
+    });
+  });
+}
 // 🆕 2026-06-15 v3.296 (Phase 3) — customer MONEY/PAYMENT writes move server-side.
 // The browser no longer writes tabRounds / tabTotal / paymentStatus / amountPaid
 // directly to Firestore; it POSTs to these Cloud Functions which recompute the
@@ -817,19 +844,17 @@ var VERIFY_TABLE_BILL_PAYMENT_URL = HOD_FUNCTIONS_BASE + '/verifyTableBillPaymen
 // DIRECTLY from the browser (coverBalance set client-side). Now the browser
 // POSTs the payment to verifyBookingCover, which fetches the charge from
 // Razorpay and creates the wallet with a SERVER-VERIFIED balance clamped to
-// the REAL captured amount (no value can be minted). FAIL-OPEN: on any non-OK
-// response or outage the client falls back to its original direct `covers`
-// write, so a function outage can never block a prepaid table booking.
+// the REAL captured amount (no value can be minted). Verification failures are
+// surfaced as pending activation; there is no browser money-write fallback.
 var VERIFY_BOOKING_COVER_URL      = HOD_FUNCTIONS_BASE + '/verifyBookingCover';
 // hodVerifyBookingCover — POST a captured Razorpay payment and let the server
 // create the prepaid table wallet. Resolves on a verified create; REJECTS on
-// any error so the caller can run its legacy direct write (fail-open).
+// any error so the caller can surface pending verification without minting value.
 function hodVerifyBookingCover(opts){
   try{
     if(!VERIFY_BOOKING_COVER_URL) return Promise.reject(new Error('no url'));
     if(!opts || !opts.paymentId || String(opts.paymentId).indexOf('pay_')!==0) return Promise.reject(new Error('not an online payment'));
-    // Hard timeout so a STALLED CF call ALWAYS rejects → caller runs its legacy
-    // write (a paying guest can never be left without a wallet by a hang).
+    // Hard timeout so a stalled verification becomes an explicit pending state.
     var ctrl=null, timer=null;
     try{ if(typeof AbortController!=='undefined'){ ctrl=new AbortController(); } }catch(_){}
     var p=new Promise(function(resolve,reject){
@@ -864,23 +889,19 @@ function hodPayAndCredit(opts){
   // Step 1 — ask the server for an order_id. createWalletOrder writes a
   // server-trusted {orderId → coverRef, amount, kind} ledger so the
   // verify endpoint won't trust ANY of the values we send back here.
-  fetch(CREATE_ORDER_URL, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
+  hodPublicEndpoint(WALLET_CREATE_RECHARGE_URL, {
       amount: amount, // INR (cloud function multiplies by 100)
-      coverRef: String(opts.coverRef),
+      ref: String(opts.coverRef),
+      secret: String(opts.walletSecret||''),
       kind: kind,
-      name: opts.name||'',
-      phone: opts.phone||''
-    })
-  }).then(function(r){ return r.json(); }).then(function(orderResp){
+    }).then(function(orderResp){
     if(!orderResp || !orderResp.orderId){
       throw new Error(orderResp && orderResp.error ? orderResp.error : 'Could not create order');
     }
     // Step 2 — open Razorpay with the order_id. Now the success callback
     // gets razorpay_signature too (it doesn't without an order_id).
     var rzOpts = {
-      key: RAZORPAY_KEY,
+      key: orderResp.keyId||RAZORPAY_KEY,
       order_id: orderResp.orderId,
       amount: amount*100, currency:'INR',
       name: 'HOD — House of Dopamine',
@@ -894,14 +915,11 @@ function hodPayAndCredit(opts){
         // (idempotent on paymentId). NOTE: we deliberately do NOT send
         // coverRef/amount here — the server reads them from its own
         // ledger using the order_id. This is what closes the fraud hole.
-        fetch(VERIFY_RECHARGE_URL, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({
+        hodPublicEndpoint(WALLET_VERIFY_RECHARGE_URL, {
             razorpay_order_id: resp.razorpay_order_id,
             razorpay_payment_id: resp.razorpay_payment_id,
             razorpay_signature: resp.razorpay_signature
-          })
-        }).then(function(r){ return r.json(); }).then(function(v){
+          }).then(function(v){
           if(v && v.ok){
             opts.onSuccess && opts.onSuccess(v.newBalance, resp.razorpay_payment_id);
           } else {
@@ -1321,7 +1339,7 @@ function _hodFlattenRounds(rounds){
 // ⚡ ZEPTOMAIL CLOUD FUNCTION URL (10,000 free emails/month)
 // Hosted in the separate `hod-tickets` Firebase project.
 // ══════════════════════════════════════════════════
-var CLOUD_FN_EMAIL_URL = "https://us-central1-hod-tickets.cloudfunctions.net/sendBookingEmail";
+var CLOUD_FN_EMAIL_URL = "https://asia-south1-hod-tickets.cloudfunctions.net/sendBookingEmailSecure";
 
 // ── ZeptoMail-only email sender. NO fallback (the old EmailJS path was
 // firing the wrong "Gmail" template to customers whenever ZeptoMail had
@@ -1339,10 +1357,10 @@ function _HOD_sendMail(params){
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify(params)
       }).then(function(r){
-        if(r.ok){console.log('✉️  via ZeptoMail'); resolve({ok:true, via:'zeptomail'});}
-        else { console.warn('✉️  ZeptoMail HTTP', r.status, '— email NOT sent (no fallback)'); resolve({ok:false, via:'zeptomail', status:r.status}); }
-      }).catch(function(e){console.warn('✉️  ZeptoMail network error:', e, '— email NOT sent (no fallback)'); resolve({ok:false, via:'zeptomail', error:e});});
-    }catch(e){console.warn('✉️  ZeptoMail threw:', e); resolve({ok:false, via:'zeptomail', error:e});}
+        if(r.ok){console.log('Booking email sent'); resolve({ok:true});}
+        else { console.warn('Booking email not sent'); resolve({ok:false}); }
+      }).catch(function(){console.warn('Booking email not sent'); resolve({ok:false});});
+    }catch(e){console.warn('Booking email not sent'); resolve({ok:false});}
   });
 }
 
@@ -1373,60 +1391,15 @@ console.log('✅ Email transport: ZeptoMail only (no EmailJS fallback)');
 function sendBookingEmail(booking, eventTitle, eventDate, eventTime, eventVenue, ev){
   try{
     if(!CLOUD_FN_EMAIL_URL) return;
-    // ── BUG FIX: Use event-specific prices, not hardcoded values
-    var stagPr=(ev&&ev.stagPrice)||999;
-    var couplePr=(ev&&ev.couplePrice)||1499;
-    var groupPr=(ev&&ev.groupPrice)||2999;
-    var perHead=(ev&&ev.groupPerHeadPrice)||500;
-    var t4Pr=(ev&&ev.table4Price)||5000;
-    var vipPr=(ev&&ev.vipPrice)||15000;
-    var entryOnlyPr=(ev&&ev.entryOnlyPrice)||599;
-    var entryLabels={
-      stag:'Stag Entry (₹'+stagPr+') · Cover Redeemable',
-      couple:'Couple Entry (₹'+couplePr+') · Cover Redeemable',
-      female:'Ladies Entry (FREE)',
-      group:'Group Entry — '+(booking.qty||1)+' People × ₹'+perHead+' · Cover Redeemable',
-      entryonly:'Door Entry (₹'+entryOnlyPr+') · NOT Redeemable on F&B',
-      guestlist_couple:'Guest List · Couple (FREE before 9PM)',
-      table4:'Table for 4 (₹'+t4Pr.toLocaleString('en-IN')+') · Cover Redeemable',
-      vip:'VVIP Table for 6 (₹'+vipPr.toLocaleString('en-IN')+') · Cover Redeemable'
-    };
-    var templateParams={
-      to_email:    booking.email,
-      to_name:     booking.name,
-      ref:         booking.ref,
-      event_title: eventTitle,
-      event_date:  eventDate,
-      event_time:  eventTime,
-      event_venue: eventVenue,
-      entry_type:  entryLabels[booking.tableType||booking.entryType||'stag'] || (booking.tableType||booking.entryType||'Booking'),
-      qty:         booking.qty,
-      total:       booking.total===0 ? 'FREE'
-                 : (booking.paymentId&&booking.paymentId.startsWith('cash_')) ? 'Pay at Venue — ₹'+booking.total.toLocaleString('en-IN')
-                 : '₹'+booking.total.toLocaleString('en-IN')+' Paid',
-      phone:       booking.phone,
-      club_name:   'HOD — House of Dopamine',
-      club_phone:  '+91 96864 44906',
-      club_address:'Koramangala 7th Block, Bengaluru',
-      wallet_link: 'https://hodclub.in/?wallet='+booking.ref+(booking.walletSecret?'&s='+encodeURIComponent(booking.walletSecret):''),
-      qr_url:      'https://hodclub.in/?verify='+booking.ref,
-    };
-    // 🆕 2026-07-05 (Khushi) — guest-list bookings get NO scanner QR / wallet in
-    // the email (entry logged by name at the door). no_wallet tells the CF to
-    // OMIT the QR + wallet button (empty strings alone fall back to defaults).
-    if(String(booking.entryType||'').indexOf('guestlist')===0 || String(booking.tableType||'').indexOf('guestlist')===0){
-      templateParams.no_wallet=true;
-      templateParams.wallet_link='';
-      templateParams.qr_url='';
-    }
+    var templateParams={bookingRef:booking.ref,walletSecret:booking.walletSecret};
     _HOD_sendMail(templateParams).then(function(res){
-      if(res.ok){console.log('✅ Booking confirmation sent to', booking.email, '·', res.via);}
+      if(res.ok){console.log('Booking confirmation sent');}
       else{
         // One retry after 2s in case of transient network blip
         setTimeout(function(){
           _HOD_sendMail(templateParams).then(function(r2){
-            if(r2.ok)console.log('✅ Sent on retry ·', r2.via);
-            else console.warn('❌ Email failed after retry');
+            if(r2.ok)console.log('Booking confirmation sent');
+            else console.warn('Booking email not sent');
           });
         }, 2000);
       }
@@ -1817,8 +1790,7 @@ function _hodOperationalNightStr(){
 //       multiple customers race, Firestore's per-doc write serialisation
 //       has time to absorb the conflict instead of returning errors that
 //       Firestore then re-broadcasts to every listener.
-//   (c) ADMIN GATE: only customers who open ?admin=… are allowed to write.
-//       Regular customers DO read events (they see correct stock counts
+//   (c) CUSTOMER SAFETY: regular customers DO read events (they see correct stock counts
 //       within seconds once admin writes), but they NEVER attempt to mutate
 //       the events collection. Customers shouldn't be writing reset rows
 //       in the first place — that was a 2026-05-13 oversight.
@@ -2070,10 +2042,24 @@ function saveEventToFirebase(ev, callback){
 
 // ── Firebase: Save booking
 function saveBookingToFirebase(booking, callback){
-  if(!firestore){var db=getDB();db.bookings.push(booking);saveDB(db);if(callback)callback();return;}
-  firestore.collection('bookings').doc(booking.id).set(booking)
-    .then(function(){if(callback)callback();})
-    .catch(function(e){console.error(e);var db=getDB();db.bookings.push(booking);saveDB(db);if(callback)callback();});
+  var p=hodPublicEndpoint(CREATE_PUBLIC_BOOKING_URL,{booking:booking});
+  p.then(function(result){
+    if(result.ref!==booking.ref)throw new Error('booking_reference_mismatch');
+    if(callback)callback(null,result);
+  }).catch(function(){if(callback)callback(new Error('booking_failed'));});
+  return p;
+}
+function hodShowBookingAfterServer(ref){
+  var p=S._bookingCreatePromise;
+  if(!p){showToast('Couldn\u2019t save this booking. Please try again.','err',6000);return;}
+  p.then(function(result){
+    if(!result||result.ref!==ref)throw new Error('booking_reference_mismatch');
+    var m=qs('booking-modal');if(m)m.scrollTop=0;
+    set({step:3,bref:result.ref});
+  }).catch(function(){
+    _bookingInProgress=false;
+    showToast('Couldn\u2019t save this booking. No duplicate was created; please try again.','err',8000);
+  });
 }
 
 // ── Firebase: Load bookings (admin only)
@@ -2096,33 +2082,9 @@ function ensureFirestoreReady(maxTries){
   });
 }
 function loadBookingsFromFirebase(callback){
-  // If firestore not ready, retry up to 5 times (500ms apart)
-  function attempt(tries){
-    if(!firestore){
-      initFirebase(); // try to init again
-      if(!firestore){
-        if(tries>0){
-          setTimeout(function(){attempt(tries-1);},500);
-        } else {
-          console.warn('Firebase not available — using localStorage');
-          callback(getDB().bookings);
-        }
-        return;
-      }
-    }
-    // 🔴 2026-05-24 COST FIX: was unbounded (thousands of docs every admin load).
-    // Limit to recent 200 — admin date-filters in UI; phone-lookup only needs recent.
-    firestore.collection('bookings').orderBy('bookedAt','desc').limit(200).get()
-      .then(function(snap){
-        var bks=[];snap.forEach(function(doc){bks.push(Object.assign({id:doc.id},doc.data()));});
-        callback(bks);
-      })
-      .catch(function(e){
-        console.warn('Firebase bookings fetch error:',e);
-        callback(getDB().bookings);
-      });
-  }
-  attempt(5);
+  // Retired customer-build admin helper. Raw inventory belongs in the
+  // authenticated POS; this public build never attempts the collection read.
+  callback(getDB().bookings);
 }
 
 // ── Firebase: Update event sold count
@@ -3753,28 +3715,13 @@ function renderStep1(ev){
       dupOverlay.appendChild(dupModal);document.body.appendChild(dupOverlay);
     }
 
-    if(firestore){
-      firestore.collection('bookings')
-        .where('eventId','==',ev.id).where('phone','==',phoneDigits).where('status','==','confirmed').get()
-        .then(function(snap){
-          if(snap&&!snap.empty){
-            var existing=snap.docs[0].data();
-            showDupWarning(existing.ref||'—', existing.entryType||existing.tableType||'stag');
-            return;
-          }
-          onSuccess(phoneDigits);
-        }).catch(function(){
-          var db2=getDB();
-          var already=db2.bookings.find(function(b){return b.eventId===ev.id&&(b.phone||'').replace(/\D/g,'').slice(-10)===phoneDigits.slice(-10)&&b.status==='confirmed';});
-          if(already){showDupWarning(already.ref||'—', already.entryType||already.tableType||'stag');return;}
-          onSuccess(phoneDigits);
-        });
-    } else {
-      var db3=getDB();
-      var already3=db3.bookings.find(function(b){return b.eventId===ev.id&&(b.phone||'').replace(/\D/g,'').slice(-10)===phoneDigits.slice(-10)&&b.status==='confirmed';});
-      if(already3){showDupWarning(already3.ref||'—', already3.entryType||already3.tableType||'stag');return;}
-      onSuccess(phoneDigits);
-    }
+    // Cross-customer booking records are never queried from the browser.
+    // Keep the same-device convenience warning; server idempotency protects
+    // retries without disclosing another booking reference.
+    var db3=getDB();
+    var already3=db3.bookings.find(function(b){return b.eventId===ev.id&&(b.phone||'').replace(/\D/g,'').slice(-10)===phoneDigits.slice(-10)&&b.status==='confirmed';});
+    if(already3){showDupWarning(already3.ref||'—', already3.entryType||already3.tableType||'stag');return;}
+    onSuccess(phoneDigits);
   }
 
   var btnRow=document.createElement('div');
@@ -3791,8 +3738,7 @@ function renderStep1(ev){
         directPayBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:16px;height:16px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span>';
         setTimeout(function(){
           var ref=saveBooking('free_'+Date.now().toString(36));
-          var m=qs('booking-modal');if(m)m.scrollTop=0;
-          set({step:3,bref:ref});
+          hodShowBookingAfterServer(ref);
         },900);
       });
     };
@@ -3825,8 +3771,7 @@ function renderStep1(ev){
           directPayBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:16px;height:16px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span> Confirming…';
           setTimeout(function(){
             var ref=saveBooking('free_'+Date.now().toString(36));
-            var m=qs('booking-modal');if(m)m.scrollTop=0;
-            set({step:3,bref:ref});
+            hodShowBookingAfterServer(ref);
           },900);
           return;
         }
@@ -3856,8 +3801,7 @@ function renderStep1(ev){
             },
             handler:function(response){
               var ref=saveBooking(response.razorpay_payment_id);
-              var m=qs('booking-modal');if(m)m.scrollTop=0;
-              set({step:3,bref:ref});
+               hodShowBookingAfterServer(ref);
             },
             prefill:{name:d.name,email:d.email,contact:d.phone},
             theme:{color:'#FF90E8'},
@@ -3892,8 +3836,7 @@ function renderStep1(ev){
           directPayBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:16px;height:16px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span>';
           setTimeout(function(){
             var ref=saveBooking('demo_'+Date.now().toString(36));
-            var m=qs('booking-modal');if(m)m.scrollTop=0;
-            set({step:3,bref:ref});
+             hodShowBookingAfterServer(ref);
           },1500);
         }
       });
@@ -3915,9 +3858,8 @@ function renderStep1(ev){
         d.finalTotal=rawTotal; // full amount due at door
         setTimeout(function(){
           var ref=saveBooking('cash_pending_'+Date.now().toString(36));
-          var m=qs('booking-modal');if(m)m.scrollTop=0;
           S._isCashBooking=true;
-          set({step:3,bref:ref});
+           hodShowBookingAfterServer(ref);
         },900);
       });
     };
@@ -3975,8 +3917,7 @@ function renderStep2(ev){
       payBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:17px;height:17px;animation:spin .6s linear infinite;display:inline-block"></span> Confirming…';
       setTimeout(function(){
         var ref=saveBooking('free_entry_'+Date.now().toString(36));
-        var m=qs('booking-modal');if(m)m.scrollTop=0;
-        set({step:3,bref:ref});
+        hodShowBookingAfterServer(ref);
       },1000);
       return;
     }
@@ -4002,8 +3943,7 @@ function renderStep2(ev){
         },
         handler: function(response){
           var ref=saveBooking(response.razorpay_payment_id);
-          var m=qs('booking-modal');if(m)m.scrollTop=0;
-          set({step:3,bref:ref});
+          hodShowBookingAfterServer(ref);
         },
         prefill:{name:bd.name, email:bd.email, contact:bd.phone},
         theme:{color:'#FF90E8'},
@@ -4036,8 +3976,7 @@ function renderStep2(ev){
       payBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:17px;height:17px;animation:spin .6s linear infinite;display:inline-block"></span> Processing demo…';
       setTimeout(function(){
         var ref=saveBooking('demo_'+Date.now().toString(36));
-        var m=qs('booking-modal');if(m)m.scrollTop=0;
-        set({step:3,bref:ref});
+        hodShowBookingAfterServer(ref);
       },1800);
     }
   };
@@ -4072,36 +4011,13 @@ function joinGuestList(evId, name, phone, type, callback, email){
     // localStorage dedup
     var localDup=d.guestlist.find(function(g){return g.eventId===evId&&(g.phone||'').slice(-10)===cleanPhone;});
     if(localDup){if(callback)callback(false,'already');return;}
-    d.guestlist.push(entry);saveDB(d);
-    if(callback)callback(true, glRef);
-    if(firestore){
-      // Use ref as doc ID so scanner can find it
-      firestore.collection('guestlist').doc(glRef).set(entry)
-        .then(function(){
+    hodPublicEndpoint(CREATE_GUESTLIST_URL,entry)
+        .then(function(result){
+          d.guestlist.push(entry);saveDB(d);
+          if(callback)callback(true,result.ref);
           // Send confirmation email with QR
           if(email){
-            var ev3=(S._cachedEvents||[]).find(function(e){return e.id===evId;})||(getDB().events||[]).find(function(e){return e.id===evId;});
-            _HOD_sendMail({
-              to_email:email,to_name:name,
-              ref:glRef,
-              event_title:ev3?ev3.title:'HOD Event',
-              event_date:ev3?(typeof fmtDate==='function'?fmtDate(ev3.date):ev3.date):'',
-              event_time:ev3?(ev3.time+(ev3.endTime?' – '+ev3.endTime:'')):'8:00 PM',
-              event_venue:ev3?ev3.venue:'HOD Ground Floor — Koramangala, 7th Block',
-              entry_type:'Guest List — '+(type==='couple'?'Couple':type==='ladies'?'Ladies':'Stag'),
-              qty:'1',
-              total:'FREE entry before 9 PM',
-              phone:cleanPhone,
-              club_name:'HOD — House of Dopamine',
-              club_phone:'+91 96864 44906',
-              club_address:'Koramangala 7th Block, Bengaluru',
-              // 🆕 2026-07-05 (Khushi) — guest list = NO scanner QR / wallet in
-              // the email. no_wallet tells the CF to OMIT the QR + wallet button
-              // (empty strings alone fall back to defaults in the CF).
-              no_wallet:true,
-              wallet_link:'',
-              qr_url:''
-            });
+            _HOD_sendMail({bookingRef:result.ref,walletSecret:result.walletSecret});
           }
           // 🚫 2026-07-06 (Khushi) — NO WhatsApp for guest-list signups
           // (entry-log-only policy; she tested a live GL booking and still
@@ -4109,23 +4025,10 @@ function joinGuestList(evId, name, phone, type, callback, email){
           // that lived here is REMOVED — email (QR-free, no_wallet:true)
           // is the only confirmation. Paid/table/entry WhatsApp unchanged.
         })
-        .catch(function(e){console.warn('GL Firebase sync failed:',e);});
-    }
+        .catch(function(e){if(callback)callback(false,e&&e.status===409?'already':'failed');});
   }
 
-  if(firestore){
-    firestore.collection('guestlist')
-      .where('eventId','==',evId)
-      .where('phone','==',cleanPhone)
-      .get()
-      .then(function(snap){
-        if(snap&&!snap.empty){if(callback)callback(false,'already');return;}
-        doSaveGL();
-      })
-      .catch(function(){doSaveGL();});
-  } else {
-    doSaveGL();
-  }
+  doSaveGL();
 }
 
 function loadGuestList(evId, callback){
@@ -4134,25 +4037,7 @@ function loadGuestList(evId, callback){
   var local=(d.guestlist||[]).filter(function(g){return g.eventId===evId;});
   callback(local);
 
-  // Then try Firebase for any entries from other devices
-  if(firestore){
-    firestore.collection('guestlist').where('eventId','==',evId).get()
-      .then(function(snap){
-        var fbList=[];snap.forEach(function(doc){fbList.push(Object.assign({id:doc.id},doc.data()));});
-        // Merge: Firebase is source of truth, then add any local-only entries
-        var merged=fbList.slice();
-        local.forEach(function(l){
-          var exists=merged.some(function(f){return f.id===l.id||f.phone===l.phone;});
-          if(!exists)merged.push(l);
-        });
-        // Always update localStorage and re-render with Firebase data
-        var d2=getDB();
-        var otherEvents=(d2.guestlist||[]).filter(function(g){return g.eventId!==evId;});
-        d2.guestlist=otherEvents.concat(merged);saveDB(d2);
-        callback(merged);
-      })
-      .catch(function(){/* Firebase failed, localStorage already returned */});
-  }
+  // Cross-device guest-list inventory is staff-only in the POS.
 }
 
 // 🔴 2026-05-21 (Khushi) — easy-to-read category-prefixed refs. 6 digits so
@@ -4254,7 +4139,7 @@ function saveBooking(paymentId){
     suspiciousReason:isSuspicious===true?suspiciousReason:'',
     walletSecret:walletSecret
   };
-  saveBookingToFirebase(booking, null);
+  S._bookingCreatePromise=saveBookingToFirebase(booking, null);
   // 🆕 2026-05-27 v3.42 (Khushi) — TABLE BOOKING auto-create + pre-credit wallet.
   // Before: customer paid ₹5,000 / ₹15,000 for a table on the booking widget,
   // but the covers doc was never created — so when they opened the wallet QR,
@@ -4294,17 +4179,10 @@ function saveBooking(paymentId){
       paymentStatus:'paid',
       createdAt: new Date().toISOString()
     };
-    // 🆕 v3.297 (Phase 4) — LEGACY direct write, now the FAIL-OPEN fallback only.
-    var _hodLegacyCoverWrite = function(){
-      try{
-        firestore.collection('covers').doc(ref).set(_hodCoverDoc,{merge:true})
-          .catch(function(err){ try{ console.warn('[v3.42] table covers pre-credit failed', err && err.message); }catch(_){} });
-      }catch(_e){ try{ console.warn('[v3.42] table covers write threw', _e); }catch(_){} }
-    };
     // 🆕 v3.297 (Phase 4) — move the coverBalance write SERVER-SIDE. The server
     // fetches the Razorpay charge and clamps the wallet to the REAL captured
     // amount (the redeemable balance is the TABLE price only — coverAmount).
-    // On ANY failure we fall back to the legacy client write (zero regression).
+    // Fail closed: a verification outage never falls back to a browser balance write.
     hodVerifyBookingCover({
       paymentId: paymentId, coverRef: ref, coverAmount: tableTotal, kind:'table_prepay',
       name:booking.name, phone:booking.phone, email:booking.email||'',
@@ -4313,7 +4191,7 @@ function saveBooking(paymentId){
       date: ev.date||'', arrivalTime: (ev.time||''),
       floorLabel: 'GROUND FLOOR', tableTier: booking.tableType
     }).then(function(){ /* wallet created + verified server-side */ })
-      .catch(function(err){ try{ console.warn('[v3.297] booking cover server verify failed → legacy write', err && err.message); }catch(_){} _hodLegacyCoverWrite(); });
+      .catch(function(){ showToast('Payment received. Wallet activation is pending verification; show your payment reference at the entrance.','err',8000); });
   }
   // 🆕 2026-05-27 v3.44 (Khushi LIVE-NIGHT) — TABLE BOOKING also writes a
   // tableReservations doc so it appears in DoorMode → TABLES tab. Before
@@ -4327,26 +4205,8 @@ function saveBooking(paymentId){
   // exists (bookings + covers) and is findable via the global search; door
   // staff can manually-create a tableReservations doc via the existing
   // walk-in flow. Zero regression for non-table bookings.
-  if(firestore && booking.tableType && (booking.tableType==='table4' || booking.tableType==='vip')){
-    try{
-      firestore.collection('tableReservations').doc(ref).set({
-        tableId:'', floor:'ground', floorLabel:'GROUND FLOOR',
-        date: ev.date||'',
-        customerName: booking.name, phone: (booking.phone||'').toString().replace(/\D/g,'').slice(-10),
-        email: booking.email||'',
-        partySize: (booking.tableType==='vip' ? 6 : 4),
-        arrivalTime: (ev.time||''),
-        status:'confirmed', bookedAt: new Date().toISOString(),
-        bookingRef: ref, isVip: (booking.tableType==='vip'),
-        eventId: ev.id||'', eventTitle: ev.title||'',
-        source:'inhouse', tableTier: booking.tableType,
-        hasLinkedCover: _tablePaid, linkedCoverRef: _tablePaid ? ref : '',
-        paymentStatus: _tablePaid ? 'paid' : 'pending',
-        amountDue: _tablePaid ? 0 : tableTotal,
-        tabRounds:[], tabTotal:0
-      },{merge:true}).catch(function(err){ try{ console.warn('[v3.44] tableReservations write failed', err && err.message); }catch(_){} });
-    }catch(_e){ try{ console.warn('[v3.44] tableReservations write threw', _e); }catch(_){} }
-  }
+  // The createPublicBooking transaction creates the linked unassigned
+  // tableReservations row for HODTAB bookings. No browser fallback is allowed.
   // 🔴 2026-05-21 (Khushi LIVE-BUG REVERT) — entry-only passes must NOT auto-
   // unlock the menu/wallet UI when the customer opens the wallet link before
   // door check-in. Removed the previous 2026-05-16 block that pre-minted a ₹0
@@ -4816,11 +4676,11 @@ function renderMyBookings(){
     var nb=(bookings||[]).map(function(b){return{
       ref:b.bookingRef||b.ref||b.id,name:b.name||b.customerName||'',phone:b.phone||'',email:b.email||'',
       date:b.date||'',time:b.time||'',eventTitle:b.title||b.eventTitle||'HOD Event',entryType:b.entryType||'ticket',
-      total:b.total||b.amount||0,checkedIn:!!(b.checkedIn||b.usedAt),paymentId:b.paymentId||'',bookedAt:b.bookedAt||b.createdAt||''};});
+      total:b.total||b.amount||0,checkedIn:!!(b.checkedIn||b.usedAt),paymentId:b.paymentId||'',walletSecret:b.walletSecret||'',bookedAt:b.bookedAt||b.createdAt||''};});
     var nt=(tables||[]).map(function(t){return{
       ref:t.bookingRef||t.ref||t.id,name:t.customerName||t.name||'',phone:t.phone||t.customerPhone||'',email:t.email||'',
       date:t.date||'',time:t.arrivalTime||'',eventTitle:'🪑 '+(t.tableId||'')+(t.floorLabel?' · '+t.floorLabel:''),entryType:'table',
-      total:0,checkedIn:!!t.actualArrivalTime,paymentId:t.paymentId||'',bookedAt:t.bookedAt||t.createdAt||''};});
+      total:0,checkedIn:!!t.actualArrivalTime,paymentId:t.paymentId||'',walletSecret:t.walletSecret||'',bookedAt:t.bookedAt||t.createdAt||''};});
     var ng=(guestlist||[]).map(function(g){return{
       ref:g.ref||g.id,name:g.name||'',phone:g.phone||'',email:g.email||'',
       date:g.date||'',time:g.time||'',eventTitle:'📋 Guest List — '+(g.eventTitle||g.title||'HOD Event'),entryType:g.type||'guest',
@@ -4992,8 +4852,8 @@ function renderMyBookings(){
               +'<div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#3D3D3D;text-transform:uppercase;">Show at Entrance</div>'
               +'</div>');
         resultsDiv.appendChild(card2);
-        if(!_mbIsGL)generateLocalQR('qr-'+sanitize(b.ref||'x'),'https://hodclub.in?verify='+b.ref);
-        var walletWrap=renderCustomerWallet(b.ref||'');
+        if(!_mbIsGL)generateLocalQR('qr-'+sanitize(b.ref||'x'),'https://hodclub.in?verify='+b.ref+(b.walletSecret?'&s='+encodeURIComponent(b.walletSecret):''));
+        var walletWrap=renderCustomerWallet(b.ref||'',b.walletSecret||'');
         card2.appendChild(walletWrap);
       }
 
@@ -5310,9 +5170,13 @@ function renderPrivacy(){
       S.view='wallet';S._walletRef=decodeURIComponent(params.get('wallet'));
     }
     else if(params.get('topup')){
-      S.view='topup';
-      S._topupBookingId=params.get('topup');
-      S._topupDiff=parseInt(params.get('diff'))||0;
+      if(params.get('s')){
+        S.view='topup';S._topupBookingId=decodeURIComponent(params.get('topup'));
+        S._topupDiff=parseInt(params.get('diff'))||0;
+      }else{
+        // No-secret top-up links can view only the bounded legacy projection.
+        S.view='wallet';S._walletRef=decodeURIComponent(params.get('topup'));
+      }
     }
     else if(params.get('verify')){
       // Customer scanned their own ticket QR — show their wallet
@@ -5447,22 +5311,6 @@ function startSocialProofListener(){
   // attaches. If you NEED social-proof toasts again, port the logic to
   // the same poll + visibilitychange pattern as posMenuOverrides above.
   return;
-  // eslint-disable-next-line no-unreachable
-  // (original body preserved below for future port reference)
-  if(!firestore)return;
-  // Clean up existing listener to prevent duplicates
-  if(S._socialUnsub){try{S._socialUnsub();}catch(e){}}
-  var unsub=firestore.collection('bookings').orderBy('bookedAt','desc').limit(1)
-    .onSnapshot(function(snap){
-      if(!snap.docChanges)return;
-      snap.docChanges().forEach(function(ch){
-        if(ch.type==='added'){
-          var b=ch.doc.data();
-          if(Date.now()-new Date(b.bookedAt||0).getTime()<30000)showSocialProofToast(b,b.eventTitle||'HOD');
-        }
-      });
-    },function(){});
-  S._socialUnsub=unsub;
 }
 
 // ── PROMO CODE ENGINE
@@ -5475,43 +5323,17 @@ function applyPromoCode(code,eventId){
   if(c.expiresAt&&new Date(c.expiresAt)<new Date())return{valid:false,error:'Code has expired'};
   if(c.eventId&&c.eventId!==eventId)return{valid:false,error:'Code is for a different event'};
   if(c.maxUses>0&&(c.usedCount||0)>=c.maxUses)return{valid:false,error:'Code usage limit reached'};
-  var db=getDB();var idx=db.promoCodes?db.promoCodes.findIndex(function(p){return p.code===c.code;}): -1;
-  if(idx>=0){db.promoCodes[idx].usedCount=(db.promoCodes[idx].usedCount||0)+1;saveDB(db);}
-  // ── MEDIUM FIX #6: Use Firebase transaction for atomic check + increment
-  // Prevents race condition where two users apply same limited code simultaneously
-  if(firestore&&c.maxUses>0){
-    var promoRef=firestore.collection('promoCodes').doc(c.id||c.code);
-    firestore.runTransaction(function(tx){
-      return tx.get(promoRef).then(function(doc){
-        if(!doc.exists)throw new Error('Promo code not found');
-        var currentUsed=doc.data().usedCount||0;
-        var maxUses=doc.data().maxUses||0;
-        if(maxUses>0&&currentUsed>=maxUses)throw new Error('Code usage limit reached');
-        tx.update(promoRef,{usedCount:currentUsed+1});
-      });
-    }).catch(function(e){
-      // If limit reached in transaction, show error to user
-      if(e.message&&e.message.includes('limit reached')){
-        showToast('Promo code "'+code+'" usage limit has been reached','err',4000);
-      }
-    });
-  } else if(firestore){
-    // No maxUses limit — safe to just increment
-    firestore.collection('promoCodes').doc(c.id||c.code).update({
-      usedCount:firebase.firestore.FieldValue.increment(1)
-    }).catch(function(){
-      firestore.collection('promoCodes').doc(c.id||c.code).update({usedCount:(c.usedCount||0)+1}).catch(function(){});
-    });
-  }
+  // Usage is claimed atomically by createPublicBooking after payment/booking
+  // validation. Merely typing a code never consumes it from the browser.
   return{valid:true,discount:c.discount,type:c.type,label:(c.type==='pct'?c.discount+'%':'₹'+c.discount)+' off'};
 }
 function joinWaitlist(evId,name,phone,email,cb){
   var entry={id:'wl_'+Date.now().toString(36),eventId:evId,name:sanitize(name),phone:sanitize(phone),email:sanitize(email||''),joinedAt:new Date().toISOString(),notified:false};
   var db=getDB();if(!db.waitlist)db.waitlist=[];
   if(db.waitlist.find(function(w){return w.eventId===evId&&w.phone.replace(/\D/g,'').slice(-10)===phone.replace(/\D/g,'').slice(-10);})){if(cb)cb(false,'already');return;}
-  db.waitlist.push(entry);saveDB(db);
-  if(firestore)firestore.collection('waitlist').doc(entry.id).set(entry).catch(function(){});
-  if(cb)cb(true,entry);
+  hodPublicEndpoint(CREATE_WAITLIST_URL,entry).then(function(result){
+    entry.id=result.id;db.waitlist.push(entry);saveDB(db);if(cb)cb(true,entry);
+  }).catch(function(e){if(cb)cb(false,e&&e.status===409?'already':'failed');});
 }
 function renderWaitlistWidget(ev){
   var wrap=document.createElement('div');wrap.className='waitlist-wrap';
@@ -6179,9 +6001,9 @@ function renderTableFloorPlan(){
       var _cur=arrivalI.value;
       arrivalI._setOptions(opts);
       if(_cur!=='' && !opts.some(function(o){return o.value===_cur && !o.disabled;})) arrivalI._setValue('',true);
-      if(!firestore||!formDate)return;
-      firestore.collection('tableReservations').where('date','==',formDate).where('tableId','==',table.id).get().then(function(snap){
-        var slots=[];snap.forEach(function(d){var dat=d.data();if(dat.status!=='cancelled')slots.push(dat);});
+      if(!formDate)return;
+      hodPublicEndpoint(TABLE_AVAILABILITY_URL,{date:formDate,floor:activeFloor}).then(function(result){
+        var slots=(result.occupied||[]).filter(function(dat){return dat.tableId===table.id;});
         if(!slots.length)return;
         var opts2=opts.map(function(o){
           if(!o.value)return o;
@@ -6337,22 +6159,15 @@ function renderTableFloorPlan(){
       confBtn.disabled=true;confBtn.textContent='Reserving…';
       if(!firestore){errD.textContent='Firebase not connected.';errD.style.display='block';confBtn.disabled=false;confBtn.textContent='Reserve '+table.id;return;}
       var today=bookDate;
-      var bRef='TBL-'+Math.random().toString(36).substr(2,5).toUpperCase();
       var _tblWalletSecret=(function(){try{var a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(e){return Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);}})();
-      // Multi-slot: pre-check cross-slot conflicts (2-hr gap), then transactionally claim the exact slot doc
-      firestore.collection('tableReservations').where('date','==',today).where('tableId','==',table.id).get().then(function(snap){
-        var conflict=null;
-        snap.forEach(function(d){var dat=d.data();if(dat.status!=='cancelled'&&_slotsConflict(dat.arrivalTime,arrival)){conflict=dat;}});
-        if(conflict)throw new Error('Conflicts with '+conflict.arrivalTime+' booking on this table (2-hour gap required). Pick another time.');
-        var slotKey=today+'_'+table.id+'_'+_t2hhmm(arrival);
-        return firestore.runTransaction(function(tx){
-          var ref=firestore.collection('tableReservations').doc(slotKey);
-          return tx.get(ref).then(function(doc){
-            if(doc.exists&&doc.data().status==='booked')throw new Error('Just got booked! Choose another time.');
-            tx.set(ref,{tableId:table.id,floor:activeFloor,floorLabel:_HOD_TABLES[activeFloor].label,seats:table.seats,date:today,customerName:name,phone:phone,email:email||'',partySize:ps,arrivalTime:arrival,status:'booked',bookedAt:new Date().toISOString(),bookingRef:bRef,isVip:!!table.vip,eventId:ev?ev.id:'',eventTitle:ev?ev.title:'',source:'inhouse',coverCharge:_coverAmt||0,paymentStatus:_paidOnline?'paid':(_isCash?'pending':'na'),paymentId:_payId||'',amountDue:_paidOnline?0:(_coverAmt||0),hasLinkedCover:_paidOnline,linkedCoverRef:_paidOnline?bRef:''});
-            return bRef;
-          });
-        });
+      // A retry reuses this key, so a lost response cannot create a duplicate.
+      var _idem=(function(){try{var a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(e){return Date.now().toString(36)+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);}})();
+      hodPublicEndpoint(CREATE_TABLE_RESERVATION_URL,{
+        tableId:table.id,floor:activeFloor,date:today,name:name,phone:phone,email:email||'',
+        partySize:ps,arrivalTime:arrival,idempotencyKey:_idem
+      }).then(function(created){
+        _tblWalletSecret=created.walletSecret;
+        return created.ref;
       }).then(function(ref2){
         // Create covers doc so wallet link works
         if(firestore){
@@ -6365,28 +6180,12 @@ function renderTableFloorPlan(){
           // automatically created with 5000 rs for a normal table"). HODTAB
           // (event-prepaid Table-for-4 / VVIP-Table-for-6) flow at ~3570 is
           // a SEPARATE path and DID involve money — it keeps its pre-credit.
-          // Here we create a ₹0 cover doc only so the wallet link resolves
-          // and the door modal can pre-fill guest details; the door girl is
-          // the only one who can put money into this wallet (manual ACTIVATE
-          // COVER step). Fail-open: cover-doc write is fire-and-forget.
-          var _fpCoverDoc = {
-            ref:ref2,bookingId:ref2,name:name,phone:phone,email:email,
-            coverBalance:_paidOnline?_coverAmt:0,coverActivated:_paidOnline?_coverAmt:0,coverUsed:0,
-            transactions:_paidOnline?[{type:'table_prepay',amount:_coverAmt,paymentId:_payId||'',at:new Date().toISOString()}]:[],
-            eventTitle:ev?ev.title:'',
-            tableId:table.id,floor:activeFloor,floorLabel:_HOD_TABLES[activeFloor].label,
-            date:today,arrivalTime:arrival,partySize:ps,
-            coverCharge:_coverAmt||0,paymentStatus:_paidOnline?'paid':(_isCash?'pending':'na'),paymentId:_payId||'',
-            isTableBooking:true,tablePrePaid:_paidOnline,createdAt:new Date().toISOString(),
-            walletSecret:_tblWalletSecret
-          };
-          var _fpLegacyCoverWrite=function(){ try{ firestore.collection('covers').doc(ref2).set(_fpCoverDoc).catch(function(){}); }catch(_){} };
+          // createTableReservation already created the ₹0 wallet stub. Only
+          // a captured online payment may upgrade it with redeemable value.
           // 🆕 v3.297 (Phase 4) — when PAID ONLINE this is a money-write, so move
           // the coverBalance server-side: verifyBookingCover fetches the Razorpay
           // charge and clamps the wallet to the REAL captured amount (no mint).
-          // FAIL-OPEN to the legacy client write on any error (zero regression).
-          // FREE / cash-pending bookings stay a ₹0 client stub exactly as today
-          // (no money is written — the door girl funds it manually on arrival).
+          // FREE / cash-pending bookings keep the server-created ₹0 stub.
           if(_paidOnline){
             hodVerifyBookingCover({
               paymentId:_payId, coverRef:ref2, coverAmount:_coverAmt, kind:'table_prepay',
@@ -6394,10 +6193,8 @@ function renderTableFloorPlan(){
               eventTitle:ev?ev.title:'', eventId:ev?ev.id:'',
               tableId:table.id, floor:activeFloor, floorLabel:_HOD_TABLES[activeFloor].label,
               date:today, arrivalTime:arrival, partySize:ps
-            }).then(function(){ /* wallet created + verified server-side */ })
-              .catch(function(err){ try{ console.warn('[v3.297] floor-picker cover server verify failed → legacy write', err && err.message); }catch(_){} _fpLegacyCoverWrite(); });
-          } else {
-            _fpLegacyCoverWrite();
+            }).then(function(){ /* wallet upgraded + verified server-side */ })
+              .catch(function(){ showToast('Payment received. Wallet activation is pending verification; show your payment reference at the entrance.','err',8000); });
           }
         }
         return ref2;
@@ -6418,20 +6215,7 @@ function renderTableFloorPlan(){
         // Wrapped so a notify error can never break the confirm screen either.
         try {
           if(email){
-            _HOD_sendMail({
-              to_email:email,to_name:name,ref:ref2,
-              event_title:table.id+' · '+_HOD_TABLES[activeFloor].label,
-              event_date:bookDate,event_time:'Arrival: '+arrival,
-              event_venue:'HOD '+_HOD_TABLES[activeFloor].label+' — Koramangala, 7th Block',
-              entry_type:'Table · '+table.id+' · '+_HOD_TABLES[activeFloor].label,
-              qty:ps+' guest'+(ps>1?'s':''),
-              total:(_coverAmt>0?(_paidOnline?('Paid ₹'+_coverAmt.toLocaleString('en-IN')+' (redeemable)'):('Pay ₹'+_coverAmt.toLocaleString('en-IN')+' at venue')):'Pay at venue'),phone:phone,
-              club_name:'HOD — House of Dopamine',
-              club_phone:'+91 96864 44906',
-              club_address:'Koramangala 7th Block, Bengaluru',
-              wallet_link:'https://hodclub.in/?wallet='+ref2+'&s='+encodeURIComponent(_tblWalletSecret),
-              qr_url:'https://hodclub.in/?verify='+ref2
-            });
+            _HOD_sendMail({bookingRef:ref2,walletSecret:_tblWalletSecret});
           }
         } catch (_tblMailErr) { console.warn('[HOD] table email send failed', _tblMailErr); }
         // approved `table_confirmed` template. Params:
@@ -6478,7 +6262,7 @@ function renderTableFloorPlan(){
         conf.appendChild(qrWrapT);
         var qrLbl=document.createElement('div');qrLbl.style.cssText='font-size:10px;color:#3D3D3D;margin-bottom:16px;';qrLbl.textContent='Show QR to your waiter to order';
         conf.appendChild(qrLbl);
-        setTimeout(function(){generateLocalQR('tbl-conf-qr-'+ref2,'https://hodclub.in/?wallet='+ref2);},200);
+        setTimeout(function(){generateLocalQR('tbl-conf-qr-'+ref2,'https://hodclub.in/?wallet='+ref2+'&s='+encodeURIComponent(_tblWalletSecret));},200);
         var doneBtn=document.createElement('button');
         doneBtn.style.cssText='width:100%;padding:14px;border-radius:12px;background:#FF90E8;border:2px solid #000;color:#000;font-weight:800;font-size:14px;cursor:pointer;font-family:var(--ff);';
         // (Customer notify — email + WhatsApp — already fired at the TOP of this
@@ -6585,12 +6369,9 @@ function renderTableFloorPlan(){
   var _unsubBks=null,_pollBksTimer=null,_pollBksVis=null;
   function _readBksOnce(){
     var selDate=S._tableDate||new Date().toISOString().split('T')[0];
-    if(!firestore){bks={};S._tableBks={};renderFloor({});return;}
-    firestore.collection('tableReservations').where('date','==',selDate).where('floor','==',activeFloor)
-      .get().then(function(snap){
+    hodPublicEndpoint(TABLE_AVAILABILITY_URL,{date:selDate,floor:activeFloor}).then(function(result){
         bks={};
-        snap.forEach(function(d){
-          var dat=d.data();dat._docId=d.id;
+        (result.occupied||[]).forEach(function(dat){
           if(!bks[dat.tableId])bks[dat.tableId]=[];
           bks[dat.tableId].push(dat);
         });
@@ -6721,21 +6502,20 @@ function _showTableModal(table, floorKey){
       bookedAt:new Date().toISOString()
     };
 
-    if(firestore){
-      firestore.collection('tableBookings').add(bookingData)
-        .then(function(){
+    var _eventTableKey='eventtbl_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,14);
+    hodPublicEndpoint(CREATE_TABLE_RESERVATION_URL,{
+      floor:floorKey,tableId:table.id,date:selEv.date,arrivalTime:time,
+      phone:phone,name:name,email:'',partySize:parseInt(size),idempotencyKey:_eventTableKey
+    }).then(function(result){
+          bookingData.ref=result.ref;
+          bookingData.walletSecret=result.walletSecret;
           localStorage.setItem('hod_user_phone',phone);
           overlay.remove();
           _showTableConfirm(bookingData,table);
-        })
-        .catch(function(e){
+        }).catch(function(e){
           btn.textContent='CONFIRM RESERVATION';btn.disabled=false;
-          errDiv.textContent='Booking failed: '+e.message;errDiv.style.display='block';
+          errDiv.textContent=e&&e.status===409?'That time was just booked. Choose another slot.':'Booking failed. Please retry.';errDiv.style.display='block';
         });
-    } else {
-      overlay.remove();
-      _showTableConfirm(bookingData,table);
-    }
   };
 }
 
@@ -6790,7 +6570,7 @@ function _loadWalletJs(cb){
   if(window._HOD_WALLET_LOADING)return;
   window._HOD_WALLET_LOADING=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.420';
+  s.src='wallet.js?v=v3.422';
   s.onload=function(){
     window._HOD_WALLET_LOADED=true;
     window._HOD_WALLET_LOADING=false;
@@ -6893,9 +6673,9 @@ function _openExistingTicketOverlay(ref){
     }catch(e){ clearTimeout(_wd);_fallback(); }
   });
 }
-function renderCustomerWallet(bookingRef){
+function renderCustomerWallet(bookingRef,walletSecret){
   if(typeof window._renderCustomerWallet==='function'){
-    return window._renderCustomerWallet(bookingRef);
+    return window._renderCustomerWallet(bookingRef,walletSecret);
   }
   _loadWalletJs(function(){
     // Re-render My Bookings page so the real wallet view appears. My Bookings is
@@ -7120,11 +6900,15 @@ function renderHodFeedbackForm(container, total){
       submitBtn.style.display='none';
     }
     try{
-      if(window.firebase && window.firebase.firestore){
-        window.firebase.firestore().collection('customerFeedback').add(payload)
-          .then(done).catch(function(){ done(); });
-      }else{ done(); }
-    }catch(e){ done(); }
+      hodPublicEndpoint(CREATE_WALLET_FEEDBACK_URL,{
+        ref:bookingRef,secret:window.__HOD_WALLET_SECRET||'',ratings:ratings,
+        comment:payload.comment,
+        idempotencyKey:'feedback_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)
+      }).then(done).catch(function(){
+        submitBtn.disabled=false;submitBtn.textContent='SUBMIT FEEDBACK';submitBtn.style.opacity='1';
+        if(typeof showToast==='function')showToast('Could not send feedback. Please retry.','err',3500);
+      });
+    }catch(e){submitBtn.disabled=false;submitBtn.textContent='SUBMIT FEEDBACK';submitBtn.style.opacity='1';}
   };
 }
 
