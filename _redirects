@@ -1,4 +1,9 @@
 # ── HOD fast wallet routing (Netlify) ──────────────────────────────────────
+# Retire legacy/private browser surfaces. Keep the files in the release archive
+# for repository history, but never serve their unauthenticated Firestore clients.
+/index.legacy.html   /   301!
+/scanner.html       /   301!
+
 # Serve the lean standalone wallet.html for wallet deep-links WITHOUT touching
 # any of the ~18 hardcoded `https://hodclub.in/?wallet=` / `?verify=` builders
 # scattered across the customer site, POS, and Cloud Functions.
