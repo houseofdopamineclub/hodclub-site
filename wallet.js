@@ -3047,12 +3047,25 @@ function renderWalletPage(bookingRef){
   if(bookingRef&&typeof hodPublicEndpoint==='function'&&typeof WALLET_PROJECTION_URL==='string'
       &&(_walletParams.has('wallet')||_walletParams.has('verify')||_walletParams.has('topup'))){
     var _walletProjectionBusy=false;
+    var _walletProjectionFingerprint='';
+    var _walletProjectionHasPainted=false;
+    var _walletProjectionFailures=0;
     var _loadWalletProjection=function(){
       if(_walletProjectionBusy||document.hidden)return;
       _walletProjectionBusy=true;
       hodPublicEndpoint(WALLET_PROJECTION_URL,{ref:bookingRef,secret:_walletGateSecret}).then(function(result){
         if(result&&result.wallet){
           var pw=result.wallet;
+          var _nextWalletFingerprint='';
+          try{_nextWalletFingerprint=JSON.stringify([!!result.legacy,pw]);}catch(_walletFingerprintErr){}
+          // The secure projection refreshes in the background so balances and
+          // activation stay current. Do not destroy/recreate an unchanged QR
+          // and ticket every 15 seconds — that visible flash looked like the
+          // scanner had expired even though its value had not changed.
+          if(_nextWalletFingerprint&&_nextWalletFingerprint===_walletProjectionFingerprint){
+            _walletProjectionFailures=0;
+            return;
+          }
           if(pw.kind==='booking'){
             var _ticketEntryRaw=String(pw.entryType||'ticket').toLowerCase().replace(/[^a-z]/g,'');
             var _ticketIsEntryOnly=_ticketEntryRaw==='entryonly';
@@ -3128,9 +3141,24 @@ function renderWalletPage(bookingRef){
           }else{
             renderWalletContent(pw);
           }
+          _walletProjectionFingerprint=_nextWalletFingerprint;
+          _walletProjectionHasPainted=true;
+          _walletProjectionFailures=0;
         }
       }).catch(function(){
-        inner.innerHTML='<div style="text-align:center;padding:80px 20px;"><div style="font-size:48px;margin-bottom:14px;">🔒</div><div style="font-size:18px;font-weight:900;margin-bottom:8px;">Wallet unavailable</div><div style="font-size:13px;color:#3D3D3D;">Please use the latest link sent to your WhatsApp.</div></div>';
+        _walletProjectionFailures++;
+        // Never replace a successfully authenticated wallet with an alarming
+        // "invalid/unavailable" screen because one background refresh hit a
+        // brief mobile-network or function error. Keep the last good wallet on
+        // screen and continue retrying.
+        if(_walletProjectionHasPainted)return;
+        if(_walletProjectionFailures>=3){
+          inner.innerHTML='<div style="text-align:center;padding:80px 20px;">'
+            +'<div style="font-size:48px;margin-bottom:14px;">↻</div>'
+            +'<div style="font-size:18px;font-weight:900;margin-bottom:8px;">Still connecting to your wallet</div>'
+            +'<div style="font-size:13px;color:#3D3D3D;line-height:1.6;">Keep this page open — it will retry automatically.<br>If needed, reopen the latest link sent to your WhatsApp.</div>'
+            +'</div>';
+        }
       }).finally(function(){_walletProjectionBusy=false;});
     };
     _loadWalletProjection();
@@ -3949,5 +3977,5 @@ function renderTopUpContent(card, cv, diffAmt){
 window._renderWalletPage = renderWalletPage;
 window._renderTopUp = renderTopUp;
 window._renderCustomerWallet = renderCustomerWallet;
-console.log("[HOD] wallet.js loaded (v3.429 — complete scannable door tickets + clear F&B terms)");
+console.log("[HOD] wallet.js loaded (v3.430 — stable QR refresh + resilient wallet links)");
 })();
