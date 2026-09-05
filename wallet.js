@@ -3053,16 +3053,77 @@ function renderWalletPage(bookingRef){
       hodPublicEndpoint(WALLET_PROJECTION_URL,{ref:bookingRef,secret:_walletGateSecret}).then(function(result){
         if(result&&result.wallet){
           var pw=result.wallet;
-          if(pw.kind==='booking'||pw.kind==='guestlist'){
+          if(pw.kind==='booking'){
+            var _ticketEntryRaw=String(pw.entryType||'ticket').toLowerCase().replace(/[^a-z]/g,'');
+            var _ticketIsEntryOnly=_ticketEntryRaw==='entryonly';
+            var _ticketQty=Math.max(1,Number(pw.partySize||1));
+            var _ticketTotal=Math.max(0,Number(pw.total||0));
+            var _ticketVenueDue=pw.paymentState==='venue_due';
+            var _ticketType=_ticketIsEntryOnly?'ENTRY ONLY'
+              :(_ticketEntryRaw==='couple'?'COUPLE'
+              :((_ticketEntryRaw==='female'||_ticketEntryRaw==='ladies')?'LADIES'
+              :(_ticketEntryRaw==='group'?'GROUP':'STAG')));
+            var _ticketRef=pw.ref||bookingRef;
+            var _ticketDate=pw.date||'';
+            try{
+              if(/^\d{4}-\d{2}-\d{2}$/.test(_ticketDate)){
+                _ticketDate=new Date(_ticketDate+'T12:00:00').toLocaleDateString('en-IN',{
+                  weekday:'short',day:'numeric',month:'short',year:'numeric'
+                });
+              }
+            }catch(_ticketDateErr){}
+            var _ticketAmountText=_ticketTotal===0?'COMPLIMENTARY'
+              :(_ticketVenueDue?'PAY AT VENUE · ₹'+_ticketTotal.toLocaleString('en-IN')
+              :'PAID ONLINE · ₹'+_ticketTotal.toLocaleString('en-IN'));
+            inner.innerHTML=
+              '<div style="padding:28px 16px 36px;max-width:500px;margin:0 auto;">'
+                +'<div style="text-align:center;margin-bottom:20px;">'
+                  +'<div style="display:inline-flex;align-items:center;gap:7px;background:#FF90E8;border:2px solid #000;border-radius:999px;padding:7px 13px;font-size:11px;font-weight:900;letter-spacing:1.4px;margin-bottom:14px;">🎟️ HOD DIGITAL TICKET</div>'
+                  +'<div style="font-size:28px;line-height:1.05;font-weight:900;margin-bottom:9px;">'+(_ticketIsEntryOnly?'Your Entry Pass':'Your HOD Ticket')+'</div>'
+                  +'<div style="font-size:14px;line-height:1.5;color:#3D3D3D;font-weight:700;">'+sanitize(pw.eventTitle||'House of Dopamine')+'</div>'
+                +'</div>'
+                +'<div style="background:#fff;border:2px solid #000;border-radius:12px;overflow:hidden;box-shadow:6px 6px 0 #000;margin-bottom:22px;">'
+                  +'<div style="background:#000;color:#fff;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">'
+                    +'<span style="font-size:11px;font-weight:900;letter-spacing:1.2px;">'+sanitize(_ticketType)+'</span>'
+                    +'<span style="background:'+(_ticketVenueDue?'#FFD166':'#A7F3D0')+';color:#000;border-radius:999px;padding:5px 9px;font-size:10px;font-weight:900;white-space:nowrap;">'+sanitize(_ticketAmountText)+'</span>'
+                  +'</div>'
+                  +'<div style="padding:6px 17px;">'
+                    +'<div style="display:flex;justify-content:space-between;gap:18px;padding:13px 0;border-bottom:1px solid #D8D8D2;"><span style="font-size:12px;color:#666;font-weight:800;">GUEST NAME</span><span style="font-size:14px;font-weight:900;text-align:right;">'+sanitize(pw.name||'Guest')+'</span></div>'
+                    +'<div style="display:flex;justify-content:space-between;gap:18px;padding:13px 0;border-bottom:1px solid #D8D8D2;"><span style="font-size:12px;color:#666;font-weight:800;">TICKET TYPE</span><span style="font-size:14px;font-weight:900;text-align:right;">'+sanitize(_ticketType)+'</span></div>'
+                    +'<div style="display:flex;justify-content:space-between;gap:18px;padding:13px 0;border-bottom:1px solid #D8D8D2;"><span style="font-size:12px;color:#666;font-weight:800;">NUMBER OF GUESTS</span><span style="font-size:14px;font-weight:900;text-align:right;">'+_ticketQty+'</span></div>'
+                    +'<div style="display:flex;justify-content:space-between;gap:18px;padding:13px 0;"><span style="font-size:12px;color:#666;font-weight:800;">EVENT DATE</span><span style="font-size:14px;font-weight:900;text-align:right;">'+sanitize(_ticketDate)+'</span></div>'
+                  +'</div>'
+                +'</div>'
+                +'<div style="background:#fff;border:2px solid #000;border-radius:12px;padding:22px 16px 18px;text-align:center;margin-bottom:16px;">'
+                  +'<div id="secure-ticket-qr" style="width:180px;height:180px;margin:0 auto 14px;background:#fff;border:8px solid #fff;display:flex;align-items:center;justify-content:center;overflow:hidden;"></div>'
+                  +'<div style="font-size:16px;font-weight:900;margin-bottom:5px;">SCAN AT THE DOOR</div>'
+                  +'<div style="font-size:12px;color:#3D3D3D;line-height:1.55;margin-bottom:12px;">Door team: scan this QR to verify and check in the guest.</div>'
+                  +'<div style="border-top:1px dashed #999;padding-top:12px;">'
+                    +'<div style="font-size:10px;color:#666;font-weight:800;letter-spacing:1.4px;margin-bottom:4px;">BOOKING REFERENCE</div>'
+                    +'<div style="font-family:monospace;font-size:17px;font-weight:900;letter-spacing:1.4px;">'+sanitize(_ticketRef)+'</div>'
+                  +'</div>'
+                +'</div>'
+                +(_ticketIsEntryOnly
+                  ?'<div style="background:#FFF0F0;border:2px solid #000;border-left:8px solid #FF5733;border-radius:10px;padding:16px 17px;margin-bottom:14px;"><div style="font-size:14px;font-weight:900;margin-bottom:6px;">ENTRY ONLY · NO F&amp;B CREDIT</div><div style="font-size:12px;color:#3D3D3D;line-height:1.6;">This pass is valid only for admission. Its value is <b>not redeemable</b> on food or beverages. F&amp;B is charged separately.</div></div>'
+                  :'<div style="background:#F0FFF7;border:2px solid #000;border-left:8px solid #23A094;border-radius:10px;padding:16px 17px;margin-bottom:14px;"><div style="font-size:14px;font-weight:900;margin-bottom:6px;">100% REDEEMABLE ON F&amp;B</div><div style="font-size:12px;color:#3D3D3D;line-height:1.6;">'+(_ticketVenueDue?'Pay at the door to activate your wallet. The full ticket value is':'Your full ticket value is')+' redeemable on food and beverages at HOD tonight.</div></div>')
+                +'<div style="background:#FF90E8;border:2px solid #000;border-radius:10px;padding:14px 16px;text-align:center;font-size:13px;font-weight:900;line-height:1.5;">SHOW THIS SCREEN AT THE DOOR<br><span style="font-size:11px;font-weight:700;">Keep the QR ready for a faster check-in.</span></div>'
+                +(result.legacy?'<div style="font-size:11px;color:#3D3D3D;margin-top:14px;text-align:center;">Legacy link: limited view. Request a fresh link from My Tickets for full access.</div>':'')
+              +'</div>';
+            setTimeout(function(){
+              generateLocalQR('secure-ticket-qr','https://hodclub.in/?verify='+encodeURIComponent(_ticketRef)
+                +(_walletGateSecret?'&s='+encodeURIComponent(_walletGateSecret):''));
+            },100);
+          }else if(pw.kind==='guestlist'){
             inner.innerHTML='<div style="padding:24px;max-width:480px;margin:0 auto;text-align:center;">'
-              +'<div style="font-size:48px;margin-bottom:12px;">🎟️</div>'
-              +'<div style="font-size:22px;font-weight:900;margin-bottom:8px;">Your HOD Ticket</div>'
+              +'<div style="font-size:48px;margin-bottom:12px;">📋</div>'
+              +'<div style="font-size:22px;font-weight:900;margin-bottom:8px;">You’re on the guest list</div>'
               +'<div style="font-size:14px;color:#3D3D3D;margin-bottom:18px;">'+sanitize(pw.eventTitle||'HOD Event')+'</div>'
               +'<div style="background:#fff;border:2px solid #000;border-radius:8px;padding:18px;text-align:left;">'
+              +'<div style="padding:8px 0;">Name: <b>'+sanitize(pw.name||'Guest')+'</b></div>'
               +'<div style="padding:8px 0;">Date: <b>'+sanitize(pw.date||'')+'</b></div>'
-              +'<div style="padding:8px 0;">Entry: <b>'+sanitize((pw.entryType||'ticket').toUpperCase())+'</b></div>'
+              +'<div style="padding:8px 0;">Entry: <b>'+sanitize((pw.entryType||'guest list').toUpperCase())+'</b></div>'
               +'<div style="padding:8px 0;">Reference: <b>'+sanitize(pw.ref||bookingRef)+'</b></div></div>'
-              +(result.legacy?'<div style="font-size:11px;color:#3D3D3D;margin-top:12px;">Legacy link: limited view. Request a fresh link from My Tickets for full wallet access.</div>':'')
+              +'<div style="font-size:12px;line-height:1.6;color:#3D3D3D;margin-top:14px;">Give your name and reference at the door. Guest-list entry does not use a QR.</div>'
               +'</div>';
           }else{
             renderWalletContent(pw);
@@ -3888,5 +3949,5 @@ function renderTopUpContent(card, cv, diffAmt){
 window._renderWalletPage = renderWalletPage;
 window._renderTopUp = renderTopUp;
 window._renderCustomerWallet = renderCustomerWallet;
-console.log("[HOD] wallet.js loaded (v3.413 — cigarettes no SC/GST + bar self-order 'Yet to redeem' badge)");
+console.log("[HOD] wallet.js loaded (v3.429 — complete scannable door tickets + clear F&B terms)");
 })();
