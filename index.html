@@ -52,7 +52,7 @@ fbq('track', 'PageView');
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.424";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (2026-07-23 keyboard fix)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.429";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (complete scannable door tickets + clear F&B terms)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -951,7 +951,7 @@ function hodPayAndCredit(opts){
 var HOD_FLOORS={dance:{name:'🎵 Dance Floor',sub:'Ground Floor · DJ Set · Live Music',bg:'rgba(14,3,24,.97)',
 tables:[{id:'C1',l:'C1',s:4,x:13,y:32,w:11,shape:'circle'},{id:'C2',l:'C2',s:4,x:29,y:32,w:11,shape:'circle'},{id:'C3',l:'C3',s:4,x:13,y:55,w:11,shape:'circle'},{id:'C4',l:'C4',s:4,x:29,y:55,w:11,shape:'circle'},{id:'VIP1',l:'VIP 1',s:6,x:56,y:28,w:18,h:14,shape:'rect',vip:true},{id:'VIP2',l:'VIP 2',s:6,x:56,y:52,w:18,h:14,shape:'rect',vip:true}],
 marks:[{l:'DJ BOOTH',x:54,y:2,w:43,h:17,c:'rgba(123,47,190,.28)'},{l:'BAR',x:54,y:20,w:43,h:9,c:'rgba(255,144,232,.18)'},{l:'DANCE FLOOR',x:43,y:36,w:9,h:25,c:'rgba(0,0,0,.02)',tc:'rgba(0,0,0,.1)',sm:true},{l:'ENTRANCE',x:38,y:89,w:24,h:8,c:'rgba(0,200,100,.07)',tc:'rgba(0,200,100,.4)',sm:true}]},
-dining:{name:'🍽 Dining',sub:'Second Floor · Lounge & Garden Seating',bg:'rgba(3,10,20,.97)',
+dining:{name:'🍽 Dining',sub:'First Floor / Dining · Lounge & Garden Seating',bg:'rgba(3,10,20,.97)',
 tables:[{id:'FD6',l:'FD6',s:6,x:19,y:21,w:10,h:8,shape:'rect'},{id:'FD7',l:'FD7',s:3,x:31,y:21,w:9,h:8,shape:'rect'},{id:'FD5',l:'FD5',s:4,x:14,y:32,w:8,h:8,shape:'rect'},{id:'FD8',l:'FD8',s:2,x:35,y:33,w:7,shape:'circle'},{id:'FD4',l:'FD4',s:6,x:19,y:44,w:10,h:8,shape:'rect'},{id:'FD3',l:'FD3',s:3,x:31,y:44,w:9,h:8,shape:'rect'},{id:'FD2',l:'FD2',s:4,x:43,y:55,w:8,h:7,shape:'rect'},{id:'FD1',l:'FD1',s:4,x:43,y:65,w:8,h:7,shape:'rect'},{id:'SMK4',l:'SMK4',s:2,x:9,y:57,w:6,shape:'circle'},{id:'SMK2',l:'SMK2',s:8,x:21,y:59,w:11,h:9,shape:'rect'},{id:'SMK5',l:'SMK5',s:2,x:9,y:68,w:6,shape:'circle'},{id:'SMK1',l:'SMK1',s:4,x:21,y:71,w:9,h:7,shape:'rect'},{id:'SMK6',l:'SMK6',s:2,x:9,y:79,w:6,shape:'circle'},{id:'SMK7',l:'SMK7',s:2,x:9,y:90,w:6,shape:'circle'},{id:'SMK8',l:'SMK8',s:4,x:21,y:83,w:9,h:7,shape:'rect'},{id:'FD9',l:'FD9',s:2,x:60,y:21,w:6,h:7,shape:'rect'},{id:'FD10',l:'FD10',s:2,x:60,y:32,w:6,h:7,shape:'rect'},{id:'FD11',l:'FD11',s:2,x:60,y:43,w:6,h:7,shape:'rect'},{id:'FD15',l:'FD15',s:4,x:71,y:22,w:10,h:10,shape:'diamond'},{id:'FD14',l:'FD14',s:4,x:71,y:36,w:10,h:10,shape:'diamond'},{id:'FD12',l:'FD12',s:4,x:71,y:50,w:10,h:10,shape:'diamond'},{id:'FD16',l:'FD16',s:3,x:85,y:23,w:7,shape:'circle'},{id:'FD17',l:'FD17',s:3,x:85,y:37,w:7,shape:'circle'},{id:'FD18',l:'FD18',s:3,x:85,y:51,w:7,shape:'circle'}],
 marks:[{l:'STORE',x:1,y:1,w:30,h:15,c:'rgba(107,107,138,.15)'},{l:'BAR',x:51,y:1,w:45,h:13,c:'#F4F4F0'},{l:'BILLER',x:51,y:15,w:45,h:5,c:'rgba(107,107,138,.1)'},{l:'SOFA LOUNGE',x:13,y:29,w:28,h:4,c:'rgba(0,0,0,.02)',tc:'rgba(0,0,0,.18)',sm:true},{l:'GARDEN',x:1,y:54,w:6,h:40,c:'rgba(0,120,40,.12)',tc:'rgba(0,200,100,.4)',vert:true},{l:'SMOKING',x:9,y:94,w:28,h:5,c:'rgba(239,68,68,.08)',tc:'rgba(239,68,68,.35)',sm:true},{l:'STAIRS',x:63,y:72,w:13,h:20,c:'rgba(107,107,138,.1)'}]},
 rooftop:{name:'🌳 Rooftop',sub:'Third Floor · Open Air · Glass Floor VIP',bg:'rgba(2,7,18,.97)',
@@ -1366,21 +1366,23 @@ function _HOD_sendMail(params){
 
 // ── HOD POS WhatsApp sender — fires templated message via POS API (Meta Cloud API)
 // Set _HOD_POS_API to your published POS API URL (e.g. https://your-app.replit.app/api/whatsapp/send-template)
-var _HOD_POS_API = 'https://asia-south1-hod-tickets.cloudfunctions.net/sendWhatsAppTemplate';
-function _HOD_sendWhatsAppTemplate(phone, template, params){
+var _HOD_POS_API = 'https://asia-south1-hod-tickets.cloudfunctions.net/sendBookingWhatsApp';
+function _HOD_sendWhatsAppTemplate(bookingRef, walletSecret){
   try{
-    if(!phone || !template || !_HOD_POS_API) return;
-    var clean = (phone||'').replace(/\D/g,'').slice(-10);
-    if(clean.length !== 10) { console.warn('WA skip — bad phone:', phone); return; }
-    fetch(_HOD_POS_API, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ to: clean, template: template, language: 'en', params: params })
-    }).then(function(r){return r.json();}).then(function(j){
-      if(j && j.ok) console.log('📲 WA ['+template+'] sent to', clean);
-      else console.warn('WA ['+template+'] failed:', j);
-    }).catch(function(e){console.warn('WA network error:', e);});
-  }catch(e){console.warn('WA send threw:', e);}
+    if(!bookingRef || !walletSecret || !_HOD_POS_API) return Promise.resolve({ok:false});
+    function send(attempt){
+      return fetch(_HOD_POS_API, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ bookingRef: bookingRef, walletSecret: walletSecret })
+      }).then(function(r){
+        if(r.ok){console.log('Booking WhatsApp sent');return {ok:true};}
+        if(attempt<1)return new Promise(function(resolve){setTimeout(resolve,1800);}).then(function(){return send(attempt+1);});
+        throw new Error('HTTP '+r.status);
+      });
+    }
+    return send(0).catch(function(){console.warn('Booking WhatsApp not sent');return {ok:false};});
+  }catch(e){console.warn('Booking WhatsApp not sent');return Promise.resolve({ok:false});}
 }
 
 // 🔴 2026-05-13 (Khushi) — EmailJS init block removed. ZeptoMail is the
@@ -2814,7 +2816,7 @@ function buildEvCard(ev,idx){
     // CTA 1: Add me to Guestlist
     var glBtn=document.createElement('button');
     glBtn.style.cssText='flex:1;padding:14px 10px;border-radius:8px;background:#FFFFFF;border:2px solid #000;color:#000;font-size:12px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;transition:all .15s;box-shadow:3px 3px 0 #000;';
-    glBtn.textContent='📋 Guestlist Me';
+    glBtn.textContent='🎟 Book Tickets';
     glBtn.onmouseenter=function(){this.style.background='#FF90E8';this.style.color='#000';if(bkBtn){bkBtn.style.background='#FFFFFF';bkBtn.style.color='#000';bkBtn.style.transform='translate(0,0)';bkBtn.style.boxShadow='3px 3px 0 #000';}};
     glBtn.onmouseleave=function(){this.style.background='#FFFFFF';this.style.color='#000';if(bkBtn){bkBtn.style.background='#FF90E8';bkBtn.style.color='#000';}};
     glBtn.onclick=function(e){
@@ -2823,7 +2825,7 @@ function buildEvCard(ev,idx){
       set({modal:ev.id,step:1,bdata:{name:'',email:'',phone:'',qty:1,bookMode:'guestlist',entryType:'guestlist_couple',entryPrice:0}});
     };
 
-    // CTA 2: Book a Table → jump straight to the floor-plan page
+    // CTA 2: Book a Table → direct form; HOD allocates the table server-side.
     var bkBtn=document.createElement('button');
     bkBtn.style.cssText='flex:1;padding:14px 10px;border-radius:8px;background:#FF90E8;border:2px solid #000;color:#000;font-size:12px;font-weight:900;cursor:pointer;font-family:var(--ff);letter-spacing:.5px;text-transform:uppercase;transition:all .15s;box-shadow:3px 3px 0 #000;';
     bkBtn.textContent='🪑 Book a Table';
@@ -2831,7 +2833,7 @@ function buildEvCard(ev,idx){
     bkBtn.onmouseleave=function(){this.style.background='#FF90E8';this.style.color='#000';this.style.transform='translate(0,0)';this.style.boxShadow='3px 3px 0 #000';};
     bkBtn.onclick=function(e){
       e.stopPropagation();
-      set({modal:null,_homeTab:'tables'});
+      S._tableSelEv=ev;set({modal:null,_homeTab:'tables',_tableSelEv:ev});
     };
     ctaRow.appendChild(glBtn);ctaRow.appendChild(bkBtn);
     footer.appendChild(ctaRow);
@@ -3051,23 +3053,8 @@ function renderModal(){
 
   if(S.step===3){modal.appendChild(renderSuccess(ev));bg.appendChild(modal);return bg;}
 
-  var banner=el('div','m-banner');
-  var mpc=buildPosterCarousel(ev);try{mpc.style.height='100%';}catch(e){}banner.appendChild(mpc);
-  modal.appendChild(banner);
-
   var body=el('div','m-body');
-  var mTitle=el('h2','m-title');mTitle.textContent=sanitize(ev.title);body.appendChild(mTitle);
-  var mMeta=el('div','m-meta');
-  [['🎧',sanitize(ev.dj),''],['📅',fmtDate(ev.date),'cal'],['⏰',(ev.time||'')+(ev.endTime?' – '+ev.endTime:''),''],['📍',sanitize(ev.venue),'map'],['🎵',sanitize(ev.genre||''),'']].forEach(function(r){
-    var clickable=(r[2]==='map'||r[2]==='cal');
-    var row=el('div','meta-r'+(clickable?' tap':''));
-    row.innerHTML='<span class="ic">'+r[0]+'</span><span>'+r[1]+'</span>';
-    if(r[2]==='map'){row.title='Tap to open in Google Maps';row.onclick=function(e){e.stopPropagation();window.open(getMapsUrl(),'_blank','noopener');};}
-    else if(r[2]==='cal'){row.title='Tap to add to your calendar';row.onclick=function(e){e.stopPropagation();window.open(getCalUrl(ev),'_blank','noopener');};}
-    mMeta.appendChild(row);
-  });
-  body.appendChild(mMeta);
-  var desc=el('p','m-desc');desc.textContent=sanitize(ev.description||'');body.appendChild(desc);
+  body.style.paddingTop='58px';
   // 🔴 2026-05-26 (Khushi) — same T&C dropdown inside the booking modal so
   // a customer who skips the card and taps "BOOK NOW" still sees the rules.
   // 🆕 2026-05-27 v3.56 (Khushi 3:49am paint arrow) — moved DOWN from here
@@ -3114,7 +3101,8 @@ function renderModal(){
       }
     }
   };
-  body.appendChild(shareBtn);
+  // Poster, description, metadata and share stay on the event-list card.
+  // The four booking choices are the first visible content in event detail.
 
   // ── GUEST LIST SECTION
 
@@ -3341,7 +3329,7 @@ function renderStep1(ev){
       btn.onmouseout=function(){btn.style.background='#FFFFFF';btn.style.boxShadow='none';};
     }
     btn.onclick=function(){
-      if(t.id==='booktable'){ set({modal:null,_homeTab:'tables'}); return; }
+      if(t.id==='booktable'){ S._tableSelEv=ev;set({modal:null,_homeTab:'tables',_tableSelEv:ev}); return; }
       if(isDisabled){
         showToast('⏰ Guest list closes at '+_glCutoffLabel+'. Pick a cover instead.','err',3500);
         return;
@@ -3509,7 +3497,7 @@ function renderStep1(ev){
   });
   wrap.appendChild(addonsWrap);
 
-  // ── GUESTLIST tab → skip qty + total entirely. Form + CTA only.
+  // Guest-list registrations can include 1–10 people.
   var _isGuestlist=(S.bdata.bookMode==='guestlist');
 
   /* 🆕 2026-05-27 v3.54 (Khushi 3:10am) — moved NUMBER OF TICKETS up to
@@ -3526,10 +3514,10 @@ function renderStep1(ev){
       wrap.appendChild(_buildHodTcBlock(_tcUid));
     }
   }catch(_){}
-  if(!_isGuestlist) wrap.appendChild(el('div','f-title',['NUMBER OF TICKETS']));
+  wrap.appendChild(el('div','f-title',[_isGuestlist?'NUMBER OF PEOPLE':'NUMBER OF TICKETS']));
 
   // ── FIX 1: QTY — Pure DOM manipulation, zero re-render, zero scroll jump
-  var maxQty=Math.min(10,spotsLeft(ev));
+  var maxQty=_isGuestlist?10:Math.min(10,spotsLeft(ev));
   var qtyFld=el('div','fld');
   var qtyWrap=el('div','qty-wrap');
   var minusBtn=el('button','qty-b');minusBtn.textContent='−';minusBtn.type='button';
@@ -3555,7 +3543,7 @@ function renderStep1(ev){
 
   qtyWrap.appendChild(minusBtn);qtyWrap.appendChild(qtyNum);qtyWrap.appendChild(plusBtn);
   qtyFld.appendChild(qtyWrap);
-  if(!_isGuestlist) wrap.appendChild(qtyFld);
+  wrap.appendChild(qtyFld);
 
   wrap.appendChild(el('div','f-title',['ENTER YOUR DETAILS']));
 
@@ -3992,13 +3980,13 @@ function renderStep2(ev){
 
 
 // ── Firebase: Guest List
-function joinGuestList(evId, name, phone, type, callback, email){
+function joinGuestList(evId, name, phone, type, callback, email, qty){
   var cleanPhone=(phone||'').replace(/\D/g,'').slice(-10);
   var glRef=(typeof mintHodRef==='function')?mintHodRef('guestlist'):('GL-'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).substring(2,5).toUpperCase());
   var entry={
     eventId:evId, name:sanitize(name), phone:cleanPhone,
     email:sanitize(email||''),
-    type:type, joinedAt:new Date().toISOString(),
+    type:type, qty:Math.max(1,Math.min(10,Number(qty||1))), joinedAt:new Date().toISOString(),
     checkedIn:false,
     ref:glRef,
     id:glRef
@@ -4299,8 +4287,14 @@ function saveBooking(paymentId){
       _tplName = 'ticket_confirmed' + _suffix;
       _tplParams = [_name, _evt, _date, _tierLabel + ' × ' + _qty, _amt, _link];
     }
-    if (_tplName) _HOD_sendWhatsAppTemplate(bd.phone, _tplName, _tplParams);
-  } catch (_waErr) { console.warn('[HOD] WA template send failed', _waErr); }
+    // Wait for createPublicBooking before the secure sender validates this ref.
+    if (_tplName) {
+      S._bookingCreatePromise.then(function(result){
+        if(!result||result.ref!==ref)throw new Error('booking_reference_mismatch');
+        return _HOD_sendWhatsAppTemplate(ref,walletSecret);
+      }).catch(function(){console.warn('Booking WhatsApp not sent');});
+    }
+  } catch (_waErr) { console.warn('Booking WhatsApp not sent'); }
   // ── Fire social proof toast to all connected users
   showSocialProofToast(booking, ev.title);
   return ref;
@@ -4320,7 +4314,7 @@ function renderSuccess(ev){
   var icon=el('div','suc-icon');icon.textContent='🎉';
   var title=el('h2','suc-title');title.textContent='Booking Confirmed!';
   var sub=el('p','suc-sub');
-  var etSuc=({'stag':'Stag Entry','couple':'Couple Entry','female':'Ladies Entry (FREE)','group':'Group Entry ('+(bd.qty||1)+' People)','entryonly':'Door Entry (NOT redeemable)','guestlist_couple':'Guest List · Couple (FREE)','table4':'Table for 4','vip':'VVIP Table for 6'}[bd.entryType||bd.tableType||'stag'])||'Booking';
+  var etSuc=({'stag':'Stag Entry','couple':'Couple Entry','female':'Ladies Entry (FREE)','group':'Group Entry ('+(bd.qty||1)+' People)','entryonly':'Door Entry (NOT redeemable)','guestlist_couple':'Guest List (FREE)','table4':'Table for 4','vip':'VVIP Table for 6'}[bd.entryType||bd.tableType||'stag'])||'Booking';
   // Check if pay-at-venue (flag set during cash booking flow)
   var _isCashPending=S._isCashBooking===true;
   S._isCashBooking=false; // reset flag
@@ -4336,7 +4330,7 @@ function renderSuccess(ev){
   var tkt=el('div','tkt-card');
   var _payLabel=total===0?'FREE ✓':_isCashPending?'💵 Pay at Venue — ₹'+total.toLocaleString('en-IN'):'₹'+total.toLocaleString('en-IN');
   var _payColor=_isCashPending?'#F59E0B':'#FF90E8';
-  [[' Reference','#'+ref,'#FF90E8'],[' Event',sanitize(ev.title)],[' Guest',sanitize(bd.name)],[' Entry',etSuc||'Entry'],[' Date',fmtDate(ev.date)],[' Time',ev.time],[' Venue',sanitize(ev.venue)],[' Tickets',bd.qty+' person(s)'],[_isCashPending?' Amount Due':' Paid',_payLabel,_payColor]].forEach(function(r){
+   [[' Reference','#'+ref,'#FF90E8'],[' Event',sanitize(ev.title)],[' Guest',sanitize(bd.name)],[' Entry',etSuc||'Entry'],[' Date',fmtDate(ev.date)],[' Time',ev.time],[' Venue',sanitize(ev.venue)],[_isGLSuc?' People':' Tickets',bd.qty+' person(s)'],[_isCashPending?' Amount Due':' Paid',_payLabel,_payColor]].forEach(function(r){
     var row=el('div','tkt-row');
     row.innerHTML='<span class="tkt-k">'+r[0]+'</span><span class="tkt-v"'+(r[2]?' style="color:'+r[2]+'"':'')+'>'+(r[1]||'')+'</span>';
     tkt.appendChild(row);
@@ -5410,7 +5404,7 @@ var _HOD_TABLES = {
       +'<text x="226" y="400" text-anchor="middle" fill="rgba(0,0,0,.04)" font-size="48" font-weight="900" font-family="sans-serif" letter-spacing="4">DANCE</text>'
   },
   dining:{
-    label:'Dining',icon:'🍽️',
+    label:'First Floor / Dining',icon:'🍽️',
     vb:'0 0 520 780',
     tables:[
       {id:'FD6', seats:6,sh:'rect',   x:14, y:140,w:110,h:60},
@@ -5483,8 +5477,8 @@ var _HOD_TABLES = {
       +'<text x="485" y="642" text-anchor="middle" fill="#D6336C" font-size="24" font-weight="700">♀</text>'
       +'<text x="485" y="666" text-anchor="middle" fill="#000" font-size="8" font-weight="800" font-family="sans-serif" letter-spacing="1">WOMEN</text>'
       +'<text x="485" y="679" text-anchor="middle" fill="#000" font-size="6" font-weight="700" font-family="sans-serif" letter-spacing=".8">WASHROOM</text>'
-      /* SECOND FLOOR watermark */
-      +'<text x="430" y="755" text-anchor="middle" fill="rgba(0,0,0,.05)" font-size="13" font-weight="900" font-family="sans-serif" letter-spacing="3">SECOND FLOOR</text>'
+       /* FIRST FLOOR / DINING watermark */
+       +'<text x="430" y="755" text-anchor="middle" fill="rgba(0,0,0,.05)" font-size="13" font-weight="900" font-family="sans-serif" letter-spacing="3">FIRST FLOOR / DINING</text>'
   },
   rooftop:{
     label:'Rooftop',icon:'🌿',
@@ -5563,7 +5557,137 @@ var _HOD_TABLES = {
   }
 }
 
+function renderDirectTableBooking(){
+  var db=getDB();
+  var evs=(S._cachedEvents||db.events||[]).filter(function(e){return e.published&&!isEventPast(e);}).sort(function(a,b){return a.date<b.date?-1:1;});
+  var ev=S._tableSelEv||(evs.length?evs[0]:null);
+  var wrap=document.createElement('div');
+  wrap.style.cssText='max-width:1180px;margin:0 auto;padding:0 20px 70px;';
+  var back=el('button','btn-ghost');back.textContent='← Back to Events';back.style.marginBottom='18px';
+  back.onclick=function(){set({_homeTab:'events'});};wrap.appendChild(back);
+  var stage=document.createElement('div');
+  stage.style.cssText='display:block;';
+  var card=document.createElement('div');
+  card.style.cssText='max-width:720px;margin:0 auto;background:#fff;border:3px solid #000;border-radius:16px;padding:24px;box-shadow:8px 8px 0 #000;box-sizing:border-box;';
+  card.innerHTML='<div style="display:inline-block;background:#FFD700;border:2px solid #000;border-radius:999px;padding:6px 11px;font-size:10px;font-weight:900;letter-spacing:2px;margin-bottom:13px;">BOOK A TABLE · YOUR WAY</div>'
+    +'<h2 style="font-size:34px;line-height:1.02;margin-bottom:10px;letter-spacing:-1.2px;">Pick the vibe.<br><span style="color:#D633A9;">We’ll find your table.</span></h2>'
+    +(ev?'<div style="position:relative;padding:14px 14px 14px 48px;background:#FF90E8;border:2px solid #000;border-radius:10px;margin-bottom:18px;font-size:13px;font-weight:900;box-shadow:4px 4px 0 #000;"><span style="position:absolute;left:14px;top:12px;font-size:22px;">✦</span>'+sanitize(ev.title)+'<div style="font-size:11px;margin-top:4px;letter-spacing:.5px;">'+fmtDate(ev.date)+'</div></div>':'');
+  function field(label,node){
+    var f=el('div','fld');f.style.marginBottom='14px';
+    var l=document.createElement('label');l.textContent=label;l.style.cssText='font-size:11px;font-weight:900;letter-spacing:1.4px;color:#000;margin:0 0 6px 2px;';
+    f.appendChild(l);f.appendChild(node);card.appendChild(f);
+  }
+  function input(type,placeholder){
+    var x=document.createElement('input');x.type=type;x.placeholder=placeholder;
+    x.style.cssText='width:100%;background:#fff;border:2px solid #000;border-radius:10px;padding:13px 14px;color:#000;font-size:14px;font-family:var(--ff);font-weight:650;outline:none;box-sizing:border-box;box-shadow:3px 3px 0 rgba(0,0,0,.12);';
+    return x;
+  }
+  var name=input('text','Your full name');field('Full Name',name);
+  var countryCode=input('tel','+91');countryCode.value='+91';countryCode.inputMode='tel';
+  countryCode.style.width='88px';countryCode.style.flex='0 0 88px';countryCode.style.textAlign='center';
+  var phone=input('tel','98765 43210');phone.inputMode='tel';phone.style.flex='1 1 auto';
+  var phoneRow=document.createElement('div');phoneRow.style.cssText='display:flex;gap:8px;width:100%;';
+  phoneRow.appendChild(countryCode);phoneRow.appendChild(phone);field('Phone Number',phoneRow);
+  var email=input('email','your@email.com (optional)');field('Email Address (Optional)',email);
+  var floorManuallyChosen=false;
+  var floor=_hodDD({
+    options:[
+      {value:'dance',label:'🎧 Ground Floor · Dance & DJ'},
+      {value:'dining',label:'🍽 First Floor / Dining · Lounge & Garden'},
+      {value:'rooftop',label:'🌿 Rooftop · Open Air'}
+    ],
+    value:'dining',
+    btnCss:'border-radius:10px;padding:13px 14px;background:#FFD700;box-shadow:3px 3px 0 #000;font-weight:900;',
+    onChange:function(){floorManuallyChosen=true;rebuild();}
+  });field('Choose Your Floor',floor);
+  var party=_hodDD({
+    options:[],value:'2',
+    btnCss:'border-radius:10px;padding:13px 14px;background:#fff;box-shadow:3px 3px 0 rgba(0,0,0,.14);font-weight:900;',
+    onChange:function(){scheduleAutoFloor();}
+  });field('Crew Size',party);
+  var date=input('date','');var now=new Date();var today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  date.min=today;date.max=(function(){var d=new Date();d.setDate(d.getDate()+30);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  date.value=(ev&&ev.date>=today)?ev.date:today;date.onchange=function(){scheduleAutoFloor();};field('Date',date);
+  var arrival=_hodDD({
+    options:[],value:'',placeholder:'Choose your arrival time',
+    btnCss:'border-radius:10px;padding:13px 14px;background:#fff;box-shadow:3px 3px 0 rgba(0,0,0,.14);font-weight:900;',
+    onChange:function(){scheduleAutoFloor();}
+  });field('Arrival Time',arrival);
+  var err=document.createElement('div');err.style.cssText='display:none;color:#FF5733;font-size:12px;font-weight:900;line-height:1.5;margin:4px 0 12px;padding:10px;background:#FFF2D8;border:2px solid #000;border-radius:8px;';card.appendChild(err);
+  var submit=el('button','btn-pay');submit.textContent='Book My Table →';
+  submit.style.cssText+='border:3px solid #000;border-radius:10px;box-shadow:5px 5px 0 #000;font-size:16px;text-transform:uppercase;letter-spacing:.8px;';
+  card.appendChild(submit);
+
+  function rebuild(){
+    var max={dance:6,dining:8,rooftop:7}[floor.value]||6;var old=Number(party.value)||2;
+    var partyOpts=[];for(var i=1;i<=max;i++)partyOpts.push({value:String(i),label:(i===1?'JUST ME · 1 PERSON':i+' PEOPLE')});
+    party._setOptions(partyOpts);
+    party.value=String(Math.min(old,max));
+    var slots=floor.value==='dance'?['8:00 PM','8:30 PM','9:00 PM','9:30 PM','10:00 PM','10:30 PM','11:00 PM','11:30 PM','12:00 AM']
+      :['12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM','5:30 PM','6:00 PM','6:30 PM','7:00 PM','7:30 PM','8:00 PM','8:30 PM','9:00 PM','9:30 PM','10:00 PM','10:30 PM','11:00 PM','11:30 PM'];
+    var oldTime=arrival.value;
+    arrival._setOptions(slots.map(function(t){return {value:t,label:t+' · ARRIVAL'};}));
+    arrival.value=slots.indexOf(oldTime)>=0?oldTime:slots[0];
+    scheduleAutoFloor();
+  }
+  var autoFloorTimer=null,autoFloorSeq=0;
+  function scheduleAutoFloor(){if(autoFloorTimer)clearTimeout(autoFloorTimer);autoFloorTimer=setTimeout(checkDiningDefault,120);}
+  function bookingMinutes(v){
+    var m=/^(\d{1,2}):([03]0)\s(AM|PM)$/i.exec(String(v||'').trim());if(!m)return-1;
+    var h=Number(m[1]);if(h===12)h=0;if(m[3].toUpperCase()==='PM')h+=12;var n=h*60+Number(m[2]);return n===0?1440:n;
+  }
+  function checkDiningDefault(){
+    if(floorManuallyChosen||floor.value!=='dining'||!date.value||!arrival.value)return;
+    var seq=++autoFloorSeq,ps=Number(party.value)||2,at=bookingMinutes(arrival.value);
+    hodPublicEndpoint(TABLE_AVAILABILITY_URL,{date:date.value,floor:'dining'}).then(function(result){
+      if(seq!==autoFloorSeq||floorManuallyChosen||floor.value!=='dining')return;
+      var fitting=(_HOD_TABLES.dining.tables||[]).filter(function(t){return Number(t.seats)>=ps;});
+      var occupied=(result&&result.occupied)||[];
+      var allBooked=fitting.length>0&&fitting.every(function(t){
+        return occupied.some(function(o){return o.tableId===t.id&&Math.abs(bookingMinutes(o.arrivalTime)-at)<120;});
+      });
+      if(allBooked){floor._setValue('rooftop',true);rebuild();showToast('Dining is fully booked for that time, so we selected Rooftop.','ok',5000);}
+    }).catch(function(){});
+  }
+  rebuild();
+  submit.onclick=function(){
+    err.style.display='none';
+    var cleanName=name.value.trim(),ccDigits=countryCode.value.replace(/\D/g,''),localDigits=phone.value.replace(/\D/g,'').replace(/^0+/,''),
+      cleanPhone=ccDigits+localDigits,cleanEmail=email.value.trim();
+    if(cleanName.length<2||!/[A-Za-z]/.test(cleanName)){err.textContent='Please enter a valid full name.';err.style.display='block';return;}
+    if(countryCode.value.trim().charAt(0)!=='+'||ccDigits.length<1||ccDigits.length>4||localDigits.length<6||cleanPhone.length<10||cleanPhone.length>15){err.textContent='Please enter a valid country code and phone number.';err.style.display='block';return;}
+    if(cleanEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)){err.textContent='Please enter a valid email address, or leave it blank.';err.style.display='block';return;}
+    if(!date.value||date.value<today){err.textContent='Please choose today or a future date.';err.style.display='block';return;}
+    var idem=(function(){try{var a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(_){return Date.now().toString(36)+Math.random().toString(36).slice(2).repeat(3);}})();
+    submit.disabled=true;submit.textContent='Booking your table…';
+    hodPublicEndpoint(CREATE_TABLE_RESERVATION_URL,{
+      floor:floor.value,date:date.value,arrivalTime:arrival.value,partySize:Number(party.value),
+      name:cleanName,phone:cleanPhone,email:cleanEmail,idempotencyKey:idem
+    }).then(function(result){
+      try{if(cleanEmail)_HOD_sendMail({bookingRef:result.ref,walletSecret:result.walletSecret});}catch(_){}
+      return _HOD_sendWhatsAppTemplate(result.ref,result.walletSecret).then(function(whatsapp){
+        return {result:result,whatsapp:whatsapp};
+      });
+    }).then(function(delivery){
+      var result=delivery.result;
+      var floorLabel={dance:'Ground Floor',dining:'First Floor / Dining',rooftop:'Rooftop'}[floor.value]||'selected floor';
+      card.innerHTML='<div style="text-align:center;padding:22px 4px;"><div style="display:inline-block;background:#C9F2D8;border:3px solid #000;border-radius:50%;padding:12px;font-size:42px;margin-bottom:12px;box-shadow:5px 5px 0 #000;">✓</div>'
+        +'<h2 style="font-size:30px;margin-bottom:8px;">Your table is sorted.</h2>'
+        +'<p style="font-size:14px;color:#222;line-height:1.6;margin-bottom:18px;font-weight:650;">HOD has allocated the best available table for '+party.value+' '+(party.value==='1'?'person':'people')+' on the '+sanitize(floorLabel)+'. '+(delivery.whatsapp&&delivery.whatsapp.ok?'Your WhatsApp confirmation has been sent.':'Your booking is confirmed. If WhatsApp is delayed, please keep the reference below.')+'</p>'
+        +'<div style="background:#FFD700;border:2px solid #000;border-radius:8px;padding:15px;font-family:monospace;font-size:20px;font-weight:900;letter-spacing:2px;margin-bottom:14px;">'+sanitize(result.ref)+'</div>'
+        +'<div style="font-size:12px;color:#3D3D3D;">'+sanitize(date.value)+' · '+sanitize(arrival.value)+'<br>Quote this reference at the entrance.</div></div>';
+    }).catch(function(e){
+      submit.disabled=false;submit.textContent='Book My Table →';
+      err.textContent=(e&&e.status===409)
+        ?'No table fits those choices. Please change the floor, arrival time, or party size and try again.'
+        :'We could not reserve a table. Please check your details and try again.';
+      err.style.display='block';
+    });
+  };
+  stage.appendChild(card);wrap.appendChild(stage);return wrap;
+}
 function renderTableFloorPlan(){
+  return renderDirectTableBooking();
   // 🆕 2026-05-26 v3.41 — Khushi customer screenshot 11:41pm "RENDER ERROR: Can't find variable: db".
   // Pre-existing scope bug (NOT introduced by v3.40). The function reads `db.events` as a fallback
   // for `S._cachedEvents`, but `db` was never declared inside this function — only inside renderHome().
@@ -6222,12 +6346,8 @@ function renderTableFloorPlan(){
         // [name, dateNice, arrivalTime, tableLabel, floorLabel, partySize, link]
         try {
           var _tDateNice = (typeof fmtDate==='function') ? fmtDate(bookDate) : bookDate;
-          _HOD_sendWhatsAppTemplate(phone, 'table_confirmed', [
-            name, _tDateNice, (arrival||'FROM NOW'),
-            table.id, _HOD_TABLES[activeFloor].label,
-            String(ps), 'https://hodclub.in/?wallet='+ref2+'&s='+encodeURIComponent(_tblWalletSecret)
-          ]);
-        } catch (_tblWaErr) { console.warn('[HOD] table WA send failed', _tblWaErr); }
+          _HOD_sendWhatsAppTemplate(ref2, _tblWalletSecret);
+        } catch (_tblWaErr) { console.warn('Booking WhatsApp not sent'); }
         // Show cinematic confirmation
         bookPanel.innerHTML='';
         var conf=document.createElement('div');
@@ -6570,7 +6690,7 @@ function _loadWalletJs(cb){
   if(window._HOD_WALLET_LOADING)return;
   window._HOD_WALLET_LOADING=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.422';
+  s.src='wallet.js?v=v3.429';
   s.onload=function(){
     window._HOD_WALLET_LOADED=true;
     window._HOD_WALLET_LOADING=false;
