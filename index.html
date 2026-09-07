@@ -52,7 +52,7 @@ fbq('track', 'PageView');
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.431";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (fresh Event table rates + fixed Ground capacities)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.432";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (server Event projection + fixed Ground capacities)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -802,6 +802,7 @@ var MYBOOKINGS_OTP_URL = HOD_FUNCTIONS_BASE + '/myBookingsRequestOtp';
 // Public reservation data is now mediated by narrow server projections. These
 // endpoints accept no Firebase account; App Check is attached when available.
 var TABLE_AVAILABILITY_URL = HOD_FUNCTIONS_BASE + '/tableAvailability';
+var PUBLIC_EVENTS_URL = HOD_FUNCTIONS_BASE + '/publicEvents';
 var CREATE_TABLE_RESERVATION_URL = HOD_FUNCTIONS_BASE + '/createTableReservation';
 var WALLET_PROJECTION_URL = HOD_FUNCTIONS_BASE + '/walletProjection';
 var WALLET_ORDER_URL = HOD_FUNCTIONS_BASE + '/walletOrder';
@@ -814,13 +815,15 @@ var CREATE_PUBLIC_BOOKING_URL = HOD_FUNCTIONS_BASE + '/createPublicBooking';
 var CREATE_GUESTLIST_URL = HOD_FUNCTIONS_BASE + '/createGuestListEntry';
 var CREATE_WAITLIST_URL = HOD_FUNCTIONS_BASE + '/createWaitlistEntry';
 var CREATE_WALLET_FEEDBACK_URL = HOD_FUNCTIONS_BASE + '/createWalletFeedback';
-function hodPublicEndpoint(url,body){
+function hodPublicEndpoint(url,body,skipAppCheck){
   var tokenP=Promise.resolve('');
-  try{
-    var host=String(window.location&&window.location.hostname||'').toLowerCase();
-    var isProductionHost=host==='hodclub.in'||host.slice(-11)==='.hodclub.in';
-    if(isProductionHost&&firebase&&firebase.appCheck) tokenP=firebase.appCheck().getToken(false).then(function(x){return (x&&x.token)||'';}).catch(function(){return '';});
-  }catch(_e){}
+  if(!skipAppCheck){
+    try{
+      var host=String(window.location&&window.location.hostname||'').toLowerCase();
+      var isProductionHost=host==='hodclub.in'||host.slice(-11)==='.hodclub.in';
+      if(isProductionHost&&firebase&&firebase.appCheck) tokenP=firebase.appCheck().getToken(false).then(function(x){return (x&&x.token)||'';}).catch(function(){return '';});
+    }catch(_e){}
+  }
   // App Check must never leave a customer action spinning forever when its
   // token service is slow or blocked. Continue without a token after a short
   // wait; the server still remains authoritative and may reject the request.
@@ -1830,7 +1833,6 @@ function _hodNormalizeEvent(ev){
   return ev;
 }
 function startEventsListener(){
-  if(!firestore)return;
   if(S._eventsUnsub){try{S._eventsUnsub();}catch(e){}}
   var _cutoff=(function(){
     var d=new Date(Date.now()-7*24*60*60*1000);
@@ -1858,6 +1860,9 @@ function startEventsListener(){
       var _newJson=JSON.stringify(evs);
       if(S._cachedEventsJson===_newJson){
         // No real change — skip re-render to prevent animation restart flicker.
+        if(S.view==='home'&&S._homeTab==='tables'&&typeof S._refreshDirectTableBookingEvents==='function'){
+          S._refreshDirectTableBookingEvents(evs);
+        }
         return;
       }
       S._cachedEventsJson=_newJson;
@@ -1899,12 +1904,19 @@ function startEventsListener(){
   };
   var _refresh=function(){
     try{
-      firestore.collection('events').where('date','>=',_cutoff).orderBy('date').get()
-        .then(function(snap){
-          var evs=[];snap.forEach(function(doc){evs.push(_hodNormalizeEvent(Object.assign({id:doc.id},doc.data())));});
+      hodPublicEndpoint(PUBLIC_EVENTS_URL,{},true)
+        .then(function(result){
+          var evs=(result.events||[]).map(_hodNormalizeEvent);
+          S._eventsServerLoaded=true;S._eventsLoadError=false;
           _process(evs);
         })
-        .catch(function(err){console.warn('[HOD] events poll failed:',err&&err.message);});
+        .catch(function(err){
+          S._eventsLoadError=true;
+          if(S.view==='home'&&S._homeTab==='tables'&&typeof S._refreshDirectTableBookingEvents==='function'){
+            S._refreshDirectTableBookingEvents([]);
+          }
+          console.warn('[HOD] public events refresh failed:',err&&err.message);
+        });
     }catch(e){console.warn('[HOD] events _refresh threw:',e);}
   };
   // Prime immediately so first paint has data.
@@ -1938,23 +1950,17 @@ function startEventsListener(){
 
 // ── One-time fetch for places that need events but don't want a listener
 function loadEventsFromFirebase(callback){
-  if(!firestore){initFirebase();}
-  if(!firestore){callback(getDB().events);return;}
-  // If cached from listener — return immediately
-  if(S._cachedEvents&&S._cachedEvents.length){callback(S._cachedEvents);return;}
-  // Otherwise one-time get — SAME date-filtered query as startEventsListener so
-  // the cached set matches the listener's, and seed S._cachedEventsJson so the
-  // listener's immediate prime de-dupes (kills the triple-render on load).
-  var _cutoff=(function(){var d=new Date(Date.now()-7*24*60*60*1000);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
-  firestore.collection('events').where('date','>=',_cutoff).orderBy('date').get()
-    .then(function(snap){
-      var evs=[];snap.forEach(function(doc){evs.push(_hodNormalizeEvent(Object.assign({id:doc.id},doc.data())));});
+  if(S._eventsServerLoaded&&S._cachedEvents&&S._cachedEvents.length){callback(S._cachedEvents);return;}
+  hodPublicEndpoint(PUBLIC_EVENTS_URL,{},true)
+    .then(function(result){
+      var evs=(result.events||[]).map(_hodNormalizeEvent);
+      S._eventsServerLoaded=true;S._eventsLoadError=false;
       S._cachedEvents=evs;
       try{S._cachedEventsJson=JSON.stringify(evs);}catch(_e){}
       var db=getDB();db.events=evs;try{saveDB(db);}catch(e){}
       callback(evs);
     })
-    .catch(function(){callback(getDB().events);});
+    .catch(function(){S._eventsLoadError=true;callback(getDB().events);});
 }
 
 // ── Firebase: Save event
@@ -5673,11 +5679,17 @@ function renderDirectTableBooking(){
     arrival._setOptions(slots.map(function(t){return {value:t,label:t+' · ARRIVAL'};}));
     arrival.value=slots.indexOf(oldTime)>=0?oldTime:slots[0];
     if(isGround){
-      var weekend=!!(ev&&_hodIsWeekendIso(ev.date));
-      var amount=ev?_hodEventTablePrice(ev,tableType.value):0;
-      rateBox.innerHTML='<div style="font-size:10px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;">'+(weekend?'Weekend':'Weekday')+' Event Rate</div>'
-        +'<div style="font-size:23px;font-weight:900;margin-top:2px;">₹'+Number(amount).toLocaleString('en-IN')+'</div>'
-        +'<div style="font-size:10px;color:#3D3D3D;margin-top:2px;">'+(ev?sanitize(ev.title)+' · '+sanitize(ev.date):'No event selected')+(ev&&ev.groundTableRatesRedeemable!==false?' · Redeemable on F&amp;B':'')+'</div>';
+      if(S._eventsServerLoaded!==true){
+        rateBox.innerHTML='<div style="font-size:10px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;">Live Event Rate</div>'
+          +'<div style="font-size:18px;font-weight:900;margin-top:4px;">'+(S._eventsLoadError?'Rate unavailable':'Checking live rate…')+'</div>'
+          +'<div style="font-size:10px;color:#3D3D3D;margin-top:3px;">'+(S._eventsLoadError?'Please check your connection and try again.':'We will not use an old cached price.')+'</div>';
+      }else{
+        var weekend=!!(ev&&_hodIsWeekendIso(ev.date));
+        var amount=ev?_hodEventTablePrice(ev,tableType.value):0;
+        rateBox.innerHTML='<div style="font-size:10px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;">'+(weekend?'Weekend':'Weekday')+' Event Rate</div>'
+          +'<div style="font-size:23px;font-weight:900;margin-top:2px;">₹'+Number(amount).toLocaleString('en-IN')+'</div>'
+          +'<div style="font-size:10px;color:#3D3D3D;margin-top:2px;">'+(ev?sanitize(ev.title)+' · '+sanitize(ev.date):'No event selected')+(ev&&ev.groundTableRatesRedeemable!==false?' · Redeemable on F&amp;B':'')+'</div>';
+      }
     }else{
       var freeFloor=floor.value==='rooftop'?'Rooftop':'First Floor / Dining';
       rateBox.innerHTML='<div style="font-size:10px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;">Table Charge</div>'
@@ -5708,6 +5720,7 @@ function renderDirectTableBooking(){
   S._refreshDirectTableBookingEvents=function(latestEvents){
     if(!card.isConnected||!Array.isArray(latestEvents))return;
     var freshEvents=latestEvents.filter(function(item){return item.published&&!isEventPast(item);}).sort(function(a,b){return a.date<b.date?-1:1;});
+    if(!freshEvents.length){rebuild();return;}
     var currentId=eventSelect.value||(ev&&ev.id);
     var freshEvent=freshEvents.filter(function(item){return item.id===currentId;})[0]||(freshEvents.length?freshEvents[0]:null);
     if(!freshEvent)return;
@@ -5785,6 +5798,7 @@ function renderDirectTableBooking(){
     if(!date.value||date.value<today){err.textContent='Please choose today or a future date.';err.style.display='block';return;}
     var idem=(function(){try{var a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(_){return Date.now().toString(36)+Math.random().toString(36).slice(2).repeat(3);}})();
     if(floor.value==='dance'){
+      if(S._eventsServerLoaded!==true){err.textContent='Live Event rates are unavailable. Please check your connection and try again.';err.style.display='block';return;}
       if(!ev||!ev.id||date.value!==ev.date){err.textContent='Ground Floor booking requires the selected Event date.';err.style.display='block';return;}
       var amount=_hodEventTablePrice(ev,tableType.value);
       if(amount>0){
