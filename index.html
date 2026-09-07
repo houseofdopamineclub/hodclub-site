@@ -817,13 +817,26 @@ var CREATE_WALLET_FEEDBACK_URL = HOD_FUNCTIONS_BASE + '/createWalletFeedback';
 function hodPublicEndpoint(url,body){
   var tokenP=Promise.resolve('');
   try{
-    if(firebase&&firebase.appCheck) tokenP=firebase.appCheck().getToken(false).then(function(x){return (x&&x.token)||'';}).catch(function(){return '';});
+    var host=String(window.location&&window.location.hostname||'').toLowerCase();
+    var isProductionHost=host==='hodclub.in'||host.slice(-11)==='.hodclub.in';
+    if(isProductionHost&&firebase&&firebase.appCheck) tokenP=firebase.appCheck().getToken(false).then(function(x){return (x&&x.token)||'';}).catch(function(){return '';});
   }catch(_e){}
+  // App Check must never leave a customer action spinning forever when its
+  // token service is slow or blocked. Continue without a token after a short
+  // wait; the server still remains authoritative and may reject the request.
+  tokenP=Promise.race([tokenP,new Promise(function(resolve){setTimeout(function(){resolve('');},1500);})]);
   return tokenP.then(function(tok){
     var headers={'Content-Type':'application/json'};if(tok)headers['X-Firebase-AppCheck']=tok;
-    return fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body||{})}).then(function(r){
+    var ctrl=null,timer=null;
+    try{if(typeof AbortController!=='undefined')ctrl=new AbortController();}catch(_e){}
+    var request=fetch(url,{method:'POST',headers:headers,body:JSON.stringify(body||{}),signal:ctrl?ctrl.signal:undefined});
+    var bounded=Promise.race([request,new Promise(function(_resolve,reject){
+      timer=setTimeout(function(){try{if(ctrl)ctrl.abort();}catch(_e){}reject(new Error('request_timeout'));},15000);
+    })]);
+    return bounded.then(function(r){
+      if(timer)clearTimeout(timer);
       return r.json().catch(function(){return {};}).then(function(j){if(!r.ok||!j.ok){var e=new Error(j.error||'request_failed');e.status=r.status;throw e;}return j;});
-    });
+    },function(e){if(timer)clearTimeout(timer);throw e;});
   });
 }
 // 🆕 2026-06-15 v3.296 (Phase 3) — customer MONEY/PAYMENT writes move server-side.
@@ -1801,6 +1814,21 @@ function _hodOperationalNightStr(){
 // dashboard once (line 1219 already calls this from admin events tab).
 // That's acceptable — admin opens dashboard every night before service.
 var _stockResetRanThisSession=false;
+function _hodNormalizeEvent(ev){
+  ev=Object.assign({},ev||{});
+  function def(k,v){var n=Number(ev[k]);if(!Number.isFinite(n)||n<0)ev[k]=v;else ev[k]=n;}
+  var legacyRound=Number(ev.table4Price),legacyVvip=Number(ev.vipPrice);
+  if(!Number.isFinite(legacyRound)||legacyRound<0)legacyRound=null;
+  if(!Number.isFinite(legacyVvip)||legacyVvip<0)legacyVvip=null;
+  def('table4Price',8000);def('vipPrice',15000);def('gf4Stock',6);def('vvipStock',2);
+  def('groundRoundWeekdayPrice',legacyRound===null?8000:legacyRound);
+  def('groundRoundWeekendPrice',legacyRound===null?10000:legacyRound);
+  def('groundSquareWeekdayPrice',12000);def('groundSquareWeekendPrice',15000);
+  def('groundVvipWeekdayPrice',legacyVvip===null?15000:legacyVvip);
+  def('groundVvipWeekendPrice',legacyVvip===null?20000:legacyVvip);def('squareStock',1);
+  ['groundTableRatesEnabled','groundTableRatesRedeemable','groundTablePayAtVenue','groundTableOnlinePayment'].forEach(function(k){if(typeof ev[k]!=='boolean')ev[k]=true;});
+  return ev;
+}
 function startEventsListener(){
   if(!firestore)return;
   if(S._eventsUnsub){try{S._eventsUnsub();}catch(e){}}
@@ -1873,7 +1901,7 @@ function startEventsListener(){
     try{
       firestore.collection('events').where('date','>=',_cutoff).orderBy('date').get()
         .then(function(snap){
-          var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
+          var evs=[];snap.forEach(function(doc){evs.push(_hodNormalizeEvent(Object.assign({id:doc.id},doc.data())));});
           _process(evs);
         })
         .catch(function(err){console.warn('[HOD] events poll failed:',err&&err.message);});
@@ -1920,7 +1948,7 @@ function loadEventsFromFirebase(callback){
   var _cutoff=(function(){var d=new Date(Date.now()-7*24*60*60*1000);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
   firestore.collection('events').where('date','>=',_cutoff).orderBy('date').get()
     .then(function(snap){
-      var evs=[];snap.forEach(function(doc){evs.push(Object.assign({id:doc.id},doc.data()));});
+      var evs=[];snap.forEach(function(doc){evs.push(_hodNormalizeEvent(Object.assign({id:doc.id},doc.data())));});
       S._cachedEvents=evs;
       try{S._cachedEventsJson=JSON.stringify(evs);}catch(_e){}
       var db=getDB();db.events=evs;try{saveDB(db);}catch(e){}
@@ -1953,14 +1981,26 @@ function saveEventToFirebase(ev, callback){
   // ── v3 booking fields (entry-only / per-head group / table prices + nightly stock)
   data.entryOnlyPrice=Number(data.entryOnlyPrice)||599;
   data.groupPerHeadPrice=Number(data.groupPerHeadPrice)||500;
-  data.table4Price=Number(data.table4Price)||5000;
+  data.table4Price=Number(data.table4Price)||8000;
   data.vipPrice=Number(data.vipPrice)||15000;
-  data.gf4Stock=Number(data.gf4Stock)||4;
+  data.gf4Stock=Number(data.gf4Stock)||6;
   data.vvipStock=Number(data.vvipStock)||2;
+  data.groundRoundWeekdayPrice=Number(data.groundRoundWeekdayPrice)||8000;
+  data.groundRoundWeekendPrice=Number(data.groundRoundWeekendPrice)||10000;
+  data.groundSquareWeekdayPrice=Number(data.groundSquareWeekdayPrice)||12000;
+  data.groundSquareWeekendPrice=Number(data.groundSquareWeekendPrice)||15000;
+  data.groundVvipWeekdayPrice=Number(data.groundVvipWeekdayPrice)||15000;
+  data.groundVvipWeekendPrice=Number(data.groundVvipWeekendPrice)||20000;
+  data.squareStock=Number(data.squareStock)||1;
+  if(typeof data.groundTableRatesEnabled!=='boolean')data.groundTableRatesEnabled=true;
+  if(typeof data.groundTableRatesRedeemable!=='boolean')data.groundTableRatesRedeemable=true;
+  if(typeof data.groundTablePayAtVenue!=='boolean')data.groundTablePayAtVenue=true;
+  if(typeof data.groundTableOnlinePayment!=='boolean')data.groundTableOnlinePayment=true;
   // ── v3 stock defaults — snapshot used by 6AM auto-reset to restore nightly inventory.
   // Whenever admin saves the event, the current stock values become the new "default" target.
   // Bookings decrement gf4Stock/vvipStock via Firestore txn (does NOT touch _default fields).
-  data._gf4Default=Number(data.gf4Stock)||4;
+  data._gf4Default=Number(data.gf4Stock)||6;
+  data._squareDefault=Number(data.squareStock)||1;
   data._vvipDefault=Number(data.vvipStock)||2;
   data.published=data.published===true;
   data.genre=data.genre||'';
@@ -3101,9 +3141,6 @@ function renderModal(){
       }
     }
   };
-  // Poster, description, metadata and share stay on the event-list card.
-  // The four booking choices are the first visible content in event detail.
-
   // ── GUEST LIST SECTION
 
   // ── Show waitlist if sold out, booking steps otherwise
@@ -3144,13 +3181,11 @@ function renderStep1(ev){
     // === Tab: GUEST LIST (free till 9pm) ===
     {id:'guestlist_couple', tab:'guestlist', group:'entry', label:'COUPLE',         sub:'FREE before 9PM',                   price:0,                          col:'#E8C97A'},
     {id:'guestlist_female', tab:'guestlist', group:'entry', label:'LADIES',         sub:'Always FREE',                       price:0,                          col:'#E8C97A'},
-    // === Tab: SKIP QUEUE / COVERS (existing 4 entry pills + 2 tables) ===
+    // === Tab: SKIP QUEUE / COVERS ===
     {id:'stag',             tab:'cover',     group:'entry', label:'STAG',           sub:'1 Person · Cover Redeemable',       price:ev.stagPrice||999,          col:'#FF90E8'},
     {id:'couple',           tab:'cover',     group:'entry', label:'COUPLE',         sub:'2 Persons · Cover Redeemable',      price:ev.couplePrice||1499,       col:'#FF90E8'},
     {id:'female',           tab:'cover',     group:'entry', label:'LADIES',         sub:'Complimentary Entry',               price:0,                          col:'#E8C97A'},
     {id:'group',            tab:'group',     group:'entry', label:'GROUP · per head',sub:'Cover Redeemable',                  price:ev.groupPerHeadPrice||500,  col:'#FF90E8'},
-    {id:'table4',           tab:'group',     group:'table', label:'TABLE FOR 4',    sub:'Fully redeemable on F&B',           price:ev.table4Price||5000,       col:'#FF90E8', stockKey:'gf4Stock'},
-    {id:'vip',              tab:'group',     group:'table', label:'VVIP TABLE FOR 6', sub:'Fully redeemable on F&B',         price:ev.vipPrice||15000,         col:'#FF90E8', stockKey:'vvipStock'},
   ];
   // Default tab + selection
   if(!S.bdata.bookMode) S.bdata.bookMode='cover';
@@ -3258,7 +3293,8 @@ function renderStep1(ev){
     }
     // ── FIX: Hide "Reserve Cash at Venue" button for free/ladies entry — prevents confusing cash bookings
     var cashReserveBtn=document.getElementById('cash-reserve-btn');
-    if(cashReserveBtn){cashReserveBtn.style.display=final===0?'none':'flex';}
+    if(cashReserveBtn){cashReserveBtn.style.display=(final===0||(S.bdata.tableType&&ev.groundTablePayAtVenue===false))?'none':'flex';}
+    if(payBtnEl){payBtnEl.style.display=(S.bdata.tableType&&ev.groundTableOnlinePayment===false)?'none':'flex';}
     if(cashNoteEl){cashNoteEl.style.display=final===0?'none':'block';}
     // Toggle add-ons section visibility based on table selection
     var addonsW=document.getElementById('addons-wrap');
@@ -3411,50 +3447,8 @@ function renderStep1(ev){
   });
   wrap.appendChild(entryRow);
 
-  // Tables (only on group tab — VIP TABLES / GROUP)
-  if(S.bdata.bookMode==='group'){
-    var orDiv=document.createElement('div');
-    orDiv.style.cssText='display:flex;align-items:center;gap:8px;margin:12px 0;';
-    orDiv.innerHTML='<div style="flex:1;height:1px;background:rgba(0,0,0,.15)"></div>'
-      +'<div style="font-size:10px;font-weight:700;color:#3D3D3D;letter-spacing:1px">OR BOOK A TABLE</div>'
-      +'<div style="flex:1;height:1px;background:rgba(0,0,0,.15)"></div>';
-    wrap.appendChild(orDiv);
-
-    var tableRow=document.createElement('div');
-    tableRow.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:4px;';
-    ALL_OPTIONS.filter(function(o){return o.group==='table';}).forEach(function(opt){
-      // ── v3: live nightly stock from event doc (decremented on booking, reset 6AM)
-      var stockLeft = (typeof ev[opt.stockKey]==='number') ? ev[opt.stockKey] : (opt.stockKey==='vvipStock'?2:4);
-      var soldOut = stockLeft <= 0;
-      var active = !soldOut && (S.bdata.selectedOption===opt.id);
-      var c=document.createElement('div');c.id='opt-'+opt.id;
-      c.style.cssText='padding:10px 10px;border-radius:9px;border:1.5px solid '+(active?opt.col:soldOut?'rgba(255,80,80,.18)':'rgba(0,0,0,.15)')+';background:'+(active?'rgba('+hexRgb(opt.col)+',.1)':soldOut?'rgba(80,20,20,.18)':'transparent')+';cursor:pointer;transition:all .18s;position:relative;opacity:'+(soldOut?'.7':'1')+';';
-      var stockBadge = soldOut
-        ? '<div style="position:absolute;top:6px;right:6px;font-size:8px;font-weight:900;letter-spacing:.5px;color:#FF6B6B;background:rgba(255,80,80,.12);padding:2px 6px;border-radius:6px">SOLD OUT</div>'
-        : '<div style="position:absolute;top:6px;right:6px;font-size:8px;font-weight:800;letter-spacing:.3px;color:'+(stockLeft<=1?'#F59E0B':'#00C864')+';background:'+(stockLeft<=1?'rgba(245,158,11,.10)':'rgba(0,200,100,.10)')+';padding:2px 6px;border-radius:6px">'+stockLeft+' LEFT</div>';
-      c.innerHTML=stockBadge
-        +'<div style="font-size:10px;font-weight:900;letter-spacing:1px;color:#000;margin-bottom:3px;padding-right:50px">'+opt.label+'</div>'
-        +'<div style="font-size:9px;color:#00C864;font-weight:600;margin-bottom:6px;letter-spacing:.3px;">'+opt.sub+'</div>'
-        +'<div style="font-size:15px;font-weight:800;color:'+(soldOut?'#3D3D3D':'#FF90E8')+';font-family:var(--ff);letter-spacing:-.2px;'+(soldOut?'text-decoration:line-through':'')+'">₹'+opt.price.toLocaleString('en-IN')+'</div>';
-      c.onclick=function(){
-        if(soldOut){
-          showToast('😔 '+opt.label+' is sold out tonight. Try the next event.','err',3500);
-          return;
-        }
-        pickOption(opt.id);
-      };
-      tableRow.appendChild(c);
-    });
-    wrap.appendChild(tableRow);
-
-    var tblNote=document.createElement('div');
-    tblNote.style.cssText='font-size:10px;color:#3D3D3D;margin-bottom:14px;text-align:center;';
-    tblNote.textContent='Table booking includes entry for your group · Stock resets nightly at 6AM';
-    wrap.appendChild(tblNote);
-  } else {
-    // Spacer so the form below doesn't crowd the entry pills on entry/guestlist tabs
-    var spacer=document.createElement('div');spacer.style.cssText='height:14px';wrap.appendChild(spacer);
-  }
+  // Keep the ticket modal focused on entries. Table booking has one dedicated action above.
+  var spacer=document.createElement('div');spacer.style.cssText='height:14px';wrap.appendChild(spacer);
 
   // ── PREMIUM ADD-ONS — only shown when a table is selected
   var addonsWrap=document.createElement('div');
@@ -3875,7 +3869,7 @@ function renderStep2(ev){
   wrap.appendChild(el('div','f-title',['BOOKING SUMMARY']));
   var summCard=el('div','');
   summCard.style.cssText='background:#fff;border:2px solid #000;border-radius:12px;padding:14px;margin-bottom:16px;';
-  var etL=({'stag':'Stag Entry (₹'+(ev.stagPrice||999)+')','couple':'Couple Entry (₹'+(ev.couplePrice||1499)+')','female':'Ladies Entry (FREE)','group':'Group Entry — '+(bd.qty||1)+' ppl × ₹'+(ev.groupPerHeadPrice||500),'entryonly':'Door Entry (₹'+(ev.entryOnlyPrice||599)+') · NOT redeemable','guestlist_couple':'Guest List · Couple (FREE)','table4':'Table for 4 (₹'+((ev.table4Price||5000).toLocaleString('en-IN'))+')','vip':'VVIP Table for 6 (₹'+((ev.vipPrice||15000).toLocaleString('en-IN'))+')'})[bd.entryType||bd.tableType||'stag']||'Entry';
+  var etL=({'stag':'Stag Entry (₹'+(ev.stagPrice||999)+')','couple':'Couple Entry (₹'+(ev.couplePrice||1499)+')','female':'Ladies Entry (FREE)','group':'Group Entry — '+(bd.qty||1)+' ppl × ₹'+(ev.groupPerHeadPrice||500),'entryonly':'Door Entry (₹'+(ev.entryOnlyPrice||599)+') · NOT redeemable','guestlist_couple':'Guest List · Couple (FREE)','table4':'Round Table · 4 pax (₹'+_hodEventTablePrice(ev,'round').toLocaleString('en-IN')+')','square':'Square Table · 8 pax (₹'+_hodEventTablePrice(ev,'square').toLocaleString('en-IN')+')','vip':'VVIP Table · 8 pax (₹'+_hodEventTablePrice(ev,'vvip').toLocaleString('en-IN')+')'})[bd.entryType||bd.tableType||'stag']||'Entry';
   [[' Name',bd.name],[' Email',bd.email],[' Phone',bd.phone],[' Entry Type',etL],[' Tickets',bd.qty+' × '+(bd.entryPrice===0?'Free':'₹'+(bd.entryPrice||999))]].forEach(function(r){
     var row=document.createElement('div');row.style.cssText='display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:12px;';
     row.innerHTML='<span style="color:#3D3D3D">'+r[0]+'</span><span style="font-weight:600">'+sanitize(r[1]+'')+'</span>';
@@ -4152,14 +4146,14 @@ function saveBooking(paymentId){
   // gets written below (v3.44) regardless of pay status so the booking IS
   // visible in DoorMode → TABLES tab — just without a pre-loaded wallet.
   var _tablePaid = !!(paymentId && String(paymentId).indexOf('pay_') === 0);
-  if(firestore && _tablePaid && booking.tableType && (booking.tableType==='table4' || booking.tableType==='vip')){
+  if(firestore && _tablePaid && booking.tableType && (booking.tableType==='table4' || booking.tableType==='square' || booking.tableType==='vip')){
     var _hodCoverDoc = {
       ref:ref, bookingId:ref,
       name:booking.name, phone:booking.phone, email:booking.email||'',
       coverBalance: tableTotal, coverActivated: tableTotal, coverUsed:0,
       transactions: [{ type:'table_prepay', amount: tableTotal, paymentId: paymentId||'', at: new Date().toISOString() }],
       eventTitle: ev.title||'', eventId: ev.id||'',
-      partySize: (booking.tableType==='vip' ? 6 : 4),
+      partySize: (booking.tableType==='table4' ? 4 : 8),
       date: ev.date||'', arrivalTime: (ev.time||''),
       floorLabel: 'GROUND FLOOR',
       tableTier: booking.tableType,
@@ -4175,7 +4169,7 @@ function saveBooking(paymentId){
       paymentId: paymentId, coverRef: ref, coverAmount: tableTotal, kind:'table_prepay',
       name:booking.name, phone:booking.phone, email:booking.email||'',
       eventTitle: ev.title||'', eventId: ev.id||'',
-      partySize: (booking.tableType==='vip' ? 6 : 4),
+       partySize: (booking.tableType==='table4' ? 4 : 8),
       date: ev.date||'', arrivalTime: (ev.time||''),
       floorLabel: 'GROUND FLOOR', tableTier: booking.tableType
     }).then(function(){ /* wallet created + verified server-side */ })
@@ -4211,21 +4205,8 @@ function saveBooking(paymentId){
   // ── v3: decrement nightly table stock when a table is booked.
   // Firestore transaction guarantees atomicity (no oversell on parallel bookings).
   // Stock auto-resets to ev._gf4Default / ev._vvipDefault at 6AM operational rollover.
-  if(firestore && (booking.tableType==='table4'||booking.tableType==='vip')){
-    var stockKey = booking.tableType==='vip' ? 'vvipStock' : 'gf4Stock';
-    try{
-      firestore.runTransaction(function(t){
-        var ref2 = firestore.collection('events').doc(ev.id);
-        return t.get(ref2).then(function(doc){
-          if(!doc.exists) return;
-          var cur = doc.data();
-          var newVal = Math.max(0, (Number(cur[stockKey])||0) - 1);
-          var upd = {}; upd[stockKey] = newVal;
-          t.update(ref2, upd);
-        });
-      }).catch(function(err){console.warn('[HOD] stock decrement failed:',err);});
-    }catch(e){console.warn('[HOD] stock txn error:',e);}
-  }
+  // Event-table stock is decremented exactly once by createPublicBooking's
+  // server transaction. Browsers never mutate inventory.
   var idx=db.events.findIndex(function(e){return e.id===ev.id;});
   if(idx>=0){db.events[idx].sold=Math.min(db.events[idx].capacity,(db.events[idx].sold||0)+(bd.qty||1));}
   db.bookings.push(booking);
@@ -4260,12 +4241,12 @@ function saveBooking(paymentId){
     // a specific table.id (the door girl assigns it on arrival) so we send the
     // tier label ("TABLE FOR 4" / "VVIP TABLE FOR 6") and "GROUND FLOOR" as
     // sensible defaults that match what the customer saw on the booking page.
-    var _isTable = !!bd.tableType && (bd.tableType==='table4' || bd.tableType==='vip');
+    var _isTable = !!bd.tableType && (bd.tableType==='table4' || bd.tableType==='square' || bd.tableType==='vip');
     var _tplName, _tplParams;
     if (_isTable) {
-      var _tblLabel = bd.tableType==='vip' ? 'VVIP TABLE FOR 6' : 'TABLE FOR 4';
+      var _tblLabel = bd.tableType==='vip' ? 'VVIP TABLE · 8 PAX' : bd.tableType==='square' ? 'SQUARE TABLE · 8 PAX' : 'ROUND TABLE · 4 PAX';
       var _tblFloor = 'GROUND FLOOR';
-      var _tblPax = String(bd.tableType==='vip' ? 6 : 4);
+      var _tblPax = String(bd.tableType==='table4' ? 4 : 8);
       var _tblArrival = (ev.time||'FROM 8 PM').toString();
       _tplName = 'table_confirmed';
       _tplParams = [_name, _date, _tblArrival, _tblLabel, _tblFloor, _tblPax, _link];
@@ -5381,6 +5362,22 @@ function _hodLoadTablePricing(){try{if(typeof firestore==='undefined'||!firestor
 function _hodFloorPriceKey(f){return f==='dance'?'ground':f;}
 function _hodCoverCat(_floor,_isVip){if(_floor==='dance'||_floor==='ground')return _isVip?'groundVvip':'groundPremium';if(_floor==='dining')return 'dining';if(_floor==='rooftop')return 'rooftop';return 'groundPremium';}
 function _hodIsWeekendIso(iso){try{var d=new Date(iso+'T12:00:00');var wd=d.getDay();return wd===5||wd===6||wd===0;}catch(_){return false;}}
+function _hodEventTablePrice(ev,type,weekendOverride){
+  if(!ev||ev.groundTableRatesEnabled===false)return 0;
+  var weekend=typeof weekendOverride==='boolean'?weekendOverride:_hodIsWeekendIso(ev.date);
+  var field=type==='square'?'groundSquare':type==='vvip'?'groundVvip':'groundRound';
+  var value=Number(ev[field+(weekend?'WeekendPrice':'WeekdayPrice')]);
+  if(!Number.isFinite(value)||value<0){
+    if(type==='round')value=Number(ev.table4Price);
+    else if(type==='vvip')value=Number(ev.vipPrice);
+  }
+  if(!Number.isFinite(value)||value<0)value=type==='square'?(weekend?15000:12000):type==='vvip'?(weekend?20000:15000):(weekend?10000:8000);
+  return value;
+}
+function _hodPhysicalTableType(table){
+  var id=String(table&&table.id||'').toUpperCase();
+  return id==='CSQ1'?'square':id.indexOf('CVIP')===0?'vvip':'round';
+}
 var _HOD_TABLES = {
   dance:{
     label:'Ground Floor',icon:'🎧',
@@ -5389,9 +5386,12 @@ var _HOD_TABLES = {
       {id:'C1',seats:4,sh:'circle',cx:115,cy:215,r:34},
       {id:'C2',seats:4,sh:'circle',cx:225,cy:165,r:34},
       {id:'C3',seats:4,sh:'circle',cx:335,cy:215,r:34},
-      {id:'C4',seats:4,sh:'circle',cx:225,cy:295,r:34},
-      {id:'VIP1',seats:6,sh:'rect',x:390,y:120,w:90,h:80,vip:true},
-      {id:'VIP2',seats:6,sh:'rect',x:390,y:260,w:90,h:80,vip:true}
+      {id:'C4',seats:4,sh:'circle',cx:115,cy:315,r:34},
+      {id:'C5',seats:4,sh:'circle',cx:225,cy:295,r:34},
+      {id:'C6',seats:4,sh:'circle',cx:335,cy:315,r:34},
+      {id:'CSQ1',seats:8,sh:'rect',x:180,y:210,w:90,h:62,square:true},
+      {id:'CVIP1',seats:8,sh:'rect',x:390,y:120,w:90,h:80,vip:true},
+      {id:'CVIP2',seats:8,sh:'rect',x:390,y:260,w:90,h:80,vip:true}
     ],
     bg:'<defs><filter id="tglow"><feGaussianBlur stdDeviation="3" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/></filter></defs>'
       +'<rect x="8" y="8" width="484" height="414" rx="12" fill="rgba(244,244,240,.95)" stroke="rgba(0,0,0,.06)" stroke-width="1.5"/>'
@@ -5570,8 +5570,7 @@ function renderDirectTableBooking(){
   var card=document.createElement('div');
   card.style.cssText='max-width:720px;margin:0 auto;background:#fff;border:3px solid #000;border-radius:16px;padding:24px;box-shadow:8px 8px 0 #000;box-sizing:border-box;';
   card.innerHTML='<div style="display:inline-block;background:#FFD700;border:2px solid #000;border-radius:999px;padding:6px 11px;font-size:10px;font-weight:900;letter-spacing:2px;margin-bottom:13px;">BOOK A TABLE · YOUR WAY</div>'
-    +'<h2 style="font-size:34px;line-height:1.02;margin-bottom:10px;letter-spacing:-1.2px;">Pick the vibe.<br><span style="color:#D633A9;">We’ll find your table.</span></h2>'
-    +(ev?'<div style="position:relative;padding:14px 14px 14px 48px;background:#FF90E8;border:2px solid #000;border-radius:10px;margin-bottom:18px;font-size:13px;font-weight:900;box-shadow:4px 4px 0 #000;"><span style="position:absolute;left:14px;top:12px;font-size:22px;">✦</span>'+sanitize(ev.title)+'<div style="font-size:11px;margin-top:4px;letter-spacing:.5px;">'+fmtDate(ev.date)+'</div></div>':'');
+    +'<h2 style="font-size:34px;line-height:1.02;margin-bottom:18px;letter-spacing:-1.2px;">Pick the vibe.<br><span style="color:#D633A9;">We’ll find your table.</span></h2>';
   function field(label,node){
     var f=el('div','fld');f.style.marginBottom='14px';
     var l=document.createElement('label');l.textContent=label;l.style.cssText='font-size:11px;font-weight:900;letter-spacing:1.4px;color:#000;margin:0 0 6px 2px;';
@@ -5589,6 +5588,22 @@ function renderDirectTableBooking(){
   var phoneRow=document.createElement('div');phoneRow.style.cssText='display:flex;gap:8px;width:100%;';
   phoneRow.appendChild(countryCode);phoneRow.appendChild(phone);field('Phone Number',phoneRow);
   var email=input('email','your@email.com (optional)');field('Email Address (Optional)',email);
+  var tableType=_hodDD({
+    options:[
+      {value:'round',label:'Round'},
+      {value:'square',label:'Square'},
+      {value:'vvip',label:'VVIP'}
+    ],
+    value:'round',
+    btnCss:'border-radius:10px;padding:13px 14px;background:#fff;box-shadow:3px 3px 0 rgba(0,0,0,.14);font-weight:900;',
+    onChange:function(){rebuild();}
+  });
+  var tableTypeField=el('div','fld');tableTypeField.style.marginBottom='14px';
+  var tableTypeLabel=document.createElement('label');tableTypeLabel.textContent='Table Type';
+  tableTypeLabel.style.cssText='font-size:11px;font-weight:900;letter-spacing:1.4px;color:#000;margin:0 0 6px 2px;';
+  tableTypeField.appendChild(tableTypeLabel);tableTypeField.appendChild(tableType);
+  var rateBox=document.createElement('div');
+  rateBox.style.cssText='display:none;background:#FFD700;border:2px solid #000;border-radius:10px;padding:12px 14px;margin:-2px 0 14px;';
   var floorManuallyChosen=false;
   var floor=_hodDD({
     options:[
@@ -5600,6 +5615,22 @@ function renderDirectTableBooking(){
     btnCss:'border-radius:10px;padding:13px 14px;background:#FFD700;box-shadow:3px 3px 0 #000;font-weight:900;',
     onChange:function(){floorManuallyChosen=true;rebuild();}
   });field('Choose Your Floor',floor);
+  var eventSelect=_hodDD({
+    options:evs.map(function(item){return {value:item.id,label:item.title+' · '+fmtDate(item.date)};}),
+    value:ev?ev.id:'',
+    placeholder:'Choose an Event',
+    btnCss:'border-radius:10px;padding:13px 14px;background:#fff;box-shadow:3px 3px 0 rgba(0,0,0,.14);font-weight:900;',
+    onChange:function(){
+      ev=evs.filter(function(item){return item.id===eventSelect.value;})[0]||null;
+      S._tableSelEv=ev;rebuild();
+    }
+  });
+  var eventField=el('div','fld');eventField.style.marginBottom='14px';
+  var eventLabel=document.createElement('label');eventLabel.textContent='Choose Your Event';
+  eventLabel.style.cssText='font-size:11px;font-weight:900;letter-spacing:1.4px;color:#000;margin:0 0 6px 2px;';
+  eventField.appendChild(eventLabel);eventField.appendChild(eventSelect);card.appendChild(eventField);
+  card.appendChild(tableTypeField);
+  card.appendChild(rateBox);
   var party=_hodDD({
     options:[],value:'2',
     btnCss:'border-radius:10px;padding:13px 14px;background:#fff;box-shadow:3px 3px 0 rgba(0,0,0,.14);font-weight:900;',
@@ -5619,7 +5650,13 @@ function renderDirectTableBooking(){
   card.appendChild(submit);
 
   function rebuild(){
-    var max={dance:6,dining:8,rooftop:7}[floor.value]||6;var old=Number(party.value)||2;
+    var isGround=floor.value==='dance';
+    tableTypeField.style.display=isGround?'block':'none';
+    eventField.style.display=isGround?'block':'none';
+    rateBox.style.display='block';
+    if(isGround&&ev&&ev.date)date.value=ev.date;
+    date.readOnly=!!isGround;
+    var max=isGround?(tableType.value==='round'?4:8):({dining:8,rooftop:7}[floor.value]||6);var old=Number(party.value)||2;
     var partyOpts=[];for(var i=1;i<=max;i++)partyOpts.push({value:String(i),label:(i===1?'JUST ME · 1 PERSON':i+' PEOPLE')});
     party._setOptions(partyOpts);
     party.value=String(Math.min(old,max));
@@ -5628,6 +5665,18 @@ function renderDirectTableBooking(){
     var oldTime=arrival.value;
     arrival._setOptions(slots.map(function(t){return {value:t,label:t+' · ARRIVAL'};}));
     arrival.value=slots.indexOf(oldTime)>=0?oldTime:slots[0];
+    if(isGround){
+      var weekend=!!(ev&&_hodIsWeekendIso(ev.date));
+      var amount=ev?_hodEventTablePrice(ev,tableType.value):0;
+      rateBox.innerHTML='<div style="font-size:10px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;">'+(weekend?'Weekend':'Weekday')+' Event Rate</div>'
+        +'<div style="font-size:23px;font-weight:900;margin-top:2px;">₹'+Number(amount).toLocaleString('en-IN')+'</div>'
+        +'<div style="font-size:10px;color:#3D3D3D;margin-top:2px;">'+(ev?sanitize(ev.title)+' · '+sanitize(ev.date):'No event selected')+(ev&&ev.groundTableRatesRedeemable!==false?' · Redeemable on F&amp;B':'')+'</div>';
+    }else{
+      var freeFloor=floor.value==='rooftop'?'Rooftop':'First Floor / Dining';
+      rateBox.innerHTML='<div style="font-size:10px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;">Table Charge</div>'
+        +'<div style="font-size:23px;font-weight:900;margin-top:2px;">₹0</div>'
+        +'<div style="font-size:10px;color:#3D3D3D;margin-top:2px;">'+sanitize(freeFloor)+' · No table charge</div>';
+    }
     scheduleAutoFloor();
   }
   var autoFloorTimer=null,autoFloorSeq=0;
@@ -5650,19 +5699,13 @@ function renderDirectTableBooking(){
     }).catch(function(){});
   }
   rebuild();
-  submit.onclick=function(){
-    err.style.display='none';
-    var cleanName=name.value.trim(),ccDigits=countryCode.value.replace(/\D/g,''),localDigits=phone.value.replace(/\D/g,'').replace(/^0+/,''),
-      cleanPhone=ccDigits+localDigits,cleanEmail=email.value.trim();
-    if(cleanName.length<2||!/[A-Za-z]/.test(cleanName)){err.textContent='Please enter a valid full name.';err.style.display='block';return;}
-    if(countryCode.value.trim().charAt(0)!=='+'||ccDigits.length<1||ccDigits.length>4||localDigits.length<6||cleanPhone.length<10||cleanPhone.length>15){err.textContent='Please enter a valid country code and phone number.';err.style.display='block';return;}
-    if(cleanEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)){err.textContent='Please enter a valid email address, or leave it blank.';err.style.display='block';return;}
-    if(!date.value||date.value<today){err.textContent='Please choose today or a future date.';err.style.display='block';return;}
-    var idem=(function(){try{var a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(_){return Date.now().toString(36)+Math.random().toString(36).slice(2).repeat(3);}})();
+  function finalizeBooking(cleanName,cleanPhone,cleanEmail,idem,paymentId,expectedTotal){
     submit.disabled=true;submit.textContent='Booking your table…';
     hodPublicEndpoint(CREATE_TABLE_RESERVATION_URL,{
       floor:floor.value,date:date.value,arrivalTime:arrival.value,partySize:Number(party.value),
-      name:cleanName,phone:cleanPhone,email:cleanEmail,idempotencyKey:idem
+      name:cleanName,phone:cleanPhone,email:cleanEmail,idempotencyKey:idem,
+      eventId:ev?ev.id:'',tableType:floor.value==='dance'?tableType.value:'',
+      paymentId:paymentId||'',expectedTotal:Number(expectedTotal)||0
     }).then(function(result){
       try{if(cleanEmail)_HOD_sendMail({bookingRef:result.ref,walletSecret:result.walletSecret});}catch(_){}
       return _HOD_sendWhatsAppTemplate(result.ref,result.walletSecret).then(function(whatsapp){
@@ -5683,6 +5726,55 @@ function renderDirectTableBooking(){
         :'We could not reserve a table. Please check your details and try again.';
       err.style.display='block';
     });
+  }
+  function chooseGroundPayment(amount,details){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.82);display:flex;align-items:flex-end;justify-content:center;';
+    var payCard=document.createElement('div');
+    payCard.style.cssText='width:100%;max-width:540px;background:#F4F4F0;border:2px solid #000;border-radius:20px 20px 0 0;padding:24px;';
+    payCard.innerHTML='<div style="font-size:11px;font-weight:900;letter-spacing:1.5px;">TABLE BOOKING</div>'
+      +'<div style="font-size:24px;font-weight:900;margin:5px 0 14px;">₹'+amount.toLocaleString('en-IN')+'</div>'
+      +'<div style="font-size:12px;color:#3D3D3D;margin-bottom:16px;">'+sanitize(tableType.value.charAt(0).toUpperCase()+tableType.value.slice(1))+' · '+sanitize(ev.title)+' · '+sanitize(ev.date)+'</div>';
+    var online=el('button','btn-pay');online.textContent='Pay Online';
+    var venue=el('button','btn-ghost');venue.textContent='Reserve Now, Pay at Venue';venue.style.cssText+='width:100%;padding:14px;margin-top:10px;';
+    var back=el('button','btn-ghost');back.textContent='← Back';back.style.cssText+='width:100%;padding:11px;margin-top:10px;';
+    back.onclick=function(){ov.remove();};
+    online.onclick=function(){
+      online.disabled=true;
+      var options={key:RAZORPAY_KEY,amount:amount*100,currency:'INR',name:'HOD — House of Dopamine',
+        description:'Table Booking · '+tableType.value,image:'https://hodclub.in/logo.png',
+        notes:{kind:'table_cover',eventId:String(ev.id),tableType:String(tableType.value),floor:'dance',date:String(ev.date),expectedTotal:String(amount)},
+        handler:function(resp){ov.remove();finalizeBooking(details.name,details.phone,details.email,details.idem,resp.razorpay_payment_id,amount);},
+        prefill:{name:details.name,email:details.email,contact:details.phone},theme:{color:'#FF90E8'},
+        modal:{ondismiss:function(){online.disabled=false;}}};
+      ensureRazorpay(function(ok){
+        if(!ok){online.disabled=false;alert('Payment could not open. Please check your connection and try again.');return;}
+        try{new Razorpay(options).open();}catch(_e){online.disabled=false;alert('Payment could not open. Please try again.');}
+      });
+    };
+    venue.onclick=function(){ov.remove();finalizeBooking(details.name,details.phone,details.email,details.idem,'cash_pending_'+Date.now().toString(36),amount);};
+    if(ev.groundTableOnlinePayment!==false)payCard.appendChild(online);
+    if(ev.groundTablePayAtVenue!==false)payCard.appendChild(venue);
+    payCard.appendChild(back);ov.appendChild(payCard);document.body.appendChild(ov);
+  }
+  submit.onclick=function(){
+    err.style.display='none';
+    var cleanName=name.value.trim(),ccDigits=countryCode.value.replace(/\D/g,''),localDigits=phone.value.replace(/\D/g,'').replace(/^0+/,''),
+      cleanPhone=ccDigits+localDigits,cleanEmail=email.value.trim();
+    if(cleanName.length<2||!/[A-Za-z]/.test(cleanName)){err.textContent='Please enter a valid full name.';err.style.display='block';return;}
+    if(countryCode.value.trim().charAt(0)!=='+'||ccDigits.length<1||ccDigits.length>4||localDigits.length<6||cleanPhone.length<10||cleanPhone.length>15){err.textContent='Please enter a valid country code and phone number.';err.style.display='block';return;}
+    if(cleanEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)){err.textContent='Please enter a valid email address, or leave it blank.';err.style.display='block';return;}
+    if(!date.value||date.value<today){err.textContent='Please choose today or a future date.';err.style.display='block';return;}
+    var idem=(function(){try{var a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(_){return Date.now().toString(36)+Math.random().toString(36).slice(2).repeat(3);}})();
+    if(floor.value==='dance'){
+      if(!ev||!ev.id||date.value!==ev.date){err.textContent='Ground Floor booking requires the selected Event date.';err.style.display='block';return;}
+      var amount=_hodEventTablePrice(ev,tableType.value);
+      if(amount>0){
+        if(ev.groundTableOnlinePayment===false&&ev.groundTablePayAtVenue===false){err.textContent='Booking payment is unavailable for this Event.';err.style.display='block';return;}
+        chooseGroundPayment(amount,{name:cleanName,phone:cleanPhone,email:cleanEmail,idem:idem});return;
+      }
+    }
+    finalizeBooking(cleanName,cleanPhone,cleanEmail,idem,'',0);
   };
   stage.appendChild(card);wrap.appendChild(stage);return wrap;
 }
@@ -6084,7 +6176,7 @@ function renderTableFloorPlan(){
     }
     var _td=new Date();
     var _todayLocal=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
-    dateI.value=_todayLocal;dateI.min=_todayLocal;
+    dateI.value=(activeFloor==='dance'&&ev&&ev.date>=_todayLocal)?ev.date:_todayLocal;dateI.min=_todayLocal;
     dateI.addEventListener('change',function(){if(this.value && this.value<_todayLocal){this.value=_todayLocal;try{_rebuildArrival(this.value);}catch(_){}}});
     var _sizeOpts=[];for(var i=1;i<=table.seats;i++){_sizeOpts.push({value:String(i),label:i+' Guest'+(i>1?'s':'')});}
     var sizeI=_hodDD({options:_sizeOpts,value:String(Math.min(2,table.seats)),wrapCss:'margin-bottom:10px;',listMinWidth:200});
@@ -6205,21 +6297,7 @@ function renderTableFloorPlan(){
     // with arrival 9 PM or later on ANY floor, when enabled. Price per head is read
     // from appSettings/tablePricing (defaults ₹2,500/floor). Fail-open: any error → ₹0 → free flow.
     function _coverPerHeadFor(_iso,_arr){
-      try{
-        if(!_HOD_TBL_PRICING.enabled) return 0;
-        if(!_hodIsWeekendIso(_iso)) return 0;
-        var _cat=_hodCoverCat(activeFloor,(table&&table.vip));
-        var _c=_HOD_TBL_PRICING[_cat]||{};
-        // Cover starts at the per-tier start time from CRM (appSettings/tablePricing),
-        // defaulting to 9 PM (1260). The one-night RCB-final 7 PM hardcode was removed
-        // (2026-06-03) — the match is over; weekends now apply cover at 9 PM+ only.
-        var _sm=(typeof _c.startMin==='number')?_c.startMin:1260;
-        if(typeof _t2m!=='function' || _t2m(_arr)<_sm) return 0;
-        // 🆕 2026-06-17 — Per-head TIER price ONLY. The per-table override is a FLAT
-        // table charge (handled by _coverFlatFor) and must NOT be multiplied by pax.
-        var _v=_c.price;
-        return (typeof _v==='number' && _v>0)?_v:0;
-      }catch(_e){ return 0; }
+      return 0;
     }
     // 🆕 2026-06-17 — PER-TABLE override = a FLAT charge for the whole table (e.g.
     // ₹5,000 whether 1/2/3/4 guests), NOT per head. Returns the flat amount when an
@@ -6227,15 +6305,9 @@ function renderTableFloorPlan(){
     // else 0 → caller falls back to per-head × pax. Fail-open to 0.
     function _coverFlatFor(_iso,_arr){
       try{
-        if(!_HOD_TBL_PRICING.enabled) return 0;
-        if(!_hodIsWeekendIso(_iso)) return 0;
-        var _cat=_hodCoverCat(activeFloor,(table&&table.vip));
-        var _c=_HOD_TBL_PRICING[_cat]||{};
-        var _sm=(typeof _c.startMin==='number')?_c.startMin:1260;
-        if(typeof _t2m!=='function' || _t2m(_arr)<_sm) return 0;
-        var _tid=(table&&table.id)||'';
-        var _ov=(_HOD_OV_TABLES[_tid] && _HOD_TBL_PRICING.tableOverrides && typeof _HOD_TBL_PRICING.tableOverrides[_tid]==='number')?_HOD_TBL_PRICING.tableOverrides[_tid]:0;
-        return (typeof _ov==='number' && _ov>0)?_ov:0;
+        if(activeFloor!=='dance')return 0;
+        if(!ev||_iso!==ev.date)throw new Error('Select the event date for Ground Floor rates.');
+        return _hodEventTablePrice(ev,_hodPhysicalTableType(table));
       }catch(_e){ return 0; }
     }
     function _collect(soft){
@@ -6264,6 +6336,10 @@ function renderTableFloorPlan(){
     }
     confBtn.onclick=function(){
       var V=_collect(false); if(!V) return;
+      if(activeFloor==='dance'&&(!ev||V.bookDate!==ev.date)){
+        errD.textContent='Ground Floor table rates require the selected event date ('+(ev&&ev.date?ev.date:'unavailable')+').';
+        errD.style.display='block';return;
+      }
       var _flat=_coverFlatFor(V.bookDate,V.arrival);
       if(_flat>0){ _rcbShowPay(_flat,V,true); return; }
       var _ph=_coverPerHeadFor(V.bookDate,V.arrival);
@@ -6288,7 +6364,9 @@ function renderTableFloorPlan(){
       var _idem=(function(){try{var a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,function(b){return b.toString(16).padStart(2,'0');}).join('');}catch(e){return Date.now().toString(36)+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);}})();
       hodPublicEndpoint(CREATE_TABLE_RESERVATION_URL,{
         tableId:table.id,floor:activeFloor,date:today,name:name,phone:phone,email:email||'',
-        partySize:ps,arrivalTime:arrival,idempotencyKey:_idem
+        partySize:ps,arrivalTime:arrival,idempotencyKey:_idem,
+        eventId:ev?ev.id:'',tableType:activeFloor==='dance'?_hodPhysicalTableType(table):'',
+        paymentId:_payId||'',expectedTotal:_coverAmt
       }).then(function(created){
         _tblWalletSecret=created.walletSecret;
         return created.ref;
@@ -6428,7 +6506,7 @@ function renderTableFloorPlan(){
       card.style.cssText='background:rgba(244,244,240,.99);border:2px solid #000;border-radius:24px 24px 0 0;padding:26px 22px 34px;width:100%;max-width:540px;box-shadow:0 -20px 60px rgba(0,0,0,.9);';
       card.innerHTML='<div style="font-size:10px;font-weight:800;color:#000;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">TABLE BOOKING</div>'
         +'<div style="font-family:var(--ff);font-size:22px;font-weight:900;color:#000;margin-bottom:14px;">Table Cover Charge</div>'
-        +'<div style="background:#F4F4F0;border:2px solid #000;border-radius:13px;padding:12px 14px;margin-bottom:16px;"><div style="font-size:13px;font-weight:900;color:#000;line-height:1.3;">ℹ️ COVER CHARGE APPLICABLE</div><div style="font-size:11.5px;font-weight:600;color:#3D3D3D;margin-top:6px;line-height:1.45;">Cover charges are applicable at the venue across all floors for weekend tables booked at 9 PM or later. The amount below is as set by House of Dopamine and is <span style="color:#23A094;font-weight:900;">100% redeemable on food &amp; drinks</span>.</div></div>'
+        +'<div style="background:#F4F4F0;border:2px solid #000;border-radius:13px;padding:12px 14px;margin-bottom:16px;"><div style="font-size:13px;font-weight:900;color:#000;line-height:1.3;">ℹ️ GROUND FLOOR MINIMUM SPEND</div><div style="font-size:11.5px;font-weight:600;color:#3D3D3D;margin-top:6px;line-height:1.45;">This is a flat per-table minimum spend for the entire event and is <span style="color:#23A094;font-weight:900;">fully redeemable on F&amp;B</span>.</div></div>'
         +'<div style="background:rgba(0,0,0,.04);border:2px solid #000;border-radius:8px;padding:14px 16px;margin-bottom:18px;">'
         +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:#3D3D3D;font-size:12px;">Table</span><span style="font-weight:800;font-size:13px;color:#000;">'+sanitize(table.id)+' · '+sanitize(_HOD_TABLES[activeFloor].label)+'</span></div>'
         +'<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.06);padding-bottom:9px;margin-bottom:9px;"><span style="color:#3D3D3D;font-size:12px;">Date &amp; Arrival</span><span style="font-weight:800;font-size:13px;">'+sanitize(V.bookDate)+' · '+sanitize(V.arrival)+'</span></div>'
@@ -6454,7 +6532,7 @@ function renderTableFloorPlan(){
         payBtn.innerHTML='<span style="border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;width:16px;height:16px;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle"></span> Opening payment…';
         var _reset=function(){payBtn.disabled=false;cashBtn.disabled=false;payBtn.innerHTML='💳 Pay ₹'+amount.toLocaleString('en-IN')+' Online';};
         var options={key:RAZORPAY_KEY,amount:amount*100,currency:'INR',name:'HOD — House of Dopamine',description:'Table Cover · '+table.id+' · '+_HOD_TABLES[activeFloor].label,image:'https://hodclub.in/logo.png',
-          notes:{kind:'table_cover',tableId:String(table.id),floor:String(activeFloor),date:String(V.bookDate),arrivalTime:String(V.arrival),partySize:String(V.ps),name:String(V.name||'').slice(0,100),phone:String(V.phone||'').slice(0,20),email:String(V.email||'').slice(0,200),expectedTotal:String(amount)},
+          notes:{kind:'table_cover',eventId:String(ev&&ev.id||''),tableId:String(table.id),floor:String(activeFloor),date:String(V.bookDate),arrivalTime:String(V.arrival),partySize:String(V.ps),name:String(V.name||'').slice(0,100),phone:String(V.phone||'').slice(0,20),email:String(V.email||'').slice(0,200),expectedTotal:String(amount)},
           handler:function(resp){ ov.remove(); _finalizeReserve(resp.razorpay_payment_id,amount,V); },
           prefill:{name:V.name,email:V.email,contact:V.phone},theme:{color:'#FF90E8'},
           modal:{ondismiss:_reset}};
@@ -6466,7 +6544,9 @@ function renderTableFloorPlan(){
         } else { _reset(); alert('Online payment not available right now — please use Reserve Now, Pay at Venue.'); }
       };
       cashBtn.onclick=function(){ ov.remove(); _finalizeReserve('cash_pending_'+Date.now().toString(36),amount,V); };
-      card.appendChild(payBtn);card.appendChild(cashBtn);card.appendChild(backBtn);
+      if(ev&&ev.groundTableOnlinePayment!==false)card.appendChild(payBtn);
+      if(ev&&ev.groundTablePayAtVenue!==false)card.appendChild(cashBtn);
+      card.appendChild(backBtn);
       ov.appendChild(card);document.body.appendChild(ov);
     }
   }
