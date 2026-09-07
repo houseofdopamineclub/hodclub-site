@@ -52,7 +52,7 @@ fbq('track', 'PageView');
   window.addEventListener("unhandledrejection",function(ev){try{if(_benign(ev&&ev.reason)){ev.preventDefault();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}}catch(_e){}},true);
 }catch(_e){}})();
 </script>
-<script>window.HOD_BUILD="v3.430";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (stable QR refresh + resilient wallet links)","color:#23A094;font-weight:700");}catch(e){}
+<script>window.HOD_BUILD="v3.431";try{console.log("%c[HOD] customer-site build "+window.HOD_BUILD+" (fresh Event table rates + fixed Ground capacities)","color:#23A094;font-weight:700");}catch(e){}
 // Tiny VISIBLE build badge so a non-technical owner can verify a deploy landed
 // at a glance (no dev-tools needed). Unobtrusive, bottom-right, low opacity.
 try{document.addEventListener("DOMContentLoaded",function(){var b=document.createElement("div");b.textContent="build "+window.HOD_BUILD;b.style.cssText="position:fixed;right:6px;bottom:6px;z-index:2147483647;font:600 9px/1 ui-monospace,monospace;color:rgba(0,0,0,.40);background:rgba(0,0,0,.08);padding:2px 5px;border-radius:5px;pointer-events:none;letter-spacing:.5px;";document.body.appendChild(b);});}catch(e){}</script>
@@ -1878,12 +1878,12 @@ function startEventsListener(){
         var _hasNow=evs.some(function(e){return e&&e.id===S.modal;});
         if(!_hadBefore && _hasNow){ render(); }
       } else if(S._homeTab==='tables'){
-        // 🆕 v3.154 — On the BOOK A TABLE tab the events list isn't shown, and the
-        // floor plan has its OWN 20s availability poll. The 30s events poll used to
-        // call full render() here, rebuilding the floor plan every ~30s — the
-        // "re-renders every minute / scroll jump" flicker Khushi saw. Skip the
-        // rebuild on this tab; the events cache is still updated above, so switching
-        // back to UPCOMING EVENTS paints fresh.
+        // Refresh only the active simple booking form. A full render loses typed
+        // customer details, but doing nothing leaves its captured Event object and
+        // displayed price stale after an admin rate change.
+        if(typeof S._refreshDirectTableBookingEvents==='function'){
+          S._refreshDirectTableBookingEvents(evs);
+        }
       } else {
         // 🆕 Background poll re-render — PRESERVE the customer's scroll position
         // so a live stock/sold update never yanks them back to the top.
@@ -5560,7 +5560,9 @@ var _HOD_TABLES = {
 function renderDirectTableBooking(){
   var db=getDB();
   var evs=(S._cachedEvents||db.events||[]).filter(function(e){return e.published&&!isEventPast(e);}).sort(function(a,b){return a.date<b.date?-1:1;});
-  var ev=S._tableSelEv||(evs.length?evs[0]:null);
+  var selectedEventId=S._tableSelEv&&S._tableSelEv.id;
+  var ev=evs.filter(function(item){return item.id===selectedEventId;})[0]||(evs.length?evs[0]:null);
+  S._tableSelEv=ev;
   var wrap=document.createElement('div');
   wrap.style.cssText='max-width:1180px;margin:0 auto;padding:0 20px 70px;';
   var back=el('button','btn-ghost');back.textContent='← Back to Events';back.style.marginBottom='18px';
@@ -5657,9 +5659,14 @@ function renderDirectTableBooking(){
     if(isGround&&ev&&ev.date)date.value=ev.date;
     date.readOnly=!!isGround;
     var max=isGround?(tableType.value==='round'?4:8):({dining:8,rooftop:7}[floor.value]||6);var old=Number(party.value)||2;
-    var partyOpts=[];for(var i=1;i<=max;i++)partyOpts.push({value:String(i),label:(i===1?'JUST ME · 1 PERSON':i+' PEOPLE')});
+    var partyOpts=[];
+    if(isGround){
+      partyOpts=[{value:String(max),label:max+' PEOPLE · FIXED '+(tableType.value==='round'?'ROUND':'8-PAX')+' TABLE'}];
+    }else{
+      for(var i=1;i<=max;i++)partyOpts.push({value:String(i),label:(i===1?'JUST ME · 1 PERSON':i+' PEOPLE')});
+    }
     party._setOptions(partyOpts);
-    party.value=String(Math.min(old,max));
+    party.value=isGround?String(max):String(Math.min(old,max));
     var slots=floor.value==='dance'?['8:00 PM','8:30 PM','9:00 PM','9:30 PM','10:00 PM','10:30 PM','11:00 PM','11:30 PM','12:00 AM']
       :['12:00 PM','12:30 PM','1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM','5:30 PM','6:00 PM','6:30 PM','7:00 PM','7:30 PM','8:00 PM','8:30 PM','9:00 PM','9:30 PM','10:00 PM','10:30 PM','11:00 PM','11:30 PM'];
     var oldTime=arrival.value;
@@ -5698,6 +5705,17 @@ function renderDirectTableBooking(){
       if(allBooked){floor._setValue('rooftop',true);rebuild();showToast('Dining is fully booked for that time, so we selected Rooftop.','ok',5000);}
     }).catch(function(){});
   }
+  S._refreshDirectTableBookingEvents=function(latestEvents){
+    if(!card.isConnected||!Array.isArray(latestEvents))return;
+    var freshEvents=latestEvents.filter(function(item){return item.published&&!isEventPast(item);}).sort(function(a,b){return a.date<b.date?-1:1;});
+    var currentId=eventSelect.value||(ev&&ev.id);
+    var freshEvent=freshEvents.filter(function(item){return item.id===currentId;})[0]||(freshEvents.length?freshEvents[0]:null);
+    if(!freshEvent)return;
+    evs=freshEvents;ev=freshEvent;S._tableSelEv=freshEvent;
+    eventSelect._setOptions(freshEvents.map(function(item){return {value:item.id,label:item.title+' · '+fmtDate(item.date)};}));
+    eventSelect.value=freshEvent.id;
+    rebuild();
+  };
   rebuild();
   function finalizeBooking(cleanName,cleanPhone,cleanEmail,idem,paymentId,expectedTotal){
     submit.disabled=true;submit.textContent='Booking your table…';
