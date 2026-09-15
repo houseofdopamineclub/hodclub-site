@@ -3115,19 +3115,28 @@ function renderModal(){
   };
   modal.appendChild(xBtn);
 
-  // The booking modal is another consumer of the same event media contract.
-  // It gets its own carousel, while the media manager stops the card source
-  // before this modal is painted.
-  var modalMedia=buildPosterCarousel(ev);
-  if(modalMedia){
-    modalMedia.classList.add('event-modal-media');
-    modal.appendChild(modalMedia);
-  }
+  // Posters/music stay on the event cards. Booking opens directly to details.
 
   if(S.step===3){modal.appendChild(renderSuccess(ev));bg.appendChild(modal);return bg;}
 
   var body=el('div','m-body');
   body.style.paddingTop='58px';
+  var eventDetails=el('section','booking-event-details');
+  var eventHeading=el('h2','');
+  eventHeading.textContent=ev.title||'Event booking';
+  eventHeading.style.cssText='margin:0 0 8px;font-size:22px;line-height:1.2;color:#000;';
+  eventDetails.appendChild(eventHeading);
+  var eventWhen=el('p','');
+  eventWhen.textContent=[fmtDate(ev.date),ev.time,ev.venue].filter(Boolean).join(' · ');
+  eventWhen.style.cssText='margin:0 0 12px;font-size:12px;line-height:1.5;color:#444;';
+  eventDetails.appendChild(eventWhen);
+  if(ev.description){
+    var eventDescription=el('p','booking-event-description');
+    eventDescription.textContent=ev.description;
+    eventDescription.style.cssText='margin:0 0 18px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;color:#222;';
+    eventDetails.appendChild(eventDescription);
+  }
+  body.appendChild(eventDetails);
   // 🔴 2026-05-26 (Khushi) — same T&C dropdown inside the booking modal so
   // a customer who skips the card and taps "BOOK NOW" still sees the rules.
   // 🆕 2026-05-27 v3.56 (Khushi 3:49am paint arrow) — moved DOWN from here
