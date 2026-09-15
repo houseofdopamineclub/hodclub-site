@@ -13,6 +13,8 @@
      machines can't read inverted QRs. "only light" opts the page out. -->
 <meta name="color-scheme" content="only light"/>
 <title>HOD — House of Dopamine · Book Tickets v4</title>
+<link rel="stylesheet" href="event-media.css"/>
+<script src="event-media.js"></script>
 
 <!-- Meta Pixel Code -->
 <script>
@@ -1819,6 +1821,12 @@ function _hodOperationalNightStr(){
 var _stockResetRanThisSession=false;
 function _hodNormalizeEvent(ev){
   ev=Object.assign({},ev||{});
+  // Keep optional customer media fields from the public-events response while
+  // rejecting anything outside the Firebase media contract.  The same
+  // normalizer is used by the local cache and the deep-link fallback below.
+  if(window.HODEventMedia&&typeof window.HODEventMedia.normalizeEvent==='function'){
+    ev=window.HODEventMedia.normalizeEvent(ev);
+  }
   function def(k,v){var n=Number(ev[k]);if(!Number.isFinite(n)||n<0)ev[k]=v;else ev[k]=n;}
   def('table4Price',8000);def('vipPrice',15000);def('gf4Stock',6);def('vvipStock',2);
   def('groundRoundWeekdayPrice',8000);
@@ -2418,6 +2426,11 @@ window.onerror=function(msg,src,line,col,err){
 function render(){
     var root=qs('root');if(!root)return;
     try{
+      // Root replacement removes cards/modal media. Stop before the old DOM is
+      // detached so no audio/video can briefly overlap the next paint.
+      if(window.HODEventMedia&&typeof window.HODEventMedia.stopAll==='function'){
+        window.HODEventMedia.stopAll();
+      }
       var kids=[];
       if(S.view==='privacy'){ kids.push(renderPrivacy()); }
       else if(S.view==='myBookings'){ kids.push(renderMyBookings()); }
@@ -2752,7 +2765,12 @@ function buildEvCard(ev,idx){
   var left=spotsLeft(ev);
   var card=el('div','ev-card');
   card.style.animationDelay=(idx*0.09)+'s';
-  card.onclick=function(e){if(e.target.closest('button'))return;set({modal:ev.id,step:1,bdata:{name:'',email:'',phone:'',qty:1,entryType:'stag',entryPrice:ev.stagPrice||999}});};
+  card.onclick=function(e){
+    // Media controls (including native video controls) must never fall
+    // through to the card's booking click.
+    if(e.target.closest&&e.target.closest('button,video,[data-event-media-control]'))return;
+    set({modal:ev.id,step:1,bdata:{name:'',email:'',phone:'',qty:1,entryType:'stag',entryPrice:ev.stagPrice||999}});
+  };
 
   // Banner 1:1
   var banner=el('div','ev-banner');
@@ -2901,6 +2919,9 @@ function buildEvCard(ev,idx){
 // All posters live in Firebase Storage (CDN, lazy-loaded) so there is ZERO extra
 // Firestore read cost. Returns a DOM node ready to drop into a 1:1 banner.
 function buildPosterCarousel(ev){
+  if(window.HODEventMedia&&typeof window.HODEventMedia.buildCarousel==='function'){
+    return window.HODEventMedia.buildCarousel(ev,buildBannerVis);
+  }
   function ok(s){return s&&(String(s).indexOf('data:')===0||String(s).indexOf('http')===0);}
   var imgs=[];
   if(ev&&Array.isArray(ev.images)) imgs=ev.images.filter(ok);
@@ -2974,7 +2995,7 @@ function renderModal(){
           S._modalFetchInFlight=null;
           if(snap.exists){
             // Add to cache + localStorage so renderModal finds it on next render
-            var evData=Object.assign({id:snap.id},snap.data());
+            var evData=_hodNormalizeEvent(Object.assign({id:snap.id},snap.data()));
             if(!S._cachedEvents)S._cachedEvents=[];
             if(!S._cachedEvents.some(function(e){return e.id===evData.id;})){
               S._cachedEvents.push(evData);
@@ -3093,6 +3114,15 @@ function renderModal(){
     set({modal:null});
   };
   modal.appendChild(xBtn);
+
+  // The booking modal is another consumer of the same event media contract.
+  // It gets its own carousel, while the media manager stops the card source
+  // before this modal is painted.
+  var modalMedia=buildPosterCarousel(ev);
+  if(modalMedia){
+    modalMedia.classList.add('event-modal-media');
+    modal.appendChild(modalMedia);
+  }
 
   if(S.step===3){modal.appendChild(renderSuccess(ev));bg.appendChild(modal);return bg;}
 
