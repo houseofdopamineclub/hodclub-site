@@ -27,14 +27,13 @@
       text-decoration:none; font-size:12px; font-weight:900; box-shadow:2px 2px 0 var(--ink);
     }
     .button.secondary { background:#fff; }
-    .viewer {
-      width:100%; height:calc(100vh - 128px); min-height:620px; display:block; background:#fff;
+    .menu-panel {
+      min-height:300px; padding:36px 22px; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; text-align:center; background:#fff;
       border:2px solid var(--ink); border-radius:12px; box-shadow:4px 4px 0 var(--ink);
     }
-    .fallback {
-      display:none; padding:36px 18px; text-align:center; background:#fff; border:2px solid var(--ink);
-      border-radius:12px; font-weight:800;
-    }
+    .menu-panel h2 { margin:0 0 12px; font-size:clamp(20px,4vw,28px); }
+    .menu-panel p { max-width:540px; margin:0 0 22px; color:#555; line-height:1.5; font-weight:700; }
     footer { padding:16px 4px 0; text-align:center; color:#555; font-size:11px; font-weight:700; }
     footer a { color:inherit; font-weight:900; }
     @media (max-width:640px) {
@@ -42,7 +41,7 @@
       header { padding:12px; box-shadow:3px 3px 0 var(--ink); }
       .actions { width:100%; }
       .button { flex:1; }
-      .viewer { height:calc(100vh - 182px); min-height:520px; }
+      .menu-panel { min-height:260px; padding:30px 16px; }
     }
   </style>
 </head>
@@ -53,17 +52,15 @@
         <h1>H.O.D — FOOD &amp; DRINK MENU</h1>
         <div class="sub">HOUSE OF DOPAMINE · KORAMANGALA</div>
       </div>
+    </header>
+    <section class="menu-panel" aria-labelledby="menu-heading">
+      <h2 id="menu-heading">Explore the food &amp; drink menu</h2>
+      <p>The official menu is a PDF. Open it separately in a new tab or your device’s PDF viewer, or download a copy to keep.</p>
       <div class="actions">
         <a class="button" href="./HOD-CLUB-FOOD-AND-DRINK.pdf" target="_blank" rel="noopener">OPEN FULL SCREEN</a>
         <a class="button secondary" href="./HOD-CLUB-FOOD-AND-DRINK.pdf" download>DOWNLOAD PDF</a>
       </div>
-    </header>
-    <object class="viewer" data="./HOD-CLUB-FOOD-AND-DRINK.pdf#view=FitH" type="application/pdf" aria-label="HOD food and drink menu">
-      <div class="fallback">
-        Your browser cannot show the menu here.<br /><br />
-        <a class="button" href="./HOD-CLUB-FOOD-AND-DRINK.pdf" target="_blank" rel="noopener">OPEN MENU PDF</a>
-      </div>
-    </object>
+    </section>
     <footer>
       Prices shown in the official menu PDF. For same-night availability, call
       <a href="tel:+919686444906">+91 96864 44906</a>.
