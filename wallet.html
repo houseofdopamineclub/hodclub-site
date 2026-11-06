@@ -559,10 +559,12 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
   // Now: prime once, refresh every 30s ONLY while tab is visible, extra
   // refresh on foreground return. Customer never sees a stale menu for more
   // than 30s after coming back, and background tabs cost zero reads.
-  var _attached=false, _menuPollIv=null;
+  var _attached=false, _menuPollIv=null, _menuPending={};
   function _refreshOneTab(db, tab){
+    if(_menuPending[tab])return;
+    _menuPending[tab]=true;
     try{
-      db.collection('venueMenu').doc(tab).get().then(function(snap){
+      db.collection('venueMenu').doc(tab).get({source:'server'}).then(function(snap){
         if(!snap||!snap.exists)return;
         var data=snap.data()||{};
         var cats=data.categories;
@@ -576,8 +578,9 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
         _serverCats[tab]=cats;
         lsSet(tab,cats);
         applyToWindow(tab);
-      }).catch(function(err){console.warn('[menu-firestore] get failed',tab,err);});
-    }catch(e){console.warn('[menu-firestore] _refreshOneTab threw',tab,e);}
+      }).catch(function(err){console.warn('[menu-firestore] get failed',tab,err);})
+        .finally(function(){_menuPending[tab]=false;});
+    }catch(e){_menuPending[tab]=false;console.warn('[menu-firestore] _refreshOneTab threw',tab,e);}
   }
   function _refreshAllTabs(db){ TABS.forEach(function(t){_refreshOneTab(db,t);}); }
   // 🆕 v3.62 — gate menu polls behind UI visibility. Customers sitting on
@@ -591,6 +594,7 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     catch(e){ return false; }
   }
   function _maybeRefreshAllTabs(db){
+    if(document.visibilityState!=='visible')return;
     if(!_menuUiVisible()) return;
     _refreshAllTabs(db);
   }
@@ -601,6 +605,11 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
       var db=window.firebase.firestore();
       _attached=true;
       _maybeRefreshAllTabs(db);  // prime (only if menu UI mounted)
+      // Public wallet projection can paint before Firebase auth is ready.
+      // Retry an early denied read without requiring a customer reload.
+      try{window.firebase.auth().onAuthStateChanged(function(user){
+        if(user)_maybeRefreshAllTabs(db);
+      });}catch(e){console.warn('[menu-firestore] auth refresh unavailable',e);}
       if(!_menuPollIv){
         // NOTE: 30s is INTENTIONAL — this full-menu poll is how a menu-item
         // ADD/DELETE in the backend syncs to open wallets in ~near-real-time
@@ -619,6 +628,12 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
       console.log('[menu-firestore] poll-mode menu refresh attached (30s + foreground)');
     }catch(e){/* not ready yet */}
   }
+  // The projection mounts asynchronously, often AFTER attach() has skipped
+  // its initial read. Fetch immediately once the renderer/repaint hook exists.
+  window.addEventListener('hod-wallet-menu-mounted',function(){
+    attach();
+    if(_attached)_maybeRefreshAllTabs(window.firebase.firestore());
+  });
   // Try every 250ms for up to 30s, then back off.
   var tries=0;
   var iv=setInterval(function(){
@@ -900,7 +915,7 @@ function _loadWalletJs(cb){
   if(_walletLoading) return;
   _walletLoading=true;
   var s=document.createElement('script');
-  s.src='wallet.js?v=v3.420';
+  s.src='wallet.js?v=v3.420-menu-publication-20261005';
   s.onload=function(){ _walletLoaded=true; cb&&cb(); };
   s.onerror=function(){
     _walletLoading=false;

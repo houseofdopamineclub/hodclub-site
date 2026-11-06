@@ -2720,6 +2720,9 @@ function renderWalletPage(bookingRef){
         buildMenu(currentMenuData());
       }catch(e){ console.warn('__rebuildWalletMenu failed', e); }
     };
+    // A fresh reservation wallet must load the published menu immediately,
+    // not wait for the next 30-second poll or depend on an older wallet cache.
+    window.dispatchEvent(new CustomEvent('hod-wallet-menu-mounted'));
 
     // 2026-05-13 (Khushi spec) — bottom-fixed "View Cart · N items · ₹X" red
     // footer removed. It duplicated the YOUR ORDER list + Place Order CTA

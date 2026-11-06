@@ -9,7 +9,7 @@ const SECURITY = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), usb=(), browsing-topics=()",
 };
-const DOCUMENTS = new Set(["dj", "enquiry", "index", "menu", "music", "qr-poster", "rules-test", "table", "wallet"]);
+const DOCUMENTS = new Set(["dj-academy", "dj", "enquiry", "index", "menu", "music", "qr-poster", "rules-test", "table", "wallet"]);
 const FILES = new Set(["/event-media.css", "/event-media.js", "/wallet.js", "/robots.txt", "/sitemap.xml", "/HOD-CLUB-FOOD-AND-DRINK.pdf"]);
 const WALLET_PARAMS = ["wallet", "verify", "topup", "ref"];
 const RETIRED = new Set(["/scanner", "/index.legacy"]);
@@ -88,6 +88,10 @@ export default {
     const headers = new Headers(asset.headers);
     for (const [key, value] of Object.entries(SECURITY)) headers.set(key, value);
     headers.set("Cache-Control", "private, no-store, max-age=0");
+    if (assetPath === "/dj-academy") {
+      headers.set("Referrer-Policy", "no-referrer");
+      headers.set("X-Robots-Tag", "noindex, nofollow");
+    }
     headers.delete("Set-Cookie");
     // No conditional/range forwarding: do not claim an asset was cached or partial.
     headers.delete("ETag");

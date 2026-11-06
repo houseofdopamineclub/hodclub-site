@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="hod-academy-version" content="2">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>HOD DJ Academy · Priority waitlist</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#F4F4F0;color:#111;font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px}
+.card{background:#fff;border:3px solid #111;box-shadow:5px 5px 0 #111;margin-bottom:18px}
+.hero{background:#FF90E8;padding:20px}
+.k{font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
+h1{font-size:34px;line-height:1;margin:6px 0 10px;font-weight:900;text-transform:uppercase}
+.facts{display:flex;flex-wrap:wrap;gap:6px}
+.facts span{background:#fff;border:2px solid #111;padding:3px 8px;font-size:13px;font-weight:800}
+form{padding:18px;display:grid;gap:16px}
+label,legend{font-weight:900;font-size:14px;display:block;margin-bottom:6px}
+input[type=text],input[type=email],input[type=tel]{width:100%;border:2px solid #111;padding:12px;font:inherit;background:#F4F4F0}
+input:focus-visible,button:focus-visible,.opt input:focus-visible+span{outline:3px solid #90A8ED;outline-offset:2px}
+fieldset{border:0;padding:0;margin:0}
+.opts{display:grid;gap:8px}
+.opt{display:block;margin:0;font-weight:700}
+.opt input{position:absolute;opacity:0}
+.opt span{display:block;border:2px solid #111;padding:11px 12px;background:#fff;cursor:pointer;transition:transform .08s}
+.opt input:checked+span{background:#F2C744;box-shadow:3px 3px 0 #111;transform:translate(-2px,-2px)}
+.row2{grid-template-columns:1fr 1fr}
+.consent{display:flex;gap:10px;align-items:flex-start;font-weight:700;font-size:14px}
+.consent input{width:20px;height:20px;accent-color:#111;flex:none;margin-top:2px}
+button{border:3px solid #111;background:#111;color:#fff;font:inherit;font-weight:900;text-transform:uppercase;padding:14px;cursor:pointer;box-shadow:4px 4px 0 #FF90E8;transition:transform .08s}
+button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #FF90E8}
+button:disabled{opacity:.45;cursor:not-allowed}
+.msg{border:2px solid #111;padding:10px;font-weight:800;font-size:14px}
+.err{background:#FFF0F0;border-color:#B83227;color:#B83227}
+.warn{background:#FFF9C4}
+.small{font-size:13px;padding:14px 18px;margin:0}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.thanks{padding:24px;text-align:center}
+.thanks h2{font-size:26px;text-transform:uppercase;margin:0 0 8px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <div class="hero">
+      <div class="k">HOD · Koramangala, Bengaluru</div>
+      <h1>DJ Academy priority waitlist</h1>
+      <div class="facts"><span>12-week course</span><span>Fees from &#8377;50,000</span><span>Hands-on at HOD Koramangala</span></div>
+    </div>
+    <p class="small">Joining the waitlist does not guarantee admission or confirm a seat. Our admissions team will contact you with batch details.</p>
+  </section>
+
+  <section class="card" id="formCard">
+    <form id="f" novalidate>
+      <p class="msg warn" id="noToken" hidden>This page needs your personal invite link from WhatsApp. Please open the link from the HOD DJ Academy message to join.</p>
+      <div><label for="name">Full name</label><input id="name" name="name" type="text" autocomplete="name" required maxlength="120"></div>
+      <div><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+      <div><label for="phone">WhatsApp number</label><input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="20" placeholder="Number that received our invite"></div>
+      <fieldset><legend>How soon are you willing to join?</legend>
+        <div class="opts">
+          <label class="opt"><input type="radio" name="joining" value="immediately" required><span>Immediately</span></label>
+          <label class="opt"><input type="radio" name="joining" value="week"><span>Within a week</span></label>
+          <label class="opt"><input type="radio" name="joining" value="exploring"><span>Just exploring</span></label>
+        </div></fieldset>
+      <fieldset><legend>Ready to pay a booking advance if the batch suits you?</legend>
+        <div class="opts row2">
+          <label class="opt"><input type="radio" name="advance" value="yes" required><span>Yes</span></label>
+          <label class="opt"><input type="radio" name="advance" value="no"><span>No</span></label>
+        </div></fieldset>
+      <div class="hp" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+      <label class="consent"><input type="checkbox" id="consent" required><span>I agree that the HOD admissions team may contact me about the DJ Academy.</span></label>
+      <p class="msg err" id="err" role="alert" hidden></p>
+      <button type="submit" id="submit">Join the waitlist</button>
+      <p style="margin:0;font-size:12px">No payment is taken on this page.</p>
+    </form>
+  </section>
+
+  <section class="card" id="thanks" hidden>
+    <div class="thanks" role="status">
+      <div class="k">You are on the list</div>
+      <h2>Thank you</h2>
+      <p>The HOD admissions team will contact you with batch details and next steps. No payment has been taken, and a seat is not yet confirmed.</p>
+    </div>
+  </section>
+
+  <p class="small" style="padding:0 2px">Privacy: your details are used only by HOD admissions to follow up about the DJ Academy and are never made public. To correct or remove your details, contact 9686444906.</p>
+</main>
+<script>
+(function(){
+  var token=new URLSearchParams(location.search).get('t')||'';
+  var f=document.getElementById('f'),btn=document.getElementById('submit'),err=document.getElementById('err');
+  if(!token){document.getElementById('noToken').hidden=false;btn.disabled=true;}
+  var R={phone_mismatch:'Please use the same WhatsApp number that received our invite.',invalid_invitation:'This invite link is invalid or has expired. Please open the latest link from your WhatsApp message, or contact 9686444906.',invalid_input:'Please check your details and try again.',consent_required:'Please tick the consent box.',rate_limited:'Too many attempts. Please wait a minute and try again.'};
+  function show(m){err.textContent=m;err.hidden=false;err.focus&&err.scrollIntoView({block:'center',behavior:'smooth'});}
+  f.addEventListener('submit',function(e){
+    e.preventDefault();err.hidden=true;
+    if(!token){show('An invite link is needed to join.');return;}
+    var d=new FormData(f),name=String(d.get('name')||'').trim(),email=String(d.get('email')||'').trim(),phone=String(d.get('phone')||'').trim();
+    var joining=d.get('joining'),advance=d.get('advance'),consent=document.getElementById('consent').checked;
+    if(!name||!email||!phone||!joining||!advance){show('Please fill in all five questions.');return;}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){show('Please enter a valid email address.');return;}
+    if(phone.replace(/\D/g,'').length<10){show('Please enter a valid WhatsApp number.');return;}
+    if(!consent){show('Please tick the consent box.');return;}
+    btn.disabled=true;btn.textContent='Sending...';
+    fetch('https://asia-south1-hod-tickets.cloudfunctions.net/academyWaitlist',{referrerPolicy:'no-referrer',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token,name:name,email:email,phone:phone,joining:joining,advance:advance,consent:true,website:String(d.get('website')||'')})})
+      .then(function(r){return r.json().catch(function(){return {ok:false,reason:'error'};});})
+      .then(function(j){
+        if(j&&j.ok){document.getElementById('formCard').hidden=true;document.getElementById('thanks').hidden=false;window.scrollTo(0,0);return;}
+        show(R[j&&j.reason]||'Something went wrong. Please try again.');
+      })
+      .catch(function(){show('Network error. Please check your connection and try again.');})
+      .then(function(){btn.disabled=false;btn.textContent='Join the waitlist';});
+  });
+})();
+</script>
+</body>
+</html>

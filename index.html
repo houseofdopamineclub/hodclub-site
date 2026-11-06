@@ -28,6 +28,18 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '1533489350622092');
 fbq('track', 'PageView');
+// Booking Purchase signal for Meta Sales ads (added 2026-10-22). Fires once per
+// successful Razorpay payment (pay_ ids only, never pay-at-venue or free), with
+// the payment id as eventID so a later server-side copy can be de-duplicated.
+window.hodTrackPurchase=function(paymentId,amount,contentName,eventId){
+  try{
+    var id=String(paymentId||''),value=Number(amount);
+    if(id.indexOf('pay_')!==0||!(value>0)||typeof fbq!=='function')return;
+    var key='hodPx_'+id;
+    try{if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');}catch(_s){}
+    fbq('track','Purchase',{value:Math.round(value),currency:'INR',content_name:String(contentName||'Booking').slice(0,100),content_ids:eventId?[String(eventId)]:[],content_type:'product'},{eventID:id});
+  }catch(_e){}
+};
 </script>
 <!-- End Meta Pixel Code -->
 
@@ -3824,6 +3836,7 @@ function renderStep1(ev){
               expectedTotal:String(total||0)
             },
             handler:function(response){
+              window.hodTrackPurchase&&window.hodTrackPurchase(response.razorpay_payment_id,total,(d.tableType?'Table':'Ticket')+' · '+ev.title,ev.id);
               var ref=saveBooking(response.razorpay_payment_id);
                hodShowBookingAfterServer(ref);
             },
@@ -3966,6 +3979,7 @@ function renderStep2(ev){
           expectedTotal:String(total||0)
         },
         handler: function(response){
+          window.hodTrackPurchase&&window.hodTrackPurchase(response.razorpay_payment_id,total,'Ticket · '+ev.title,ev.id);
           var ref=saveBooking(response.razorpay_payment_id);
           hodShowBookingAfterServer(ref);
         },
@@ -5796,7 +5810,7 @@ function renderDirectTableBooking(){
       var options={key:RAZORPAY_KEY,amount:amount*100,currency:'INR',name:'HOD — House of Dopamine',
         description:'Table Booking · '+party.value+' Pax',image:'https://hodclub.in/logo.png',
         notes:{kind:'table_cover',eventId:String(ev.id),tableType:String(groundType()),floor:'dance',date:String(ev.date),expectedTotal:String(amount)},
-        handler:function(resp){ov.remove();finalizeBooking(details.name,details.phone,details.email,details.idem,resp.razorpay_payment_id,amount);},
+        handler:function(resp){window.hodTrackPurchase&&window.hodTrackPurchase(resp.razorpay_payment_id,amount,'Table · '+ev.title,ev.id);ov.remove();finalizeBooking(details.name,details.phone,details.email,details.idem,resp.razorpay_payment_id,amount);},
         prefill:{name:details.name,email:details.email,contact:details.phone},theme:{color:'#FF90E8'},
         modal:{ondismiss:function(){online.disabled=false;}}};
       ensureRazorpay(function(ok){
@@ -6586,7 +6600,7 @@ function renderTableFloorPlan(){
         var _reset=function(){payBtn.disabled=false;cashBtn.disabled=false;payBtn.innerHTML='💳 Pay ₹'+amount.toLocaleString('en-IN')+' Online';};
         var options={key:RAZORPAY_KEY,amount:amount*100,currency:'INR',name:'HOD — House of Dopamine',description:'Table Cover · '+table.id+' · '+_HOD_TABLES[activeFloor].label,image:'https://hodclub.in/logo.png',
           notes:{kind:'table_cover',eventId:String(ev&&ev.id||''),tableId:String(table.id),floor:String(activeFloor),date:String(V.bookDate),arrivalTime:String(V.arrival),partySize:String(V.ps),name:String(V.name||'').slice(0,100),phone:String(V.phone||'').slice(0,20),email:String(V.email||'').slice(0,200),expectedTotal:String(amount)},
-          handler:function(resp){ ov.remove(); _finalizeReserve(resp.razorpay_payment_id,amount,V); },
+          handler:function(resp){ window.hodTrackPurchase&&window.hodTrackPurchase(resp.razorpay_payment_id,amount,'Table · '+(ev&&ev.title||''),ev&&ev.id); ov.remove(); _finalizeReserve(resp.razorpay_payment_id,amount,V); },
           prefill:{name:V.name,email:V.email,contact:V.phone},theme:{color:'#FF90E8'},
           modal:{ondismiss:_reset}};
         if(RAZORPAY_KEY && RAZORPAY_KEY.indexOf('PASTE')<0){

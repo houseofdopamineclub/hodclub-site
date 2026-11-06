@@ -244,7 +244,7 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
   // ═══ MENU LOADER ═══
   // Pipeline mirrors the wallet (index.html lines 700-840):
   //   1) Prime from FALLBACKS immediately so menu is NEVER empty (zero-read fast-path).
-  //   2) One-shot get venueMenu/{tab} → if non-empty, overlay (catches POS menu edits).
+  //   2) Refresh venueMenu/{tab} on auth ready, foreground and every visible 30s.
   //   3) Live onSnapshot on posMenuOverrides (small docs, fires INSTANTLY on every
   //      OOS / discount toggle in the menu editor). Detached on tab hide → zero
   //      cost when phone screen is off. Re-attached on tab visible.
@@ -257,25 +257,31 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     menuData = out;
     then(out);
     if (!db) { console.warn("[menu] no db — fallbacks only"); return; }
-    // 2) Overlay venueMenu from Firestore (per-tab, parallel)
-    TABS.forEach(function(tab){
-      db.collection("venueMenu").doc(tab).get().then(function(snap){
+    // Refresh after authentication too; an early denied read must not leave
+    // the customer permanently on the baked-in menu.
+    refreshPublishedMenu();
+    attachOverridesListener();
+  }
+  var _menuPending = {};
+  function refreshPublishedMenu(){
+    if (!db) return;
+    ["food","liquor","nab","smoke"].forEach(function(tab){
+      if (_menuPending[tab]) return;
+      _menuPending[tab] = true;
+      db.collection("venueMenu").doc(tab).get({source:"server"}).then(function(snap){
         try {
           var data = snap && snap.exists ? (snap.data()||{}) : {};
           var cats = Array.isArray(data.categories) ? data.categories : null;
-          if (!cats || !cats.length) return; // keep fallback if Firestore doc empty
+          if (!cats) return; // a published empty array intentionally removes items
           cats = tagItems(tab, cats);
-          // Firestore bar doc may be a single combined list — split by alc flag,
-          // exactly like wallet line 725 does for its FALLBACKS map.
-          if (tab === "liquor") menuData.liquor = cats.filter(function(c){return c.items.some(function(i){return i.alc===true;});});
-          else if (tab === "nab") menuData.nab = cats.filter(function(c){return c.items.every(function(i){return i.alc!==true;});});
-          else menuData[tab] = cats;
+          // Published tab membership is authoritative, as in the bar wallet.
+          if (JSON.stringify(menuData[tab]) === JSON.stringify(cats)) return;
+          menuData[tab] = cats;
           if (activeTab === tab && document.getElementById("menu-body")) renderMenuBody();
         } catch(e){ console.warn("[menu] overlay parse failed", tab, e.message); }
-      }).catch(function(err){ console.warn("[menu] overlay fetch failed", tab, err.message); });
+      }).catch(function(err){ console.warn("[menu] overlay fetch failed", tab, err.message); })
+        .finally(function(){ _menuPending[tab] = false; });
     });
-    // 3) Attach live override listener (OOS / discount sync)
-    attachOverridesListener();
   }
 
   // ═══ LIVE POS-MENU-OVERRIDES LISTENER ═══
@@ -320,11 +326,15 @@ HOD_SMOKE_MENU_FALLBACK.forEach(function(c){c.items.forEach(function(it){if(it.t
     // Wait for anon auth before attaching — rules v2+ may require auth != null
     // on posMenuOverrides reads, and onSnapshot fires zero updates if denied.
     var ready = function(){
+      refreshPublishedMenu();
       _primeOverrides();
       _attachLive();
       if (!_ovrPollId) {
         _ovrPollId = setInterval(function(){
-          if (document.visibilityState === "visible" && !_ovrUnsub) _primeOverrides();
+          if (document.visibilityState === "visible") {
+            refreshPublishedMenu();
+            if (!_ovrUnsub) _primeOverrides();
+          }
         }, 30000);
       }
     };
